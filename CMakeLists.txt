@@ -33,5 +33,3 @@ target_link_libraries(pi_controller pico_stdlib pico_unique_id tinyusb_device ti
 set(FAMILY rp2040)
 set(BOARD pico_sdk)
 set(TINYUSB_FAMILY_PROJECT_NAME_PREFIX "tinyusb_dev_")
-
-
