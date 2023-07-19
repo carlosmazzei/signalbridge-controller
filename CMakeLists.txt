@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Add TinyUSB lib
+set(FAMILY rp2040)
+set(BOARD pico_sdk)
+#set(TINYUSB_FAMILY_PROJECT_NAME_PREFIX "tinyusb_dev_")
+
 # Pull in SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -29,7 +34,4 @@ pico_add_extra_outputs(pi_controller)
 
 target_link_libraries(pi_controller pico_stdlib pico_unique_id tinyusb_device tinyusb_board)
 
-# Add TinyUSB lib
-set(FAMILY rp2040)
-set(BOARD pico_sdk)
-set(TINYUSB_FAMILY_PROJECT_NAME_PREFIX "tinyusb_dev_")
+
