@@ -20,11 +20,13 @@ add_executable(pi_controller)
 target_sources(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/cobs.c
         )
 
 # Example include
 target_include_directories(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
         )
 
 pico_enable_stdio_usb(pi_controller 1)
