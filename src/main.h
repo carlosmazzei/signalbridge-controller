@@ -34,9 +34,9 @@
 
 static void uart_event_task(void *pvParameters);
 static void decode_reception_task(void *pvParameters);
-void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length);
-void process_inbound_data(uint8_t *rx_buffer);
-void process_outbound_task(void *pvParameters);
+static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length);
+static void process_inbound_data(uint8_t *rx_buffer);
+static void process_outbound_task(void *pvParameters);
 
 static QueueHandle_t encoded_reception_queue;
 

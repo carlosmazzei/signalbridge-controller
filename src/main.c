@@ -95,7 +95,7 @@ static void decode_reception_task(void *pvParameters)
  * @param send_data A pointer to the data to send.
  * @param length The length of the data to send.
  */
-void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length)
+static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length)
 {
     uint8_t i;
     uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
@@ -131,7 +131,7 @@ void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length)
  *
  * @param rx_buffer A pointer to a data buffer to be processed
  */
-void process_inbound_data(uint8_t *rx_buffer)
+static void process_inbound_data(uint8_t *rx_buffer)
 {
     uint16_t rxID = 0;
     uint8_t len = 0;
@@ -172,7 +172,7 @@ void process_inbound_data(uint8_t *rx_buffer)
  *
  * @param pvParameters Arguments passed to the task
  */
-void process_outbound_task(void *pvParameters)
+static void process_outbound_task(void *pvParameters)
 {
     uint8_t test_data[10];
     test_data[0] = 0x01;
@@ -213,10 +213,10 @@ int main(void)
     encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
 
     // Create a task to handler UART event from ISR
-    xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainCDC_TASK_PRIORITY, NULL);
-    xTaskCreate(uart_event_task, "uart_event_task", configMINIMAL_STACK_SIZE, NULL, mainCDC_TASK_PRIORITY, NULL);
-    xTaskCreate(decode_reception_task, "decode_reception_task", configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(process_outbound_task, "process_outbound_task", configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(uart_event_task, "uart_event_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(decode_reception_task, "decode_reception_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(process_outbound_task, "process_outbound_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     /* Start the tasks and timer running. */
     vTaskStartScheduler();
