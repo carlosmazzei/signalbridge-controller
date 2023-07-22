@@ -7,6 +7,13 @@
 #include <ctype.h>
 #include <stdint.h>
 
+/* Scheduler include files. */
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+#include "semphr.h"
+#include "pico/stdlib.h"
+
 #include "cobs.h"
 #include "stdA320.h"
 
@@ -22,15 +29,27 @@
 
 #define PACKET_MARKER 0x00
 
-int64_t data_received_time = 0;
-uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
-size_t receive_buffer_index = 0;
-bool receive_buffer_overflow = false;
+#define mainPROCESS_QUEUE_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
+#define mainCDC_TASK_PRIORITY		        ( tskIDLE_PRIORITY + 2 )
 
-static void cdc_task(void);
-static void decode_reception_task();
+static void uart_event_task(void *pvParameters);
+static void decode_reception_task(void *pvParameters);
 void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length);
 void process_inbound_data(uint8_t *rx_buffer);
-void process_outbound_task();
+void process_outbound_task(void *pvParameters);
+
+static QueueHandle_t encoded_reception_queue;
+
+/*
+ * Configure the hardware as necessary to run this demo.
+ */
+static void prvSetupHardware( void );
+
+/* Prototypes for the standard FreeRTOS callback/hook functions implemented
+within this file. */
+void vApplicationMallocFailedHook( void );
+void vApplicationIdleHook( void );
+void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName );
+void vApplicationTickHook( void );
 
 #endif
