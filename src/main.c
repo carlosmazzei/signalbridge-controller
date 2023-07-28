@@ -1,5 +1,9 @@
 #include "main.h"
 
+static QueueHandle_t encoded_reception_queue;
+
+static QueueHandle_t data_event_queue;
+
 /** @brief Receive data from uart
  *
  * @param pvParameters Pointer to parameters passed to the task
@@ -113,9 +117,7 @@ static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t 
     }
 
     uint8_t encode_buffer[MAX_ENCODED_BUFFER_SIZE];
-
     size_t num_encoded = cobs_encode(uart_outbound_buffer, length + 3, encode_buffer);
-
     encode_buffer[num_encoded] = 0x00; // Ensure the last byte is 0
 
     for (i = 0; i < num_encoded + 1; i++)
@@ -137,12 +139,13 @@ static void process_inbound_data(uint8_t *rx_buffer)
     uint8_t len = 0;
     uint8_t i = 0;
     uint8_t decoded_data[DATA_BUFFER_SIZE];
+    uint8_t leds[2];
 
     rxID = *rx_buffer++ << 3;
     rxID |= ((*rx_buffer & 0xE0) >> 5);
     decoded_data[0] = *rx_buffer++ & 0x1F;
     len = *rx_buffer++;
-
+    
     for (i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
     {
         decoded_data[i] = *rx_buffer++;
@@ -154,7 +157,9 @@ static void process_inbound_data(uint8_t *rx_buffer)
      * Implement other inbound commands (LED, DISPLAY, etc)
      */
     case (PC_LEDOUT_CMD):
-
+        leds[0] = decoded_data[2];
+        leds[1] = decoded_data[3];
+        led_out(decoded_data[1], leds, sizeof(leds));
         break;
 
     case (PC_ECHO_CMD):
@@ -211,112 +216,41 @@ int main(void)
 
     // Create queue to received encoded data
     encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
+    data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte
 
     // Create a task to handler UART event from ISR
     xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
     xTaskCreate(uart_event_task, "uart_event_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(decode_reception_task, "decode_reception_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(decode_reception_task, "decode_reception_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
     xTaskCreate(process_outbound_task, "process_outbound_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     /* Start the tasks and timer running. */
     vTaskStartScheduler();
 
-    /* If all is well, the scheduler will now be running, and the following
-    line will never be reached.  If the following line does execute, then
-    there was insufficient FreeRTOS heap memory available for the Idle and/or
-    timer tasks to be created.  See the memory management section on the
-    FreeRTOS web site for more details on the FreeRTOS heap
-    http://www.freertos.org/a00111.html. */
-    for (;;);
+    for (;;)
+        ;
 
     return 0;
 }
 
-/*-----------------------------------------------------------*/
-
+/** @brief Setup hardware
+ *
+ * Setup hardware such as UART, LED, etc.
+ *
+ */
 static void prvSetupHardware(void)
 {
     stdio_init_all();
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, 1);
     gpio_put(PICO_DEFAULT_LED_PIN, !PICO_DEFAULT_LED_PIN_INVERTED);
-}
-/*-----------------------------------------------------------*/
 
-void vApplicationMallocFailedHook(void)
-{
-    /* Called if a call to pvPortMalloc() fails because there is insufficient
-    free memory available in the FreeRTOS heap.  pvPortMalloc() is called
-    internally by FreeRTOS API functions that create tasks, queues, software
-    timers, and semaphores.  The size of the FreeRTOS heap is set by the
-    configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
-
-    /* Force an assert. */
-    configASSERT((volatile void *)NULL);
-}
-/*-----------------------------------------------------------*/
-
-void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
-{
-    (void)pcTaskName;
-    (void)pxTask;
-
-    /* Run time stack overflow checking is performed if
-    configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
-    function is called if a stack overflow is detected. */
-
-    /* Force an assert. */
-    configASSERT((volatile void *)NULL);
-}
-/*-----------------------------------------------------------*/
-
-void vApplicationIdleHook(void)
-{
-    volatile size_t xFreeHeapSpace;
-
-    /* This is just a trivial example of an idle hook.  It is called on each
-    cycle of the idle task.  It must *NOT* attempt to block.  In this case the
-    idle task just queries the amount of FreeRTOS heap that remains.  See the
-    memory management section on the http://www.FreeRTOS.org web site for memory
-    management options.  If there is a lot of heap memory free then the
-    configTOTAL_HEAP_SIZE value in FreeRTOSConfig.h can be reduced to free up
-    RAM. */
-    xFreeHeapSpace = xPortGetFreeHeapSize();
-
-    /* Remove compiler warning about xFreeHeapSpace being set but never used. */
-    (void)xFreeHeapSpace;
-}
-/*-----------------------------------------------------------*/
-
-void vApplicationTickHook(void)
-{
-#if mainCREATE_SIMPLE_BLINKY_DEMO_ONLY == 0
-    {
-/* The full demo includes a software timer demo/test that requires
-prodding periodically from the tick interrupt. */
-#if (mainENABLE_TIMER_DEMO == 1)
-        vTimerPeriodicISRTests();
-#endif
-
-/* Call the periodic queue overwrite from ISR demo. */
-#if (mainENABLE_QUEUE_OVERWRITE == 1)
-        vQueueOverwritePeriodicISRDemo();
-#endif
-
-/* Call the periodic event group from ISR demo. */
-#if (mainENABLE_EVENT_GROUP == 1)
-        vPeriodicEventGroupsProcessing();
-#endif
-
-/* Call the code that uses a mutex from an ISR. */
-#if (mainENABLE_INTERRUPT_SEMAPHORE == 1)
-        vInterruptSemaphorePeriodicTest();
-#endif
-
-/* Call the code that 'gives' a task notification from an ISR. */
-#if (mainENABLE_TASK_NOTIFY == 1)
-        xNotifyTaskFromISR();
-#endif
-    }
-#endif
+    // Enable SPI 0 at 1 MHz and connect to GPIOs
+    spi_init(spi_default, SPI_FREQUENCY);
+    gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI);
+    // Make the SPI pins available to picotool
+    bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI));
 }
