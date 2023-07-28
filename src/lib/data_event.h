@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
-// Structure to hold the keypad key data.
+/**
+ * Structure to hold the keypad key data.
+ */
 typedef struct
 {
     uint8_t command;

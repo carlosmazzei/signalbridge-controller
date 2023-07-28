@@ -1,7 +1,13 @@
 #include "main.h"
 
+/*
+ * Queue to store cobs encoded received data
+ */
 static QueueHandle_t encoded_reception_queue;
 
+/*
+ * Queue to store data events to be sent to the host
+ */
 static QueueHandle_t data_event_queue;
 
 /** @brief Receive data from uart
@@ -145,7 +151,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
     rxID |= ((*rx_buffer & 0xE0) >> 5);
     decoded_data[0] = *rx_buffer++ & 0x1F;
     len = *rx_buffer++;
-    
+
     for (i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
     {
         decoded_data[i] = *rx_buffer++;
@@ -179,25 +185,13 @@ static void process_inbound_data(uint8_t *rx_buffer)
  */
 static void process_outbound_task(void *pvParameters)
 {
-    uint8_t test_data[10];
-    test_data[0] = 0x01;
-    test_data[1] = 0x02;
-    test_data[2] = 0x03;
-
-    for (;;)
+    while (true)
     {
-        // Fake data to test communication
-        // send_data(0x01, PC_LEDOUT_CMD, test_data, 3);
-        // ESP_LOGD(TAG, "Sent test data and wait 3 seconds");
-
-        // int rx_freesize = 0;
-        // uart_get_buffered_data_len(EX_UART_NUM, (size_t *)&rx_freesize);
-
-        // int tx_freesize = 0;
-        // uart_get_tx_buffer_free_size(EX_UART_NUM, (size_t *)&tx_freesize);
-        // ESP_LOGD(TAG, "UART RX Buffered data len: %d, TX Free Size: %d", rx_freesize, tx_freesize);
-
-        vTaskDelay(pdMS_TO_TICKS(3000));
+        data_events_t data;
+        if (xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
+        {
+            send_data(0x01, data.command, &data.data, sizeof(data.data));
+        }
     }
 
     vTaskDelete(NULL);
@@ -215,7 +209,7 @@ int main(void)
     tud_init(BOARD_TUD_RHPORT);
 
     // Create queue to received encoded data
-    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
+    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t));   // The size of a single byte
     data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte
 
     // Create a task to handler UART event from ISR

@@ -1,8 +1,14 @@
 #include "keypad.h"
 #include "data_event.h"
 
+/**
+ * Keypad configuration.
+ */
 keypad_config_t keypad_config;
 
+/**
+ * States of each row
+ */
 uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 
 /** @brief Initialize the keypad.
@@ -54,7 +60,6 @@ bool keypad_init(keypad_config_t *config)
  */
 void keypad_task(void *pvParameters)
 {
-
     while (true)
     {
         for (uint8_t c = 0; c < keypad_config.columns; c++)
@@ -79,16 +84,15 @@ void keypad_task(void *pvParameters)
                     keypad_generate_event(PC_KEY_CMD, r, c, KEY_RELEASED);
                 }
             }
-
-            // TO-DO: Update with the corresponding column pin.
-            // Set pin to high impedance input. Effectively ends column pulse.
-            gpio_put(10, 1);
         }
     }
 
-    vTaskDelete(NULL);
+    vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
 }
 
+/** @brief Set the columns of the keypad.
+ *
+ */
 void keypad_set_columns(uint8_t columns)
 {
     gpio_put(KEYPAD_COL_MUX_A, columns & 0x01);
@@ -96,6 +100,9 @@ void keypad_set_columns(uint8_t columns)
     gpio_put(KEYPAD_COL_MUX_C, columns & 0x04);
 }
 
+/** @brief Set the rows of the keypad.
+ * 
+ */
 void keypad_set_rows(uint8_t rows)
 {
     gpio_put(KEYPAD_ROW_MUX_A, rows & 0x01);
@@ -103,6 +110,9 @@ void keypad_set_rows(uint8_t rows)
     gpio_put(KEYPAD_ROW_MUX_C, rows & 0x04);
 }
 
+/**
+ * @brief Generate a key event.
+ */
 void keypad_generate_event(uint8_t command, uint8_t row, uint8_t column, uint8_t state)
 {
     data_events_t key_event;
