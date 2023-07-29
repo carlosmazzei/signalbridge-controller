@@ -1,7 +1,13 @@
 #include "led.h" 
 
+/**
+ * Maximum size of the array that holds the LED states.
+*/
 #define MAX_LED_STATE_SIZE 8
 
+/**
+ * LED states.
+*/
 uint8_t led_states[MAX_LED_STATE_SIZE];
 
 /** @brief Output the state of the LEDs to the SPI bus.
@@ -12,6 +18,7 @@ uint8_t led_states[MAX_LED_STATE_SIZE];
 */
 bool led_out(uint8_t index, uint8_t *states, uint8_t len)
 {
+    // To-Do: Select appropriate SPI device
     if (index + len < MAX_LED_STATE_SIZE + 1)
     {
         for (int i = 0; i < len; i++)

@@ -163,8 +163,8 @@ static void process_inbound_data(uint8_t *rx_buffer)
      * Implement other inbound commands (LED, DISPLAY, etc)
      */
     case (PC_LEDOUT_CMD):
-        leds[0] = decoded_data[2];
-        leds[1] = decoded_data[3];
+        leds[0] = decoded_data[2]; // Offset of the byte state to change
+        leds[1] = decoded_data[3]; // States of the LEDs to change
         led_out(decoded_data[1], leds, sizeof(leds));
         break;
 
@@ -179,7 +179,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
 
 /** @brief Task to send outbound messages
  *
- * This task will read hardware inputs and send data to the host
+ * This task reads hardware inputs and send data to the host
  *
  * @param pvParameters Arguments passed to the task
  */

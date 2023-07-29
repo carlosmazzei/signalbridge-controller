@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /**
- * Structure to hold the keypad key data.
+ * Event of the data to be sent to the host.
  */
 typedef struct
 {
