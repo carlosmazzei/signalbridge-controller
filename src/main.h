@@ -66,7 +66,7 @@
 #define mainPROCESS_QUEUE_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 #define mainCDC_TASK_PRIORITY		        ( tskIDLE_PRIORITY + 2 )
 
-/* 
+/**
  * Function prototypes 
 */
 static void uart_event_task(void *pvParameters);
@@ -75,7 +75,7 @@ static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t 
 static void process_inbound_data(uint8_t *rx_buffer);
 static void process_outbound_task(void *pvParameters);
 
-/*
+/**
  * Configure the hardware as necessary to run this demo.
  */
 static void prvSetupHardware( void );

@@ -12,7 +12,9 @@
  */
 #define LED_CS_PIN 17
 
-/* Prototypes */
+/**
+ * Function Prototypes
+ */
 bool led_out(uint8_t index, uint8_t *states, uint8_t len);
 void led_select();
 void led_init();
