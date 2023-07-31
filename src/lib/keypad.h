@@ -33,7 +33,7 @@
 #define KEY_PRESSED 1
 #define KEY_RELEASED 0 
 
-/* 
+/**
  * Structure to hold the keypad configuration.
 */
 typedef struct
@@ -45,10 +45,10 @@ typedef struct
 
 } keypad_config_t;
 
-
-
-/* Prototypes */
-bool keypad_init(keypad_config_t *config);
+/**
+ *  Function prototypes 
+ */
+bool keypad_init(const keypad_config_t *config);
 void keypad_task(void *pvParameters);
 void keypad_set_columns(uint8_t columns);
 void keypad_set_rows(uint8_t rows);

@@ -3,12 +3,12 @@
 /*
  * Queue to store cobs encoded received data
  */
-static QueueHandle_t encoded_reception_queue;
+static QueueHandle_t encoded_reception_queue = NULL;
 
 /*
  * Queue to store data events to be sent to the host
  */
-static QueueHandle_t data_event_queue;
+static QueueHandle_t data_event_queue = NULL;
 
 /** @brief Receive data from uart
  *
@@ -202,7 +202,7 @@ static void process_outbound_task(void *pvParameters)
  */
 int main(void)
 {
-    board_init();
+    board_init(); // TinyUSB init
     prvSetupHardware();
 
     // init device stack on configured roothub port
@@ -210,7 +210,7 @@ int main(void)
 
     // Create queue to received encoded data
     encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t));   // The size of a single byte
-    data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte
+    
 
     // Create a task to handler UART event from ISR
     xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
@@ -235,6 +235,8 @@ int main(void)
 static void prvSetupHardware(void)
 {
     stdio_init_all();
+
+    // Enable Pico default LED pin (GPIO 25)
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, 1);
     gpio_put(PICO_DEFAULT_LED_PIN, !PICO_DEFAULT_LED_PIN_INVERTED);
@@ -244,10 +246,20 @@ static void prvSetupHardware(void)
     gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
-    //gpio_set_function(PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI);
+    
     // Make the SPI pins available to picotool
     bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI));
 
     // Enable LED output
     led_init();
+
+    // Enable Keypad
+    data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
+    const keypad_config_t config = {
+        .columns = 8,
+        .rows = 9,
+        .settling_time_ms = 20,
+        .keypad_event_queue = data_event_queue
+    };
+    keypad_init(&config);
 }

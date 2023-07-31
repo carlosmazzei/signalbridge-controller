@@ -53,7 +53,7 @@
 /**
  * SPI frequency in Hz
 */
-#define SPI_FREQUENCY 1000 * 1000
+#define SPI_FREQUENCY 10 * 1000 * 1000
 
 /**
  * SPI buffer length

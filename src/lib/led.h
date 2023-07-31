@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hardware/spi.h"
-#include "pico/gpio.h"
 #include "pico/stdlib.h"
 
 /**

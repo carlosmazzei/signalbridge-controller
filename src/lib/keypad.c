@@ -16,7 +16,7 @@ uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
  * @param config Pointer to the keypad configuration.
  * @return true if the keypad was successfully initialized.
  */
-bool keypad_init(keypad_config_t *config)
+bool keypad_init(const keypad_config_t *config)
 {
     if (config->columns > KEYPAD_MAX_COLS)
         return false;
@@ -115,6 +115,8 @@ void keypad_set_rows(uint8_t rows)
  */
 void keypad_generate_event(uint8_t command, uint8_t row, uint8_t column, uint8_t state)
 {
+    if (keypad_config.keypad_event_queue == NULL) return;
+
     data_events_t key_event;
     key_event.command = PC_KEY_CMD;
     key_event.data = ((column << 4) | (row << 1)) & 0xFE; // Add key state to the event.
