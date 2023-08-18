@@ -14,6 +14,7 @@
 #include "semphr.h"
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
+#include "hardware/adc.h"
 #include "pico/binary_info.h"
 
 #include "cobs.h"

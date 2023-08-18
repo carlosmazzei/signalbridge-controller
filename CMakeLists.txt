@@ -50,6 +50,7 @@ target_link_libraries(  pi_controller
                         FreeRTOS-Kernel 
                         FreeRTOS-Kernel-Heap1 
                         hardware_spi
+                        hardware_adc
 )
 
 

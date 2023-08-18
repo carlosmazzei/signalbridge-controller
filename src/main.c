@@ -34,6 +34,8 @@ static void uart_event_task(void *pvParameters)
             }
         }
     }
+
+    vTaskDelete(NULL);
 }
 
 /** @brief CDC tasks
@@ -209,8 +211,7 @@ int main(void)
     tud_init(BOARD_TUD_RHPORT);
 
     // Create queue to received encoded data
-    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t));   // The size of a single byte
-    
+    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
 
     // Create a task to handler UART event from ISR
     xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
@@ -246,7 +247,13 @@ static void prvSetupHardware(void)
     gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
-    
+
+    // ADC init
+    adc_init();
+    // Make sure GPIO is high-impedance, no pullups etc
+    adc_gpio_init(26);
+    adc_gpio_init(27);
+
     // Make the SPI pins available to picotool
     bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI));
 
@@ -255,11 +262,14 @@ static void prvSetupHardware(void)
 
     // Enable Keypad
     data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
-    const keypad_config_t config = {
+    const input_config_t config = {
         .columns = 8,
         .rows = 9,
-        .settling_time_ms = 20,
-        .keypad_event_queue = data_event_queue
-    };
-    keypad_init(&config);
+        .key_settling_time_ms = 20,
+        .input_event_queue = data_event_queue,
+        .adc_banks = 2,
+        .adc_channels = 16,
+        .adc_settling_time_ms = 10};
+        
+    input_init(&config);
 }
