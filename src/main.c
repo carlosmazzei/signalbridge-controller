@@ -189,10 +189,10 @@ static void process_outbound_task(void *pvParameters)
 {
     while (true)
     {
-        data_events_t data;
-        if (xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
+        data_events_t data_event;
+        if (xQueueReceive(encoded_reception_queue, (void *)&data_event, portMAX_DELAY))
         {
-            send_data(0x01, data.command, &data.data, sizeof(data.data));
+            send_data(0x01, data_event.command, data_event.data, data_event.data_length);
         }
     }
 
@@ -260,15 +260,15 @@ static void prvSetupHardware(void)
     // Enable LED output
     led_init();
 
-    // Enable Keypad
+    // Enable inputs (Keypad, ADC and Rotaries)
     data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
     const input_config_t config = {
         .columns = 8,
-        .rows = 9,
+        .rows = 8,
         .key_settling_time_ms = 20,
         .input_event_queue = data_event_queue,
         .adc_banks = 2,
-        .adc_channels = 16,
+        .adc_channels = 8,
         .adc_settling_time_ms = 10};
         
     input_init(&config);
