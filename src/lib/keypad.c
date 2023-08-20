@@ -161,8 +161,13 @@ static inline void keypad_cs_cols(bool select)
     gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
 }
 
-/**
- * @brief Generate a key event.
+/** @brief Generate a key event.
+ *
+ * @param command Command to send to the event queue
+ * @param Row number
+ * @param Column number
+ * @param State of the key
+ *
  */
 void keypad_generate_event(uint8_t command, uint8_t row, uint8_t column, uint8_t state)
 {
@@ -171,9 +176,10 @@ void keypad_generate_event(uint8_t command, uint8_t row, uint8_t column, uint8_t
 
     data_events_t key_event;
     key_event.command = PC_KEY_CMD;
-    key_event.data = ((column << 4) | (row << 1)) & 0xFE; // Add key state to the event.
-    key_event.data |= state;
-    xQueueSend(input_config.input_event_queue, &key_event, pdMS_TO_TICKS(input_config.key_settling_time_ms));
+    key_event.data[0] = ((column << 4) | (row << 1)) & 0xFE; // Add key state to the event.
+    key_event.data[0] |= state;
+    key_event.data_length = 1;
+    xQueueSend(input_config.input_event_queue, &key_event, portMAX_DELAY);
 }
 
 /** @brief Read the ADC value.
@@ -199,9 +205,11 @@ void adc_read_task(void *pvParameters)
                 // Settle the column
                 vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
 
+                // TO-DO: Filter and generate event
                 uint16_t adc_raw = adc_read();
-                // Add filter before generating event
                 adc_states[offset + chan] = adc_raw;
+
+                adc_generate_event(PC_AD_CMD, offset + chan, adc_raw);
             }
 
             // Deselect the CS pin of the ADC mux
@@ -212,8 +220,7 @@ void adc_read_task(void *pvParameters)
     vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
 }
 
-/**
- * @brief Select the ADC input.
+/** @brief Select the ADC input.
  *
  * @param select Level to set the adc mux CS pin
  * @param channel Channel to select
@@ -229,4 +236,26 @@ void adc_mux_select(bool bank, uint8_t channel, bool select)
     gpio_put(ADC_MUX_A, channel & 0x01);
     gpio_put(ADC_MUX_B, channel & 0x02);
     gpio_put(ADC_MUX_C, channel & 0x04);
+}
+
+/** @brief Generate an ADC event.
+ *
+ * @param command Command to send to the event queue
+ * @param channel Channel read
+ * @param value Value read
+ */
+void adc_generate_event(uint8_t command, uint8_t channel, uint16_t value)
+{
+    if (input_config.input_event_queue == NULL)
+        return;
+
+    uint16_t payload = (channel << 12) & 0xF000;
+    payload |= (value & 0x0FFF);
+
+    data_events_t adc_event;
+    adc_event.command = PC_KEY_CMD;
+    adc_event.data[0] = (payload >> 8) & 0xFF;
+    adc_event.data[1] = payload & 0xFF;
+    adc_event.data_length = 2;
+    xQueueSend(input_config.input_event_queue, &adc_event, portMAX_DELAY);
 }

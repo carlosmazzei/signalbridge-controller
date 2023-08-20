@@ -46,17 +46,17 @@
 #define KEY_RELEASED 0 
 
 /**
- * Structure to hold the keypad configuration.
+ * Structure to hold the inputs configuration.
 */
 typedef struct input_config_t
 {
-    uint8_t rows;
-    uint8_t columns;
-    uint16_t key_settling_time_ms;
-    uint8_t adc_banks;
-    uint8_t adc_channels;
-    uint16_t adc_settling_time_ms;
-    QueueHandle_t input_event_queue;
+    uint8_t rows; // Number of rows
+    uint8_t columns; // Number of columns
+    uint16_t key_settling_time_ms; // Time to wait for key to settle
+    uint8_t adc_banks; // Number of banks of mux connected to the ADCs
+    uint8_t adc_channels; // ADC Channels per bank
+    uint16_t adc_settling_time_ms; // Time to wait for ADC to settle
+    QueueHandle_t input_event_queue; // Queue to send input events to
 
 } input_config_t;
 
@@ -72,5 +72,6 @@ static inline void keypad_cs_rows(bool select);
 static inline void keypad_cs_cols(bool select);
 void adc_read_task(void *pvParameters);
 void adc_mux_select(bool bank, uint8_t channel, bool select);
+void adc_generate_event(uint8_t command, uint8_t channel, uint16_t value);
 
 #endif
