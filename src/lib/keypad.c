@@ -69,7 +69,11 @@ bool input_init(const input_config_t *config)
     gpio_init(KEYPAD_ROW_INPUT);
     gpio_set_dir(KEYPAD_ROW_INPUT, false);
 
-    // Initiate keypad task
+    // ADC init
+    adc_init();
+    // Make sure GPIO is high-impedance, no pullups etc
+    adc_gpio_init(26);
+    adc_gpio_init(27);
 
     return true;
 }
@@ -106,11 +110,11 @@ void keypad_task(void *pvParameters)
 
                 if ((keypad_state[keycode] & KEYPAD_STABILITY_MASK) == KEY_PRESSED_MASK)
                 {
-                    keypad_generate_event(PC_KEY_CMD, r, c, KEY_PRESSED);
+                    keypad_generate_event(r, c, KEY_PRESSED);
                 }
                 else if ((keypad_state[keycode] & KEYPAD_STABILITY_MASK) == KEY_RELEASED_MASK)
                 {
-                    keypad_generate_event(PC_KEY_CMD, r, c, KEY_RELEASED);
+                    keypad_generate_event(r, c, KEY_RELEASED);
                 }
                 keypad_cs_rows(false);
             }
@@ -169,7 +173,7 @@ static inline void keypad_cs_cols(bool select)
  * @param State of the key
  *
  */
-void keypad_generate_event(uint8_t command, uint8_t row, uint8_t column, uint8_t state)
+void keypad_generate_event(uint8_t row, uint8_t column, bool state)
 {
     if (input_config.input_event_queue == NULL)
         return;
@@ -188,13 +192,13 @@ void keypad_generate_event(uint8_t command, uint8_t row, uint8_t column, uint8_t
  */
 void adc_read_task(void *pvParameters)
 {
-    uint adc_states[ADC_CHANNELS];
+    adc_states_t adc_states;
 
     while (true)
     {
         for (uint8_t bank = 0; bank < input_config.adc_banks; bank++)
         {
-            uint16_t offset = bank * ADC_CHANNELS;
+            uint16_t offset = bank * input_config.adc_channels; // Offset for the current ADC bank
 
             for (uint8_t chan = 0; chan < input_config.adc_channels; chan++)
             {
@@ -207,9 +211,13 @@ void adc_read_task(void *pvParameters)
 
                 // TO-DO: Filter and generate event
                 uint16_t adc_raw = adc_read();
-                adc_states[offset + chan] = adc_raw;
+                adc_states.adc_current_states[offset + chan] = adc_raw;
 
-                adc_generate_event(PC_AD_CMD, offset + chan, adc_raw);
+                if (adc_states.adc_previous_states[offset + chan] != adc_raw)
+                {
+                    adc_generate_event(offset + chan, adc_raw);
+                    adc_states.adc_previous_states[offset + chan] = adc_raw;
+                }
             }
 
             // Deselect the CS pin of the ADC mux
@@ -244,7 +252,7 @@ void adc_mux_select(bool bank, uint8_t channel, bool select)
  * @param channel Channel read
  * @param value Value read
  */
-void adc_generate_event(uint8_t command, uint8_t channel, uint16_t value)
+void adc_generate_event(uint8_t channel, uint16_t value)
 {
     if (input_config.input_event_queue == NULL)
         return;
@@ -253,7 +261,7 @@ void adc_generate_event(uint8_t command, uint8_t channel, uint16_t value)
     payload |= (value & 0x0FFF);
 
     data_events_t adc_event;
-    adc_event.command = PC_KEY_CMD;
+    adc_event.command = PC_AD_CMD;
     adc_event.data[0] = (payload >> 8) & 0xFF;
     adc_event.data[1] = payload & 0xFF;
     adc_event.data_length = 2;

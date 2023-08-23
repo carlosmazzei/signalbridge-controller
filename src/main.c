@@ -190,7 +190,7 @@ static void process_outbound_task(void *pvParameters)
     while (true)
     {
         data_events_t data_event;
-        if (xQueueReceive(encoded_reception_queue, (void *)&data_event, portMAX_DELAY))
+        if (xQueueReceive(data_event_queue, (void *)&data_event, portMAX_DELAY))
         {
             send_data(0x01, data_event.command, data_event.data, data_event.data_length);
         }
@@ -218,6 +218,10 @@ int main(void)
     xTaskCreate(uart_event_task, "uart_event_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
     xTaskCreate(decode_reception_task, "decode_reception_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
     xTaskCreate(process_outbound_task, "process_outbound_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+
+    // Initiate task to read the inputs
+    // xTaskCreate(adc_read_task, "adc_read_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(keypad_task, "keypad_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     /* Start the tasks and timer running. */
     vTaskStartScheduler();
@@ -248,12 +252,6 @@ static void prvSetupHardware(void)
     gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
 
-    // ADC init
-    adc_init();
-    // Make sure GPIO is high-impedance, no pullups etc
-    adc_gpio_init(26);
-    adc_gpio_init(27);
-
     // Make the SPI pins available to picotool
     bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI));
 
@@ -269,7 +267,7 @@ static void prvSetupHardware(void)
         .input_event_queue = data_event_queue,
         .adc_banks = 2,
         .adc_channels = 8,
-        .adc_settling_time_ms = 10};
+        .adc_settling_time_ms = 20};
         
     input_init(&config);
 }
