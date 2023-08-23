@@ -257,7 +257,9 @@ void adc_generate_event(uint8_t channel, uint16_t value)
     if (input_config.input_event_queue == NULL)
         return;
 
-    uint16_t payload = (channel << 12) & 0xF000;
+    uint16_t payload = channel;
+    payload <<= 12;
+    payload &= 0xF000;
     payload |= (value & 0x0FFF);
 
     data_events_t adc_event;

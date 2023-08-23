@@ -220,7 +220,7 @@ int main(void)
     xTaskCreate(process_outbound_task, "process_outbound_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     // Initiate task to read the inputs
-    // xTaskCreate(adc_read_task, "adc_read_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(adc_read_task, "adc_read_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
     xTaskCreate(keypad_task, "keypad_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     /* Start the tasks and timer running. */
@@ -267,7 +267,7 @@ static void prvSetupHardware(void)
         .input_event_queue = data_event_queue,
         .adc_banks = 2,
         .adc_channels = 8,
-        .adc_settling_time_ms = 20};
+        .adc_settling_time_ms = 100};
         
     input_init(&config);
 }
