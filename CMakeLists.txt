@@ -24,7 +24,7 @@ target_sources(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/hooks.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/led.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/keypad.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/inputs.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
         ${CMAKE_CURRENT_SOURCE_DIR}/include/cobs.c
         )

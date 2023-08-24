@@ -20,7 +20,7 @@
 #include "cobs.h"
 #include "stdA320.h"
 #include "led.h"
-#include "keypad.h"
+#include "inputs.h"
 #include "data_event.h"
 
 #include "bsp/board.h"
