@@ -167,7 +167,6 @@ static inline void keypad_cs_cols(bool select)
 
 /** @brief Generate a key event.
  *
- * @param command Command to send to the event queue
  * @param Row number
  * @param Column number
  * @param State of the key
@@ -206,17 +205,21 @@ void adc_read_task(void *pvParameters)
                 adc_mux_select(bank, chan, true);
                 adc_select_input(bank);
 
+                // Calculate channel
+                uint16_t channel = offset + chan;
+
                 // Settle the column
                 vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
 
                 // TO-DO: Filter and generate event
                 uint16_t adc_raw = adc_read();
-                adc_states.adc_current_states[offset + chan] = adc_raw;
+                uint16_t filtered_value =
+                    adc_moving_average(channel, adc_raw, adc_states.adc_sample_value[channel], &adc_states);
 
-                if (adc_states.adc_previous_states[offset + chan] != adc_raw)
+                if (adc_states.adc_previous_value[channel] != filtered_value)
                 {
-                    adc_generate_event(offset + chan, adc_raw);
-                    adc_states.adc_previous_states[offset + chan] = adc_raw;
+                    adc_generate_event(channel, filtered_value);
+                    adc_states.adc_previous_value[channel] = filtered_value;
                 }
             }
 
@@ -230,7 +233,7 @@ void adc_read_task(void *pvParameters)
 
 /** @brief Select the ADC input.
  *
- * @param select Level to set the adc mux CS pin
+ * @param bank Level to set the adc mux CS pin
  * @param channel Channel to select
  * @param mux Select which ADC bank to use
  */
@@ -248,7 +251,6 @@ void adc_mux_select(bool bank, uint8_t channel, bool select)
 
 /** @brief Generate an ADC event.
  *
- * @param command Command to send to the event queue
  * @param channel Channel read
  * @param value Value read
  */
@@ -257,15 +259,36 @@ void adc_generate_event(uint8_t channel, uint16_t value)
     if (input_config.input_event_queue == NULL)
         return;
 
-    uint16_t payload = channel;
-    payload <<= 12;
-    payload &= 0xF000;
-    payload |= (value & 0x0FFF);
-
     data_events_t adc_event;
     adc_event.command = PC_AD_CMD;
-    adc_event.data[0] = (payload >> 8) & 0xFF;
-    adc_event.data[1] = payload & 0xFF;
-    adc_event.data_length = 2;
+    adc_event.data[0] = channel;
+    adc_event.data[1] = (value & 0xFF00) >> 8;
+    adc_event.data[2] = value & 0x00FF;
+    adc_event.data_length = 3;
     xQueueSend(input_config.input_event_queue, &adc_event, portMAX_DELAY);
+}
+
+/** @brief Calculate moving average of the last samples of ad
+ *
+ * @param channel Channel read
+ * @param new_sample New sample
+ * @param samples Array of samples
+ * @param adc_states ADC states
+ *
+ * @return Moving average
+ */
+uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *adc_states)
+{
+    // Remove old sample and add the new one to the sum
+    adc_states->adc_sum_values[channel] -= samples[adc_states->samples_index[channel]];
+    adc_states->adc_sum_values[channel] += new_sample;
+    samples[adc_states->samples_index[channel]] = new_sample;
+
+    // Adjust the new index
+    adc_states->samples_index[channel]++;
+    if (adc_states->samples_index[channel] >= ADC_NUM_TAPS)
+        adc_states->samples_index[channel] = 0;
+
+    // Return the moving average
+    return adc_states->adc_sum_values[channel] / ADC_NUM_TAPS;
 }

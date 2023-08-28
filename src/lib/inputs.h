@@ -39,7 +39,7 @@
 #define ADC_MUX_C 22
 
 #define ADC_CHANNELS 16
-#define ADC_FILTER_SAMPLES 4
+#define ADC_NUM_TAPS 4
 
 #define KEY_PRESSED_MASK 0x03  // 011: two consecutive actives
 #define KEY_RELEASED_MASK 0x04 // 100: two consecutive inactives
@@ -62,8 +62,10 @@ typedef struct input_config_t
 
 typedef struct adc_states_t
 {
-    uint16_t adc_current_states[ADC_CHANNELS];
-    uint16_t adc_previous_states[ADC_CHANNELS];
+    uint16_t adc_previous_value[ADC_CHANNELS]; // 16 x 16 = 256
+    uint32_t adc_sum_values[ADC_CHANNELS]; // 16 x 16 = 256
+    uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS]; // 16 x 16 x 4 = 1024
+    uint16_t samples_index[ADC_CHANNELS]; // 16 x 16 = 256
 } adc_states_t;
 
 /**
@@ -79,5 +81,6 @@ static inline void keypad_cs_cols(bool select);
 void adc_read_task(void *pvParameters);
 void adc_mux_select(bool bank, uint8_t channel, bool select);
 void adc_generate_event(uint8_t channel, uint16_t value);
+uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *adc_states);
 
 #endif
