@@ -193,6 +193,20 @@ void adc_read_task(void *pvParameters)
 {
     adc_states_t adc_states;
 
+    // Initialize the ADC states
+    for (int i = 0; i < ADC_CHANNELS; i++)
+    {
+        adc_states.adc_previous_value[i] = 0;
+        adc_states.adc_sum_values[i] = 0;
+        adc_states.samples_index[i] = 0;
+
+        for (int j = 0; j < ADC_NUM_TAPS; j++)
+        {
+            adc_states.adc_sample_value[i][j] = 0;
+        }
+    }
+
+    // Main task loop
     while (true)
     {
         for (uint8_t bank = 0; bank < input_config.adc_banks; bank++)
@@ -211,7 +225,6 @@ void adc_read_task(void *pvParameters)
                 // Settle the column
                 vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
 
-                // TO-DO: Filter and generate event
                 uint16_t adc_raw = adc_read();
                 uint16_t filtered_value =
                     adc_moving_average(channel, adc_raw, adc_states.adc_sample_value[channel], &adc_states);
