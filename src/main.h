@@ -15,11 +15,11 @@
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
 
-#include "lib/cobs.h"
-#include "lib/stdA320.h"
-#include "lib/led.h"
-#include "lib/inputs.h"
-#include "lib/data_event.h"
+#include "cobs.h"
+#include "stdA320.h"
+#include "led.h"
+#include "inputs.h"
+#include "data_event.h"
 
 #include "bsp/board.h"
 #include "tusb.h"

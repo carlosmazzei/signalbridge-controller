@@ -267,7 +267,9 @@ static void prvSetupHardware(void)
         .input_event_queue = data_event_queue,
         .adc_banks = 2,
         .adc_channels = 8,
-        .adc_settling_time_ms = 100};
-        
+        .adc_settling_time_ms = 100,
+        .encoder_settling_time_ms = 10,
+        .encoder_mask[7] = true}; // Enable encoder on row 8 (last row)
+
     input_init(&config);
 }

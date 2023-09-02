@@ -35,6 +35,13 @@ bool input_init(const input_config_t *config)
     input_config.key_settling_time_ms = config->key_settling_time_ms;
     input_config.input_event_queue = config->input_event_queue;
 
+    // Initialize encoder configuration
+    for (uint8_t i; i < MAX_NUM_ENCODERS; i++)
+    {
+        input_config.encoder_mask[i] = config->encoder_mask[i];
+    }
+    input_config.encoder_settling_time_ms = config->encoder_settling_time_ms;
+
     // Setup IO pins / use gpio_init_mask insted to initialized multiple pins
     gpio_init_mask(
         (1 << KEYPAD_COL_MUX_A) |
@@ -93,7 +100,7 @@ void keypad_task(void *pvParameters)
         {
             // Select the column
             keypad_set_columns(c);
-            keypad_cs_cols(true);
+            keypad_cs_columns(true);
             uint8_t keycode_base = c * input_config.rows;
 
             // Settle the column
@@ -101,6 +108,9 @@ void keypad_task(void *pvParameters)
 
             for (uint8_t r = 0; r < input_config.rows; r++)
             {
+                if (input_config.encoder_mask[r] == true)
+                    continue; // Skip encoder
+
                 keypad_set_rows(r); // Also set the ADC channels
                 keypad_cs_rows(true);
 
@@ -119,7 +129,7 @@ void keypad_task(void *pvParameters)
                 keypad_cs_rows(false);
             }
 
-            keypad_cs_cols(false);
+            keypad_cs_columns(false);
         }
     }
 
@@ -160,7 +170,7 @@ static inline void keypad_cs_rows(bool select)
  *
  * @param select Level to set the columns CS pin
  */
-static inline void keypad_cs_cols(bool select)
+static inline void keypad_cs_columns(bool select)
 {
     gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
 }
@@ -206,7 +216,6 @@ void adc_read_task(void *pvParameters)
         }
     }
 
-    // Main task loop
     while (true)
     {
         for (uint8_t bank = 0; bank < input_config.adc_banks; bank++)
@@ -304,4 +313,86 @@ uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *sam
 
     // Return the moving average
     return adc_states->adc_sum_values[channel] / ADC_NUM_TAPS;
+}
+
+/** @brief Read the encoder value.
+ *
+ * @param pvParameters Parameters passed to the task
+ */
+void encoder_read_task(void *pvParameters)
+{
+    const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+    encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+
+    while (true)
+    {
+        for (uint8_t r = 0; r < input_config.rows; r++)
+        {
+            if (input_config.encoder_mask[r] == false)
+                continue;
+
+            uint8_t encoder_base = r * (input_config.columns / 2);
+            keypad_cs_rows(true);
+            keypad_set_rows(r);
+
+            for (uint8_t c = 0; c < input_config.columns / 2; c++)
+            {
+                encoder_base += c;
+                keypad_cs_columns(true);
+                keypad_set_columns(c);
+                vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
+                bool e11 = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
+
+                keypad_set_columns(c + 1);
+                vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
+                bool e12 = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
+
+                encoder_state[encoder_base].old_encoder <<= 2; // Remember previous state by shifting the lower bits up
+                encoder_state[encoder_base].old_encoder |= e11;
+                encoder_state[encoder_base].old_encoder |= ((e12 << 1) & 0x03);                                                // AND the lower 2 bits of port b, then OR them with var old_Encoder1 to set new value
+                encoder_state[encoder_base].count_encoder += encoder_states[(encoder_state[encoder_base].old_encoder & 0x0f)]; // the lower 4 bits of old_Encoder1 are
+
+                if (encoder_state[encoder_base].count_encoder == 4)
+                    encoder_generate_event(encoder_base, 1); // then the index for enc_states
+                else if (encoder_state[0].count_encoder == -4)
+                    encoder_generate_event(encoder_base, 0);
+
+                keypad_cs_columns(false);
+            }
+
+            keypad_cs_rows(false);
+        }
+    }
+
+    vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
+}
+
+/** @brief Generate an encoder event.
+ *
+ * @param rotary Rotary number
+ * @param direction Direction
+ */
+void encoder_generate_event(uint8_t rotary, uint16_t direction)
+{
+    if (input_config.input_event_queue == NULL)
+        return;
+
+    data_events_t encoder_event;
+    encoder_event.command = PC_ROTARY_CMD;
+    encoder_event.data[0] |= rotary << 4;
+    encoder_event.data[1] |= direction;
+    encoder_event.data_length = 2;
+    xQueueSend(input_config.input_event_queue, &encoder_event, portMAX_DELAY);
+}
+
+/** @brief Set the encoder mask.
+ * 
+ * @param mask Mask to enable/disable encoders
+*/
+void encoder_set_mask(uint8_t mask)
+{
+    for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
+    {
+        input_config.encoder_mask[i] = mask & (1 << i);
+    }
 }
