@@ -138,6 +138,7 @@ void keypad_task(void *pvParameters)
 
 /** @brief Set the columns of the keypad.
  *
+ * @param columns Columns to set.
  */
 void keypad_set_columns(uint8_t columns)
 {
@@ -148,6 +149,7 @@ void keypad_set_columns(uint8_t columns)
 
 /** @brief Set the rows of the keypad.
  *
+ * @param rows Rows to set.
  */
 void keypad_set_rows(uint8_t rows)
 {
