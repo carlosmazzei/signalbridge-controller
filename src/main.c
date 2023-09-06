@@ -174,6 +174,13 @@ static void process_inbound_data(uint8_t *rx_buffer)
         send_data(rxID, decoded_data[0], &decoded_data[1], len);
         break;
 
+    case (PC_PWM_CMD):
+        break;
+
+    case (PC_DPYCTL_CMD):
+        display_out(&decoded_data[1], len);
+        break;
+
     default:
         break;
     }
@@ -215,13 +222,14 @@ int main(void)
 
     // Create a task to handler UART event from ISR
     xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(uart_event_task, "uart_event_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(decode_reception_task, "decode_reception_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
-    xTaskCreate(process_outbound_task, "process_outbound_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
+    xTaskCreate(process_outbound_task, "process_outbound_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     // Initiate task to read the inputs
-    xTaskCreate(adc_read_task, "adc_read_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(keypad_task, "keypad_task", 3 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(adc_read_task, "adc_read_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(keypad_task, "keypad_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    xTaskCreate(encoder_read_task, "encoder_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
 
     /* Start the tasks and timer running. */
     vTaskStartScheduler();
@@ -241,22 +249,7 @@ static void prvSetupHardware(void)
 {
     stdio_init_all();
 
-    // Enable Pico default LED pin (GPIO 25)
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, 1);
-    gpio_put(PICO_DEFAULT_LED_PIN, !PICO_DEFAULT_LED_PIN_INVERTED);
-
-    // Enable SPI 0 at 1 MHz and connect to GPIOs
-    spi_init(spi_default, SPI_FREQUENCY);
-    gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
-    gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
-
-    // Make the SPI pins available to picotool
-    bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI));
-
-    // Enable LED output
-    led_init();
+    output_init();
 
     // Enable inputs (Keypad, ADC and Rotaries)
     data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?

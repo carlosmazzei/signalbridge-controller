@@ -2,7 +2,7 @@
 #include "data_event.h"
 
 /**
- * Keypad configuration.
+ * Input configuration.
  */
 input_config_t input_config;
 

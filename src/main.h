@@ -17,9 +17,9 @@
 
 #include "cobs.h"
 #include "stdA320.h"
-#include "led.h"
+#include "outputs.h"
 #include "inputs.h"
-#include "data_event.h"
+#include "data_event.h" 
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -48,16 +48,6 @@
  * Packet Marker of the COBS encoded data
 */
 #define PACKET_MARKER 0x00
-
-/**
- * SPI frequency in Hz
-*/
-#define SPI_FREQUENCY 10 * 1000 * 1000
-
-/**
- * SPI buffer length
-*/
-#define SPI_BUF_LEN 10
 
 /**
  * Task priorities
