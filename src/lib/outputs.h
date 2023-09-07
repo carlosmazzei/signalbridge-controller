@@ -6,6 +6,7 @@
 #include "hardware/spi.h"
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
+#include "pico/binary_info.h"
 
 /**
  * LED latch output select pin

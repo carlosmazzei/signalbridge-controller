@@ -10,6 +10,8 @@ static QueueHandle_t encoded_reception_queue = NULL;
  */
 static QueueHandle_t data_event_queue = NULL;
 
+error_counters_t error_counters;
+
 /** @brief Receive data from uart
  *
  * @param pvParameters Pointer to parameters passed to the task
@@ -26,11 +28,11 @@ static void uart_event_task(void *pvParameters)
             for (uint32_t i = 0; i < count; i++)
             {
                 BaseType_t success = xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY);
-                // TO-DO: Implement error counters
-                // if (success != pdTRUE)
-                // {
-                //
-                // }
+
+                if (success != pdTRUE)
+                {
+                    error_counters.queue_send_error++;
+                }
             }
         }
     }
@@ -91,6 +93,10 @@ static void decode_reception_task(void *pvParameters)
                 else
                     receive_buffer_overflow = true;
             }
+        }
+        else
+        {
+            error_counters.queue_receive_error++;
         }
     }
 
@@ -170,15 +176,19 @@ static void process_inbound_data(uint8_t *rx_buffer)
         led_out(decoded_data[1], leds, sizeof(leds));
         break;
 
-    case (PC_ECHO_CMD):
-        send_data(rxID, decoded_data[0], &decoded_data[1], len);
-        break;
-
     case (PC_PWM_CMD):
+        set_pwm_duty(decoded_data[1]);
         break;
 
     case (PC_DPYCTL_CMD):
         display_out(&decoded_data[1], len);
+        break;
+
+    case (PC_ECHO_CMD):
+        send_data(rxID, decoded_data[0], &decoded_data[1], len);
+        break;
+
+    case (PC_STATUS_CMD):
         break;
 
     default:
@@ -220,7 +230,7 @@ int main(void)
     // Create queue to received encoded data
     encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
 
-    // Create a task to handler UART event from ISR
+    // Create a task to handle UART event from ISR
     xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
     xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
     xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);

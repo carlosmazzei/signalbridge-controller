@@ -13,7 +13,6 @@
 #include "task.h"
 #include "semphr.h"
 #include "pico/stdlib.h"
-#include "pico/binary_info.h"
 
 #include "cobs.h"
 #include "stdA320.h"
@@ -54,6 +53,12 @@
 */
 #define mainPROCESS_QUEUE_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
 #define mainCDC_TASK_PRIORITY		        ( tskIDLE_PRIORITY + 2 )
+
+typedef struct error_counters_t 
+{
+    uint16_t queue_send_error;
+    uint16_t queue_receive_error;
+} error_counters_t;
 
 /**
  * Function prototypes 
