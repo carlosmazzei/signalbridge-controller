@@ -103,6 +103,23 @@ static void decode_reception_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+/** @brief Send error counters to host
+ *
+ */
+static inline void send_status()
+{
+    uint8_t data[8];
+    data[0] = error_counters.display_out_error >> 8;
+    data[1] = error_counters.display_out_error;
+    data[2] = error_counters.queue_send_error >> 8;
+    data[3] = error_counters.queue_send_error;
+    data[4] = error_counters.queue_receive_error >> 8;
+    data[5] = error_counters.queue_receive_error;
+    data[6] = error_counters.led_out_error >> 8;
+    data[7] = error_counters.led_out_error;
+    send_data(0, PC_STATUS_CMD, data, sizeof(data));
+}
+
 /** @brief Send a packet of data.
  *
  * This function will encode and send a packet of data. After
@@ -173,7 +190,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
     case (PC_LEDOUT_CMD):
         leds[0] = decoded_data[2]; // Offset of the byte state to change
         leds[1] = decoded_data[3]; // States of the LEDs to change
-        if (led_out(decoded_data[1], leds, sizeof(leds)) != true) 
+        if (led_out(decoded_data[1], leds, sizeof(leds)) != true)
             error_counters.led_out_error++;
         break;
 
@@ -191,6 +208,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
         break;
 
     case (PC_STATUS_CMD):
+        send_status();
         break;
 
     default:
