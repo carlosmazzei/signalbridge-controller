@@ -58,6 +58,8 @@ typedef struct error_counters_t
 {
     uint16_t queue_send_error;
     uint16_t queue_receive_error;
+    uint16_t display_out_error;
+    uint16_t led_out_error;
 } error_counters_t;
 
 /**

@@ -31,16 +31,11 @@ bool output_init()
     // Make the SPI pins available to picotool
     bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI));
 
-    // Tell the LED pin that the PWM is in charge of its value.
+    // Configure PWM pin
     gpio_set_function(PWM_PIN, GPIO_FUNC_PWM);
-    // Figure out which slice we just connected to the LED pin
     uint slice_num = pwm_gpio_to_slice_num(PWM_PIN);
-    // Get some sensible defaults for the slice configuration. By default, the
-    // counter is allowed to wrap over its maximum range (0 to 2**16-1)
     pwm_config config = pwm_get_default_config();
-    // Set divider, reduces counter clock to sysclock/this value
-    pwm_config_set_clkdiv(&config, 4.f);
-    // Load the configuration into our PWM slice, and set it running.
+    pwm_config_set_clkdiv(&config, 10.f);
     pwm_init(slice_num, &config, true);
 }
 
@@ -82,10 +77,10 @@ void led_select()
  * @param data The data to send.
  * @param len The length of the data to send.
  */
-void display_out(uint8_t *data, uint8_t len)
+int display_out(uint8_t *data, uint8_t len)
 {
     size_t count = spi_write_blocking(spi_default, data, len);
-    // TO-DO: Check the size transmitted
+    return count;
 }
 
 /** @brief Set PWM duty cycle

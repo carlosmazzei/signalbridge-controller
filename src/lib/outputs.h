@@ -34,7 +34,7 @@
 bool led_out(uint8_t index, uint8_t *states, uint8_t len);
 void led_select();
 bool output_init();
-void display_out(uint8_t *data, uint8_t len);
+int display_out(uint8_t *data, uint8_t len);
 void set_pwm_duty(uint8_t duty);
 
 #endif

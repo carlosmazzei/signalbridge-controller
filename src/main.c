@@ -10,6 +10,9 @@ static QueueHandle_t encoded_reception_queue = NULL;
  */
 static QueueHandle_t data_event_queue = NULL;
 
+/*
+ * Store error counters
+ */
 error_counters_t error_counters;
 
 /** @brief Receive data from uart
@@ -28,11 +31,8 @@ static void uart_event_task(void *pvParameters)
             for (uint32_t i = 0; i < count; i++)
             {
                 BaseType_t success = xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY);
-
                 if (success != pdTRUE)
-                {
                     error_counters.queue_send_error++;
-                }
             }
         }
     }
@@ -173,7 +173,8 @@ static void process_inbound_data(uint8_t *rx_buffer)
     case (PC_LEDOUT_CMD):
         leds[0] = decoded_data[2]; // Offset of the byte state to change
         leds[1] = decoded_data[3]; // States of the LEDs to change
-        led_out(decoded_data[1], leds, sizeof(leds));
+        if (led_out(decoded_data[1], leds, sizeof(leds)) != true) 
+            error_counters.led_out_error++;
         break;
 
     case (PC_PWM_CMD):
@@ -181,7 +182,8 @@ static void process_inbound_data(uint8_t *rx_buffer)
         break;
 
     case (PC_DPYCTL_CMD):
-        display_out(&decoded_data[1], len);
+        if (display_out(&decoded_data[1], len) != len)
+            error_counters.display_out_error++;
         break;
 
     case (PC_ECHO_CMD):
@@ -210,6 +212,10 @@ static void process_outbound_task(void *pvParameters)
         if (xQueueReceive(data_event_queue, (void *)&data_event, portMAX_DELAY))
         {
             send_data(0x01, data_event.command, data_event.data, data_event.data_length);
+        }
+        else
+        {
+            error_counters.queue_receive_error++;
         }
     }
 
