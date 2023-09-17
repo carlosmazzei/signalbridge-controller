@@ -10,6 +10,13 @@
  */
 uint8_t led_states[MAX_LED_STATE_SIZE];
 
+/** @brief Initialize the outputs.
+ * 
+ * Initialize all the outputs needed for the application: SPI, LEDs, PWM.
+ *
+ * @return True if successful.
+ * @todo Implement the I2C initialization.
+ */
 bool output_init()
 {
     // Initialize LEDs
@@ -37,6 +44,8 @@ bool output_init()
     pwm_config config = pwm_get_default_config();
     pwm_config_set_clkdiv(&config, 10.f);
     pwm_init(slice_num, &config, true);
+
+    return true;
 }
 
 /** @brief Output the state of the LEDs to the SPI bus.

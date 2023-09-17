@@ -24,7 +24,7 @@
 #include "tusb.h"
 
 /**
- * Size of the cobs encoded reception queue
+ * \brief Size of the cobs encoded reception queue
  */
 #define ENCODED_QUEUE_SIZE 100
 
@@ -54,6 +54,9 @@
 #define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
 #define mainCDC_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
 
+/**
+ * Structure to hold errors counter
+ */
 typedef struct error_counters_t
 {
     uint16_t queue_send_error;

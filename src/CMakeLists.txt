@@ -9,7 +9,8 @@ target_sources(pi_controller PUBLIC
 
 # Include
 target_include_directories(pi_controller PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS
         )
 

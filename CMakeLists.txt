@@ -17,3 +17,4 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 add_subdirectory(src)
+add_subdirectory(docs)
