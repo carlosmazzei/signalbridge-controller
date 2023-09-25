@@ -1,16 +1,16 @@
 #include "main.h"
 
-/*
+/**
  * Queue to store cobs encoded received data
  */
 static QueueHandle_t encoded_reception_queue = NULL;
 
-/*
+/**
  * Queue to store data events to be sent to the host
  */
 static QueueHandle_t data_event_queue = NULL;
 
-/*
+/**
  * Store error counters
  */
 error_counters_t error_counters;
@@ -42,8 +42,9 @@ static void uart_event_task(void *pvParameters)
 
 /** @brief CDC tasks
  *
+ * CDC task needed to update the USB stack
+ * 
  * @param pvParameters Pointer to parameters passed to the task
- *
  */
 static void cdc_task(void *pvParameters)
 {
@@ -64,6 +65,7 @@ static void cdc_task(void *pvParameters)
  *
  * Process bytes received from UART.
  *
+ * @param pvParameters Pointer to parameters passed to the task
  */
 static void decode_reception_task(void *pvParameters)
 {
@@ -279,7 +281,7 @@ int main(void)
  * Setup hardware such as UART, LED, etc.
  *
  */
-static void prvSetupHardware(void)
+static inline void prvSetupHardware(void)
 {
     stdio_init_all();
 

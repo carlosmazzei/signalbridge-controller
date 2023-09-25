@@ -179,9 +179,9 @@ static inline void keypad_cs_columns(bool select)
 
 /** @brief Generate a key event.
  *
- * @param Row number
- * @param Column number
- * @param State of the key
+ * @param row number
+ * @param column number
+ * @param state of the key
  *
  */
 void keypad_generate_event(uint8_t row, uint8_t column, bool state)
@@ -259,7 +259,7 @@ void adc_read_task(void *pvParameters)
  *
  * @param bank Level to set the adc mux CS pin
  * @param channel Channel to select
- * @param mux Select which ADC bank to use
+ * @param select Select which ADC bank to use
  */
 void adc_mux_select(bool bank, uint8_t channel, bool select)
 {

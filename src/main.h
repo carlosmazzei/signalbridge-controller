@@ -24,7 +24,7 @@
 #include "tusb.h"
 
 /**
- * \brief Size of the cobs encoded reception queue
+ * Size of the cobs encoded reception queue
  */
 #define ENCODED_QUEUE_SIZE 100
 

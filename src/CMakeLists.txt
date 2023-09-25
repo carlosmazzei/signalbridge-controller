@@ -12,6 +12,7 @@ target_include_directories(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../FreeRTOS-SMP-Demos/FreeRTOS/Source/include
         )
 
 # Instructions to enable/disable debugging using printf commands
