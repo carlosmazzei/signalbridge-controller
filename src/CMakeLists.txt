@@ -16,8 +16,8 @@ target_include_directories(pi_controller PUBLIC
         )
 
 # Instructions to enable/disable debugging using printf commands
-#pico_enable_stdio_usb(pi_controller 1)
-#pico_enable_stdio_uart(pi_controller 0)
+pico_enable_stdio_usb(pi_controller 0)
+pico_enable_stdio_uart(pi_controller 0)
 
 pico_add_extra_outputs(pi_controller) 
 

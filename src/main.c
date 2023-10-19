@@ -35,7 +35,7 @@ static void uart_event_task(void *pvParameters)
         if (tud_cdc_n_available(0))
         {
             uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
-            for (uint32_t i = 0; i < count; i++)
+            for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
             {
                 BaseType_t success = xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY);
                 if (success != pdTRUE)
@@ -244,7 +244,6 @@ static void process_outbound_task(void *pvParameters)
             error_counters.queue_receive_error++;
         }
     }
-
     vTaskDelete(NULL);
 }
 
@@ -323,8 +322,9 @@ int main(void)
 
 /** @brief Setup hardware
  *
- * Setup hardware such as UART, LED, etc.
+ * Setup hardware such as UART, LED, Keyboard and internal structures.
  *
+ * @return Return true if initialization was successfull and false if failed to create any resource
  */
 static inline bool prvSetupHardware(void)
 {
