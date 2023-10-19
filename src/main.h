@@ -63,7 +63,22 @@ typedef struct error_counters_t
     uint16_t queue_receive_error;
     uint16_t display_out_error;
     uint16_t led_out_error;
+    bool error_state;
 } error_counters_t;
+
+/** Structure to hold task handles
+ *
+ */
+typedef struct task_handles_t
+{
+    TaskHandle_t cdc_task_handle;
+    TaskHandle_t uart_event_task_handle;
+    TaskHandle_t decode_reception_task_handle;
+    TaskHandle_t process_outbound_task_handle;
+    TaskHandle_t adc_read_task_handle;
+    TaskHandle_t keypad_task_handle;
+    TaskHandle_t encoder_read_task_handle;
+} task_handles_t;
 
 /**
  * Function prototypes
@@ -74,10 +89,11 @@ static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t 
 static void process_inbound_data(uint8_t *rx_buffer);
 static void process_outbound_task(void *pvParameters);
 static inline void send_status();
+static inline void enter_error_state();
 
 /**
  * Configure the hardware as necessary to run this demo.
  */
-static void prvSetupHardware(void);
+static bool prvSetupHardware(void);
 
 #endif

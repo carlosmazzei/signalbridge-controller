@@ -15,7 +15,14 @@ static QueueHandle_t data_event_queue = NULL;
  */
 error_counters_t error_counters;
 
+/**
+ * Store task handles
+ */
+task_handles_t task_handles;
+
 /** @brief Receive data from uart
+ *
+ *  Receives data from UART and post it to a reception queue. If the data is encoded, it should be decoded accordingly
  *
  * @param pvParameters Pointer to parameters passed to the task
  */
@@ -36,14 +43,13 @@ static void uart_event_task(void *pvParameters)
             }
         }
     }
-
     vTaskDelete(NULL);
 }
 
 /** @brief CDC tasks
  *
  * CDC task needed to update the USB stack
- * 
+ *
  * @param pvParameters Pointer to parameters passed to the task
  */
 static void cdc_task(void *pvParameters)
@@ -63,7 +69,7 @@ static void cdc_task(void *pvParameters)
 
 /** @brief Decode reception task
  *
- * Process bytes received from UART.
+ * Process bytes received from UART and decoded the data. The received data is using COBS encoding.
  *
  * @param pvParameters Pointer to parameters passed to the task
  */
@@ -247,29 +253,68 @@ static void process_outbound_task(void *pvParameters)
  */
 int main(void)
 {
+    // Set error state to false
+    BaseType_t success;
+    error_counters.error_state = false;
+
     board_init(); // TinyUSB init
-    prvSetupHardware();
 
     // init device stack on configured roothub port
-    tud_init(BOARD_TUD_RHPORT);
+    if (!tud_init(BOARD_TUD_RHPORT))
+        error_counters.error_state = true;
 
-    // Create queue to received encoded data
-    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
+    // Initialize hardware specific config
+    if (!prvSetupHardware())
+        error_counters.error_state = true;
 
     // Create a task to handle UART event from ISR
-    xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
-    xTaskCreate(process_outbound_task, "process_outbound_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    success = xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.cdc_task_handle);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    // Create queue to receive encoded data
+    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
+    if (encoded_reception_queue != NULL)
+    {
+        // Created the queue  successfully
+        success = xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+        if (success != pdPASS)
+            error_counters.error_state = true;
+
+        success = xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
+        if (success != pdPASS)
+            error_counters.error_state = true;
+    }
+    else
+    {
+        error_counters.error_state = true;
+    }
+
+    // Create queue to receive data events
+    success = xTaskCreate(process_outbound_task, "process_outbound_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    if (success != pdPASS)
+        error_counters.error_state = true;
 
     // Initiate task to read the inputs
-    xTaskCreate(adc_read_task, "adc_read_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(keypad_task, "keypad_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
-    xTaskCreate(encoder_read_task, "encoder_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    success = xTaskCreate(adc_read_task, "adc_read_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    success = xTaskCreate(keypad_task, "keypad_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    success = xTaskCreate(encoder_read_task, "encoder_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    if (success != pdPASS)
+        error_counters.error_state = true;
 
     /* Start the tasks and timer running. */
-    vTaskStartScheduler();
+    if (error_counters.error_state == false)
+        vTaskStartScheduler();
+    else
+        enter_error_state();
 
+    /* Should not enter if everything initiated correctly */
     for (;;)
         ;
 
@@ -281,14 +326,18 @@ int main(void)
  * Setup hardware such as UART, LED, etc.
  *
  */
-static inline void prvSetupHardware(void)
+static inline bool prvSetupHardware(void)
 {
     stdio_init_all();
 
     output_init();
 
-    // Enable inputs (Keypad, ADC and Rotaries)
+    // Create queue to receive data events
     data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
+    if (data_event_queue == NULL)
+        return false;
+
+    // Enable inputs (Keypad, ADC and Rotaries)
     const input_config_t config = {
         .columns = 8,
         .rows = 8,
@@ -301,4 +350,35 @@ static inline void prvSetupHardware(void)
         .encoder_mask[7] = true}; // Enable encoder on row 8 (last row)
 
     input_init(&config);
+
+    // Init error counters and handles
+    error_counters.display_out_error = 0;
+    error_counters.led_out_error = 0;
+    error_counters.queue_receive_error = 0;
+    error_counters.queue_send_error = 0;
+
+    task_handles.adc_read_task_handle = NULL;
+    task_handles.decode_reception_task_handle = NULL;
+    task_handles.cdc_task_handle = NULL;
+    task_handles.keypad_task_handle = NULL;
+    task_handles.encoder_read_task_handle = NULL;
+    task_handles.process_outbound_task_handle = NULL;
+    task_handles.uart_event_task_handle = NULL;
+
+    return true;
+}
+
+/** @brief Enter error state
+ *
+ *  Enter error loop blinking led if any error ocurred during startup
+ *
+ */
+static inline void enter_error_state()
+{
+    bool state = true;
+    while (true)
+    {
+        gpio_put(PICO_DEFAULT_LED_PIN, state ^= 1);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
 }
