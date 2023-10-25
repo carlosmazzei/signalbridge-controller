@@ -13,6 +13,7 @@
 #include "task.h"
 #include "semphr.h"
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 
 #include "cobs.h"
 #include "stdA320.h"
@@ -63,6 +64,7 @@ typedef struct error_counters_t
     uint16_t queue_receive_error;
     uint16_t display_out_error;
     uint16_t led_out_error;
+    uint16_t watchdog_error;
     bool error_state;
 } error_counters_t;
 

@@ -42,6 +42,7 @@ static void uart_event_task(void *pvParameters)
                     error_counters.queue_send_error++;
             }
         }
+        watchdog_update();
     }
     vTaskDelete(NULL);
 }
@@ -62,6 +63,8 @@ static void cdc_task(void *pvParameters)
             gpio_put(PICO_DEFAULT_LED_PIN, 1);
         else
             gpio_put(PICO_DEFAULT_LED_PIN, 0);
+
+        watchdog_update();
     }
 
     vTaskDelete(NULL);
@@ -106,6 +109,7 @@ static void decode_reception_task(void *pvParameters)
         {
             error_counters.queue_receive_error++;
         }
+        watchdog_update();
     }
 
     vTaskDelete(NULL);
@@ -243,6 +247,7 @@ static void process_outbound_task(void *pvParameters)
         {
             error_counters.queue_receive_error++;
         }
+        watchdog_update();
     }
     vTaskDelete(NULL);
 }
@@ -255,6 +260,9 @@ int main(void)
     // Set error state to false
     BaseType_t success;
     error_counters.error_state = false;
+
+    /** @todo Implement restart from watchdog timer. Check if handles and queues were created properly */
+    if (watchdog_caused_reboot()) error_counters.watchdog_error++;
 
     board_init(); // TinyUSB init
 
@@ -365,6 +373,8 @@ static inline bool prvSetupHardware(void)
     task_handles.process_outbound_task_handle = NULL;
     task_handles.uart_event_task_handle = NULL;
 
+    watchdog_enable(1000, true);
+
     return true;
 }
 
@@ -380,5 +390,6 @@ static inline void enter_error_state()
     {
         gpio_put(PICO_DEFAULT_LED_PIN, state ^= 1);
         vTaskDelay(pdMS_TO_TICKS(500));
+        watchdog_update();
     }
 }
