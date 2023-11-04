@@ -13,12 +13,12 @@ static QueueHandle_t data_event_queue = NULL;
 /**
  * Store error counters
  */
-error_counters_t error_counters;
+static error_counters_t error_counters;
 
 /**
  * Store task handles
  */
-task_handles_t task_handles;
+static task_handles_t task_handles;
 
 /** @brief Receive data from uart
  *
@@ -66,7 +66,6 @@ static void cdc_task(void *pvParameters)
 
         watchdog_update();
     }
-
     vTaskDelete(NULL);
 }
 
@@ -111,16 +110,18 @@ static void decode_reception_task(void *pvParameters)
         }
         watchdog_update();
     }
-
     vTaskDelete(NULL);
 }
 
 /** @brief Send error counters to host
  *
+ *  Send error counters to the host and format the message in chunks of bytes
+ *
  */
 static inline void send_status()
 {
-    uint8_t data[8];
+    uint8_t data[10];
+
     data[0] = error_counters.display_out_error >> 8;
     data[1] = error_counters.display_out_error;
     data[2] = error_counters.queue_send_error >> 8;
@@ -129,7 +130,66 @@ static inline void send_status()
     data[5] = error_counters.queue_receive_error;
     data[6] = error_counters.led_out_error >> 8;
     data[7] = error_counters.led_out_error;
-    send_data(0, PC_STATUS_CMD, data, sizeof(data));
+    data[8] = error_counters.watchdog_error >> 8;
+    data[9] = error_counters.watchdog_error;
+
+    send_data(PANEL_ID, PC_STATUS_CMD, data, sizeof(data));
+}
+
+/** @brief Send status of the heap of each task
+ *
+ * Send heap usage of each task and overall heap usage from the idle task
+ *
+ */
+void send_heap_status()
+{
+    uint8_t data[28];
+    uint32_t heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.adc_read_task_handle);
+    data[0] = heap_usage >> 24;
+    data[1] = heap_usage >> 16;
+    data[2] = heap_usage >> 8;
+    data[3] = heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.cdc_task_handle);
+    data[4] = heap_usage >> 24;
+    data[5] = heap_usage >> 16;
+    data[6] = heap_usage >> 8;
+    data[7] = heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.decode_reception_task_handle);
+    data[8] = heap_usage >> 24;
+    data[9] = heap_usage >> 16;
+    data[10] = heap_usage >> 8;
+    data[11] = heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.encoder_read_task_handle);
+    data[12] = heap_usage >> 24;
+    data[13] = heap_usage >> 16;
+    data[14] = heap_usage >> 8;
+    data[15] = heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.keypad_task_handle);
+    data[16] = heap_usage >> 24;
+    data[17] = heap_usage >> 16;
+    data[18] = heap_usage >> 8;
+    data[19] = heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.process_outbound_task_handle);
+    data[20] = heap_usage >> 24;
+    data[21] = heap_usage >> 16;
+    data[22] = heap_usage >> 8;
+    data[23] = heap_usage;
+
+    heap_usage = uxTaskGetStackHighWaterMark(task_handles.uart_event_task_handle);
+    data[24] = heap_usage >> 24;
+    data[25] = heap_usage >> 16;
+    data[26] = heap_usage >> 8;
+    data[27] = heap_usage;
+    
+    send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
+
 }
 
 /** @brief Send a packet of data.
@@ -196,7 +256,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
 
     switch (decoded_data[0])
     {
-    /*
+    /**
      * Implement other inbound commands (LED, DISPLAY, etc)
      */
     case (PC_LEDOUT_CMD):
@@ -223,6 +283,10 @@ static void process_inbound_data(uint8_t *rx_buffer)
         send_status();
         break;
 
+    case (PC_HEAP_STATUS_CMD):
+        send_heap_status();
+        break;
+
     default:
         break;
     }
@@ -241,7 +305,7 @@ static void process_outbound_task(void *pvParameters)
         data_events_t data_event;
         if (xQueueReceive(data_event_queue, (void *)&data_event, portMAX_DELAY))
         {
-            send_data(0x01, data_event.command, data_event.data, data_event.data_length);
+            send_data(PANEL_ID, data_event.command, data_event.data, data_event.data_length);
         }
         else
         {
@@ -262,7 +326,8 @@ int main(void)
     error_counters.error_state = false;
 
     /** @todo Implement restart from watchdog timer. Check if handles and queues were created properly */
-    if (watchdog_caused_reboot()) error_counters.watchdog_error++;
+    if (watchdog_caused_reboot())
+        error_counters.watchdog_error++;
 
     board_init(); // TinyUSB init
 
@@ -284,11 +349,11 @@ int main(void)
     if (encoded_reception_queue != NULL)
     {
         // Created the queue  successfully
-        success = xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+        success = xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.uart_event_task_handle);
         if (success != pdPASS)
             error_counters.error_state = true;
 
-        success = xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, NULL);
+        success = xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, &task_handles.decode_reception_task_handle);
         if (success != pdPASS)
             error_counters.error_state = true;
     }
@@ -298,20 +363,20 @@ int main(void)
     }
 
     // Create queue to receive data events
-    success = xTaskCreate(process_outbound_task, "process_outbound_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    success = xTaskCreate(process_outbound_task, "process_outbound_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.process_outbound_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
     // Initiate task to read the inputs
-    success = xTaskCreate(adc_read_task, "adc_read_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    success = xTaskCreate(adc_read_task, "adc_read_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.adc_read_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
-    success = xTaskCreate(keypad_task, "keypad_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    success = xTaskCreate(keypad_task, "keypad_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.keypad_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
-    success = xTaskCreate(encoder_read_task, "encoder_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, NULL);
+    success = xTaskCreate(encoder_read_task, "encoder_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.encoder_read_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 

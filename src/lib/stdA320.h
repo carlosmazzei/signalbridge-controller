@@ -66,7 +66,7 @@
 #define PC_IDTABLE_CMD          21
 #define PC_RESET_CMD            22
 #define PC_STATUS_CMD           23
-#define PC_TXSTATUS_CMD         24
+#define PC_HEAP_STATUS_CMD      24
 #define PC_USBSTATUS_CMD        25
 #define PC_ID_CONFIRM_NODE      26
 #define PC_ID_CONFIRM           27
