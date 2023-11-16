@@ -62,6 +62,17 @@
 #define mainCDC_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
 
 /**
+ * Stack sizes 
+*/
+#define CDC_STACK_SIZE 512
+#define UART_EVENT_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
+#define DECODE_RECEPTION_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
+#define PROCESS_OUTBOUND_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
+#define ADC_READ_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
+#define KEYPAD_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
+#define ENCODER_READ_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
+
+/**
  * Structure to hold errors counter
  */
 typedef struct error_counters_t
@@ -99,10 +110,11 @@ static void process_inbound_data(uint8_t *rx_buffer);
 static void process_outbound_task(void *pvParameters);
 static inline void send_status();
 static inline void enter_error_state();
+static inline void clean_up();
 
 /**
- * Configure the hardware as necessary to run this demo.
+ * Configure the hardware as necessary to run
  */
-static bool prvSetupHardware(void);
+static bool setup_hardware(void);
 
 #endif

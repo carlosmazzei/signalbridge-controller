@@ -38,6 +38,8 @@ void vApplicationIdleHook(void)
     management options.  If there is a lot of heap memory free then the
     configTOTAL_HEAP_SIZE value in FreeRTOSConfig.h can be reduced to free up
     RAM. */
+
+    /** @todo Use the idle task to calculate heap usage and send it if queried */
     free_heap_size = xPortGetFreeHeapSize();
 }
 /*-----------------------------------------------------------*/

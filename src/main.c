@@ -143,6 +143,7 @@ static inline void send_status()
  */
 void send_heap_status()
 {
+    /** @todo Use the idle task to calculate the % of free heap for each task */
     uint8_t data[28];
     uint32_t heap_usage;
 
@@ -187,9 +188,8 @@ void send_heap_status()
     data[25] = heap_usage >> 16;
     data[26] = heap_usage >> 8;
     data[27] = heap_usage;
-    
-    send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
 
+    send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
 }
 
 /** @brief Send a packet of data.
@@ -318,42 +318,47 @@ static void process_outbound_task(void *pvParameters)
 
 /** @brief Main function
  *
+ * Start the queues and task to handle input and output events
+ *
  */
 int main(void)
 {
-    // Set error state to false
+    /* Set error state to false */
     BaseType_t success;
     error_counters.error_state = false;
 
-    /** @todo Implement restart from watchdog timer. Check if handles and queues were created properly */
+    /**a @todo Implement restart from watchdog timer. Check if handles and queues were created properly */
     if (watchdog_caused_reboot())
+    {
         error_counters.watchdog_error++;
+        clean_up();
+    }
 
-    board_init(); // TinyUSB init
+    board_init(); /* TinyUSB init */
 
-    // init device stack on configured roothub port
+    /* init device stack on configured roothub port */
     if (!tud_init(BOARD_TUD_RHPORT))
         error_counters.error_state = true;
 
-    // Initialize hardware specific config
-    if (!prvSetupHardware())
+    /* Initialize hardware specific config */
+    if (!setup_hardware())
         error_counters.error_state = true;
 
-    // Create a task to handle UART event from ISR
-    success = xTaskCreate(cdc_task, "cdc_task", 512, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.cdc_task_handle);
+    /* Create a task to handle UART event from ISR */
+    success = xTaskCreate(cdc_task, "cdc_task", CDC_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.cdc_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
-    // Create queue to receive encoded data
+    /* Create queue to receive encoded data */
     encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
     if (encoded_reception_queue != NULL)
     {
-        // Created the queue  successfully
-        success = xTaskCreate(uart_event_task, "uart_event_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.uart_event_task_handle);
+        /* Created the queue  successfully */
+        success = xTaskCreate(uart_event_task, "uart_event_task", UART_EVENT_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.uart_event_task_handle);
         if (success != pdPASS)
             error_counters.error_state = true;
 
-        success = xTaskCreate(decode_reception_task, "decode_reception_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, &task_handles.decode_reception_task_handle);
+        success = xTaskCreate(decode_reception_task, "decode_reception_task", DECODE_RECEPTION_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, &task_handles.decode_reception_task_handle);
         if (success != pdPASS)
             error_counters.error_state = true;
     }
@@ -362,21 +367,21 @@ int main(void)
         error_counters.error_state = true;
     }
 
-    // Create queue to receive data events
-    success = xTaskCreate(process_outbound_task, "process_outbound_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.process_outbound_task_handle);
+    /* Create queue to receive data events */
+    success = xTaskCreate(process_outbound_task, "process_outbound_task", PROCESS_OUTBOUND_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.process_outbound_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
-    // Initiate task to read the inputs
-    success = xTaskCreate(adc_read_task, "adc_read_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.adc_read_task_handle);
+    /* Initiate task to read the inputs */
+    success = xTaskCreate(adc_read_task, "adc_read_task", ADC_READ_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.adc_read_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
-    success = xTaskCreate(keypad_task, "keypad_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.keypad_task_handle);
+    success = xTaskCreate(keypad_task, "keypad_task", KEYPAD_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.keypad_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
-    success = xTaskCreate(encoder_read_task, "encoder_task", 2 * configMINIMAL_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.encoder_read_task_handle);
+    success = xTaskCreate(encoder_read_task, "encoder_task", ENCODER_READ_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.encoder_read_task_handle);
     if (success != pdPASS)
         error_counters.error_state = true;
 
@@ -399,18 +404,18 @@ int main(void)
  *
  * @return Return true if initialization was successfull and false if failed to create any resource
  */
-static inline bool prvSetupHardware(void)
+static inline bool setup_hardware(void)
 {
     stdio_init_all();
 
     output_init();
 
-    // Create queue to receive data events
+    /* Create queue to receive data events */
     data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
     if (data_event_queue == NULL)
         return false;
 
-    // Enable inputs (Keypad, ADC and Rotaries)
+    /* Enable inputs (Keypad, ADC and Rotaries) */
     const input_config_t config = {
         .columns = 8,
         .rows = 8,
@@ -420,11 +425,11 @@ static inline bool prvSetupHardware(void)
         .adc_channels = 8,
         .adc_settling_time_ms = 100,
         .encoder_settling_time_ms = 10,
-        .encoder_mask[7] = true}; // Enable encoder on row 8 (last row)
+        .encoder_mask[7] = true}; /* Enable encoder on row 8 (last row) */
 
     input_init(&config);
 
-    // Init error counters and handles
+    /* Init error counters and handles */
     error_counters.display_out_error = 0;
     error_counters.led_out_error = 0;
     error_counters.queue_receive_error = 0;
@@ -456,5 +461,69 @@ static inline void enter_error_state()
         gpio_put(PICO_DEFAULT_LED_PIN, state ^= 1);
         vTaskDelay(pdMS_TO_TICKS(500));
         watchdog_update();
+    }
+}
+
+/** @brief Clean up all resources
+ * 
+ * Clean up all the previously created resources in case of problems
+ * 
+ */
+static inline void clean_up()
+{
+    /* Delete all queues */
+    if (encoded_reception_queue != NULL)
+    {
+        vQueueDelete(encoded_reception_queue);
+        encoded_reception_queue = NULL;
+    }
+
+    if (data_event_queue != NULL)
+    {
+        vQueueDelete(data_event_queue);
+        data_event_queue = NULL;
+    }
+
+    /* Delete all task handles previously created */
+    if (task_handles.cdc_task_handle != NULL) 
+    {
+        vTaskDelete(task_handles.cdc_task_handle);
+        task_handles.cdc_task_handle = NULL;
+    }
+
+    if (task_handles.uart_event_task_handle != NULL)
+    {
+        vTaskDelete(task_handles.uart_event_task_handle);
+        task_handles.uart_event_task_handle = NULL;
+    }
+
+    if (task_handles.decode_reception_task_handle != NULL)
+    {
+        vTaskDelete(task_handles.decode_reception_task_handle);
+        task_handles.decode_reception_task_handle = NULL;
+    }
+
+    if (task_handles.process_outbound_task_handle != NULL) 
+    {
+        vTaskDelete(task_handles.process_outbound_task_handle);
+        task_handles.process_outbound_task_handle = NULL;
+    }
+
+    if (task_handles.adc_read_task_handle != NULL)
+    {
+        vTaskDelete(task_handles.adc_read_task_handle);
+        task_handles.adc_read_task_handle = NULL;
+    }
+
+    if (task_handles.keypad_task_handle != NULL)
+    {
+        vTaskDelete(task_handles.keypad_task_handle);
+        task_handles.keypad_task_handle = NULL;
+    }
+
+    if (task_handles.encoder_read_task_handle != NULL)
+    {
+        vTaskDelete(task_handles.encoder_read_task_handle);
+        task_handles.encoder_read_task_handle = NULL;
     }
 }
