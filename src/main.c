@@ -316,88 +316,6 @@ static void process_outbound_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-/** @brief Main function
- *
- * Start the queues and task to handle input and output events
- *
- */
-int main(void)
-{
-    /* Set error state to false */
-    BaseType_t success;
-    error_counters.error_state = false;
-
-    /**a @todo Implement restart from watchdog timer. Check if handles and queues were created properly */
-    if (watchdog_caused_reboot())
-    {
-        error_counters.watchdog_error++;
-        clean_up();
-    }
-
-    board_init(); /* TinyUSB init */
-
-    /* init device stack on configured roothub port */
-    if (!tud_init(BOARD_TUD_RHPORT))
-        error_counters.error_state = true;
-
-    /* Initialize hardware specific config */
-    if (!setup_hardware())
-        error_counters.error_state = true;
-
-    /* Create a task to handle UART event from ISR */
-    success = xTaskCreate(cdc_task, "cdc_task", CDC_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.cdc_task_handle);
-    if (success != pdPASS)
-        error_counters.error_state = true;
-
-    /* Create queue to receive encoded data */
-    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
-    if (encoded_reception_queue != NULL)
-    {
-        /* Created the queue  successfully */
-        success = xTaskCreate(uart_event_task, "uart_event_task", UART_EVENT_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.uart_event_task_handle);
-        if (success != pdPASS)
-            error_counters.error_state = true;
-
-        success = xTaskCreate(decode_reception_task, "decode_reception_task", DECODE_RECEPTION_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, &task_handles.decode_reception_task_handle);
-        if (success != pdPASS)
-            error_counters.error_state = true;
-    }
-    else
-    {
-        error_counters.error_state = true;
-    }
-
-    /* Create queue to receive data events */
-    success = xTaskCreate(process_outbound_task, "process_outbound_task", PROCESS_OUTBOUND_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.process_outbound_task_handle);
-    if (success != pdPASS)
-        error_counters.error_state = true;
-
-    /* Initiate task to read the inputs */
-    success = xTaskCreate(adc_read_task, "adc_read_task", ADC_READ_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.adc_read_task_handle);
-    if (success != pdPASS)
-        error_counters.error_state = true;
-
-    success = xTaskCreate(keypad_task, "keypad_task", KEYPAD_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.keypad_task_handle);
-    if (success != pdPASS)
-        error_counters.error_state = true;
-
-    success = xTaskCreate(encoder_read_task, "encoder_task", ENCODER_READ_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.encoder_read_task_handle);
-    if (success != pdPASS)
-        error_counters.error_state = true;
-
-    /* Start the tasks and timer running. */
-    if (error_counters.error_state == false)
-        vTaskStartScheduler();
-    else
-        enter_error_state();
-
-    /* Should not enter if everything initiated correctly */
-    for (;;)
-        ;
-
-    return 0;
-}
-
 /** @brief Setup hardware
  *
  * Setup hardware such as UART, LED, Keyboard and internal structures.
@@ -526,4 +444,86 @@ static inline void clean_up()
         vTaskDelete(task_handles.encoder_read_task_handle);
         task_handles.encoder_read_task_handle = NULL;
     }
+}
+
+/** @brief Main function
+ *
+ * Start the queues and task to handle input and output events
+ *
+ */
+int main(void)
+{
+    /* Set error state to false */
+    BaseType_t success;
+    error_counters.error_state = false;
+
+    /* Add error counter and cleanup resources */
+    if (watchdog_caused_reboot())
+    {
+        error_counters.watchdog_error++;
+        clean_up();
+    }
+
+    board_init(); /* TinyUSB init */
+
+    /* init device stack on configured roothub port */
+    if (!tud_init(BOARD_TUD_RHPORT))
+        error_counters.error_state = true;
+
+    /* Initialize hardware specific config */
+    if (!setup_hardware())
+        error_counters.error_state = true;
+
+    /* Create a task to handle UART event from ISR */
+    success = xTaskCreate(cdc_task, "cdc_task", CDC_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.cdc_task_handle);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    /* Create queue to receive encoded data */
+    encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
+    if (encoded_reception_queue != NULL)
+    {
+        /* Created the queue  successfully */
+        success = xTaskCreate(uart_event_task, "uart_event_task", UART_EVENT_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.uart_event_task_handle);
+        if (success != pdPASS)
+            error_counters.error_state = true;
+
+        success = xTaskCreate(decode_reception_task, "decode_reception_task", DECODE_RECEPTION_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY + 1, &task_handles.decode_reception_task_handle);
+        if (success != pdPASS)
+            error_counters.error_state = true;
+    }
+    else
+    {
+        error_counters.error_state = true;
+    }
+
+    /* Create queue to receive data events */
+    success = xTaskCreate(process_outbound_task, "process_outbound_task", PROCESS_OUTBOUND_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.process_outbound_task_handle);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    /* Initiate task to read the inputs */
+    success = xTaskCreate(adc_read_task, "adc_read_task", ADC_READ_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.adc_read_task_handle);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    success = xTaskCreate(keypad_task, "keypad_task", KEYPAD_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.keypad_task_handle);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    success = xTaskCreate(encoder_read_task, "encoder_task", ENCODER_READ_STACK_SIZE, NULL, mainPROCESS_QUEUE_TASK_PRIORITY, &task_handles.encoder_read_task_handle);
+    if (success != pdPASS)
+        error_counters.error_state = true;
+
+    /* Start the tasks and timer running. */
+    if (error_counters.error_state == false)
+        vTaskStartScheduler();
+    else
+        enter_error_state();
+
+    /* Should not enter if everything initiated correctly */
+    for (;;)
+        ;
+
+    return 0;
 }
