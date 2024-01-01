@@ -30,6 +30,6 @@ target_link_libraries(  pi_controller
                         tinyusb_device 
                         tinyusb_board 
                         FreeRTOS-Kernel 
-                        FreeRTOS-Kernel-Heap1 
+                        FreeRTOS-Kernel-Heap4
                     )
 

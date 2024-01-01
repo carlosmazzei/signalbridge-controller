@@ -11,5 +11,4 @@ target_link_libraries(interfaces PUBLIC
                         hardware_adc
                         hardware_pwm
                         FreeRTOS-Kernel 
-                        FreeRTOS-Kernel-Heap1 
                     )

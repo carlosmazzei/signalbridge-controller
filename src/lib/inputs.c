@@ -1,5 +1,6 @@
 #include "inputs.h"
 #include "data_event.h"
+#include "hardware/watchdog.h"
 
 /**
  * Input configuration.
@@ -93,6 +94,7 @@ bool input_init(const input_config_t *config)
 void keypad_task(void *pvParameters)
 {
     bool toggle_adc_mux = false;
+    uint8_t *free_heap = (uint8_t *) pvParameters;
 
     while (true)
     {
@@ -131,6 +133,9 @@ void keypad_task(void *pvParameters)
 
             keypad_cs_columns(false);
         }
+        
+        *free_heap = (uint8_t)xPortGetFreeHeapSize();
+        watchdog_update();
     }
 
     vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
@@ -204,8 +209,9 @@ void keypad_generate_event(uint8_t row, uint8_t column, bool state)
 void adc_read_task(void *pvParameters)
 {
     adc_states_t adc_states;
+    uint8_t* free_heap = (uint8_t*) pvParameters;
 
-    // Initialize the ADC states
+    /* Initialize the ADC states */
     for (int i = 0; i < ADC_CHANNELS; i++)
     {
         adc_states.adc_previous_value[i] = 0;
@@ -250,6 +256,9 @@ void adc_read_task(void *pvParameters)
             // Deselect the CS pin of the ADC mux
             adc_mux_select(bank, 0, false);
         }
+
+        *free_heap = (uint8_t)xPortGetFreeHeapSize();
+        watchdog_update();
     }
 
     vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
@@ -325,6 +334,7 @@ void encoder_read_task(void *pvParameters)
 {
     const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
     encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+    uint8_t * free_heap = (uint8_t*) pvParameters;
 
     while (true)
     {
@@ -364,6 +374,9 @@ void encoder_read_task(void *pvParameters)
 
             keypad_cs_rows(false);
         }
+
+        *free_heap = (uint8_t)xPortGetFreeHeapSize();
+        watchdog_update();
     }
 
     vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop

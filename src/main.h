@@ -64,7 +64,7 @@
 /**
  * Stack sizes 
 */
-#define CDC_STACK_SIZE 512
+#define CDC_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 #define UART_EVENT_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 #define DECODE_RECEPTION_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 #define PROCESS_OUTBOUND_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
@@ -85,8 +85,8 @@ typedef struct error_counters_t
     bool error_state;
 } error_counters_t;
 
-/** Structure to hold task handles
- *
+/** 
+ * Structure to hold task handles
  */
 typedef struct task_handles_t
 {
@@ -98,6 +98,21 @@ typedef struct task_handles_t
     TaskHandle_t keypad_task_handle;
     TaskHandle_t encoder_read_task_handle;
 } task_handles_t;
+
+/** 
+ * Structure to hold free heap size
+ */
+typedef struct task_free_heap_t
+{
+    uint8_t cdc_task_free_heap;
+    uint8_t uart_event_task_free_heap;
+    uint8_t decode_reception_task_free_heap;
+    uint8_t process_outbound_task_free_heap;
+    uint8_t adc_read_task_free_heap;
+    uint8_t keypad_task_free_heap;
+    uint8_t encoder_read_task_free_heap;
+} task_free_heap_t;
+
 
 /**
  * Function prototypes
@@ -111,6 +126,7 @@ static void process_outbound_task(void *pvParameters);
 static inline void send_status();
 static inline void enter_error_state();
 static inline void clean_up();
+static inline uint8_t calculate_percentage(uint32_t value);
 
 /**
  * Configure the hardware as necessary to run
