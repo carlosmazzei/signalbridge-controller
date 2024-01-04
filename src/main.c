@@ -312,7 +312,7 @@ static void process_outbound_task(void *pvParameters)
         }
 
         /* Get free heap size */
-        *free_heap = (uint8_t)xPortGetFreeHeapSize();
+        *free_heap = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 
         /* Update watchdog timer */
         watchdog_update();
