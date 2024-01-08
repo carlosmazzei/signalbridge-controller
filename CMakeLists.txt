@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 
 # Add TinyUSB lib
 set(FAMILY rp2040)
@@ -8,6 +8,7 @@ set(BOARD pico_sdk)
 include(pico_sdk_import.cmake)
 
 # Pull in FreeRTOS
+set(FREERTOS_KERNEL_PATH "../lib/FreeRTOS-Kernel/")
 include(FreeRTOS_Kernel_import.cmake)
 
 project(pi_controller C CXX ASM)

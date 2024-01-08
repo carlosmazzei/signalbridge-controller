@@ -5,14 +5,10 @@ target_sources(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/main.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hooks.c
         ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
-        )
-
-# Include
-target_include_directories(pi_controller PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS
-        ${CMAKE_CURRENT_SOURCE_DIR}/../FreeRTOS-SMP-Demos/FreeRTOS/Source/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/cobs.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/inputs.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/outputs.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
         )
 
 # Instructions to enable/disable debugging using printf commands
@@ -21,14 +17,19 @@ pico_enable_stdio_uart(pi_controller 0)
 
 pico_add_extra_outputs(pi_controller) 
 
-add_subdirectory(lib)
+target_include_directories(pi_controller PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+        ${FREERTOS_KERNEL_PATH}/include
+        )
 
 target_link_libraries(  pi_controller 
-                        interfaces
                         pico_stdlib 
                         pico_unique_id 
                         tinyusb_device 
                         tinyusb_board 
+                        hardware_adc
+                        hardware_spi
+                        hardware_pwm
                         FreeRTOS-Kernel 
                         FreeRTOS-Kernel-Heap4
                     )
