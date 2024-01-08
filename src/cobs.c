@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 /** @brief COBS encode data to buffer
- * 
+ *
  *	@param data Pointer to input data to encode
  *	@param length Number of bytes to encode
  *	@param buffer Pointer to encoded output buffer
@@ -34,13 +34,16 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 	return (size_t)(encode - buffer);
 }
 
-/** COBS decode data from buffer
-	@param buffer Pointer to encoded input bytes
-	@param length Number of bytes to decode
-	@param data Pointer to decoded output data
-	@return Number of bytes successfully decoded
-	@note Stops decoding if delimiter byte is found
-*/
+/** @brief COBS decode data from buffer
+ * 
+ *      @param buffer Pointer to encoded input bytes
+ *      @param length Number of bytes to decode
+ *      @param data Pointer to decoded output data
+ *
+ *      @return Number of bytes successfully decoded
+ *
+ *      @note Stops decoding if delimiter byte is found
+ */
 size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
 {
 	const uint8_t *byte = buffer; // Encoded input byte pointer
