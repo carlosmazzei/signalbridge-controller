@@ -36,13 +36,13 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 
 /** @brief COBS decode data from buffer
  * 
- *      @param buffer Pointer to encoded input bytes
- *      @param length Number of bytes to decode
- *      @param data Pointer to decoded output data
+ *	@param buffer Pointer to encoded input bytes
+ *	@param length Number of bytes to decode
+ *	@param data Pointer to decoded output data
  *
- *      @return Number of bytes successfully decoded
+ *	@return Number of bytes successfully decoded
  *
- *      @note Stops decoding if delimiter byte is found
+ *	@note Stops decoding if delimiter byte is found
  */
 size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
 {
