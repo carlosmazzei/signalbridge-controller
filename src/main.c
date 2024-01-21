@@ -29,7 +29,7 @@ static task_free_heap_t task_free_heap;
  *
  *  Receives data from UART and post it to a reception queue. If the data is encoded, it should be decoded accordingly
  *
- * @param pvParameters Pointer to parameters passed to the task
+ *	@param pvParameters Pointer to parameters passed to the task
  */
 static void uart_event_task(void *pvParameters)
 {
@@ -58,9 +58,9 @@ static void uart_event_task(void *pvParameters)
 
 /** @brief CDC tasks
  *
- * CDC task needed to update the USB stack
+ * 	CDC task needed to update the USB stack
  *
- * @param pvParameters Pointer to parameters passed to the task
+ * 	@param pvParameters Pointer to parameters passed to the task
  */
 static void cdc_task(void *pvParameters)
 {
@@ -246,6 +246,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
 	decoded_data[0] = *rx_buffer++ & 0x1F;
 	len = *rx_buffer++;
 
+	/** @todo Check if there is a more efficient way to do it without needing to loop */
 	for (i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
 	{
 		decoded_data[i] = *rx_buffer++;
@@ -310,10 +311,8 @@ static void process_outbound_task(void *pvParameters)
 		{
 			error_counters.queue_receive_error++;
 		}
-
 		/* Get free heap size */
 		*free_heap = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-
 		/* Update watchdog timer */
 		watchdog_update();
 	}

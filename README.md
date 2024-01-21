@@ -2,19 +2,7 @@
 
 This controller uses Raspberry Pi Pico and the SMP (Symmetric Multi Processor) version of the FreeRTOS.
 
-In order to compile with VSCode, you need first to set the environment variables in the `settings.json` file (example provided below. Substitute [INSTALLATION FOLDER] with the correct path):
-
-```json
-{
-    "cmake.environment": {
-        "PICO_SDK_PATH":"/[INSTALLATION FOLDER]/pico/pico-sdk",
-        "FREERTOS_KERNEL_PATH":"/[INSTALLATION FOLDER]/pico/FreeRTOS-SMP-Demos/FreeRTOS/Source",
-        "PICO_TINYUSB_PATH":"/[INSTALLATION FOLDER]/pico/pico-sdk/lib/tinyusb"
-    },
-}
-```
-
-Then, config the CMake Extensions to use Unix Makefiles
+You should config the CMake Extensions to use Unix Makefiles
 
 *CMake:Generator*: Unix Makefiles
 
@@ -28,13 +16,33 @@ cd ..
 make
 ```
 
+## Pico-SDK
+
+Pico-sdk is added as a submodule under `/lib/pico-sdk`. Make sure to initialize it when cloning the Repo, using
+
+```sh
+git submodule update --init --recursive
+```
+
 ## FreeRTOS SMP Usage
 
-In order to use the FreeRTOS you need to include the `/FreeRTOS/FreeRTOSConfig.h` file and import the cmake file `include(FreeRTOS_Kernel_import.cmake)` in the top CMakeLists.txt config. After that you can import the desired files and use FreeRTOS directly.
+In order to use the FreeRTOS you need to include the `/FreeRTOS/FreeRTOSConfig.h` file and import the cmake file `include(FreeRTOS_Kernel_import.cmake)`, defining the FREERTOS_KERNEL_PATH in the top CMakeLists.txt config. After that you can import the desired files and use FreeRTOS directly.
+
+The FreeRTOS is being initialized as a submodule under `/lib/FreeRTOS`. Make sure to initialize it when cloning the Repo, using
+
+```sh
+git clone git@github.com:FreeRTOS/FreeRTOS.git --recurse-submodules
+```
+
+or
+
+```sh
+git submodule update --init --recursive
+```
 
 ## Documentation
 
-Doxygen documentation is generated automatically from the code comments. Doxygen must be installed in order to generate the documentation correclty. Feel free to change the settings in the `/docs/Doxyfile` to customize documentation output.
+Doxygen documentation is generated automatically from the code comments. Doxygen must be installed in order to generate the documentation correclty. Feel free to change the settings in the `/docs/Doxyfile` to customize documentation output. If you are using Homebrew, install it by runnning `brew install doxygen`.
 
 ## Features
 
@@ -50,3 +58,7 @@ void vApplicationIdleHook( void );
 The idle hook is called repeatedly as long as the idle task is running. It is paramount that the idle hook function does not call any API functions that could cause it to block. Also, if the application makes use of the vTaskDelete() API function then the idle task hook must be allowed to periodically return (this is because the idle task is responsible for cleaning up the resources that were allocated by the RTOS kernel to the task that has been deleted).
 
 During the idle hook the application will get the free heap size.
+
+### Comands
+
+The interface has several commands to control outputs and read inputs.

@@ -5,7 +5,7 @@ set(FAMILY rp2040)
 set(BOARD pico_sdk)
 
 # Pull in SDK (must be before project)
-include(pico_sdk_import.cmake)
+include(lib/pico-sdk/pico_sdk_init.cmake)
 
 # Pull in FreeRTOS
 set(FREERTOS_KERNEL_PATH "../lib/FreeRTOS-Kernel/")
