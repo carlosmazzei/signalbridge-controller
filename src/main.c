@@ -16,14 +16,9 @@ static QueueHandle_t data_event_queue = NULL;
 static error_counters_t error_counters;
 
 /**
- * Store task handles
+ * Store task properties
  */
-static task_handles_t task_handles;
-
-/**
- * Store free heap size of each task
- */
-static task_free_heap_t task_free_heap;
+static task_props_t task_props[NUM_TASKS];
 
 /** @brief Receive data from uart
  *
@@ -34,7 +29,7 @@ static task_free_heap_t task_free_heap;
 static void uart_event_task(void *pvParameters)
 {
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
-	uint8_t * free_heap = (uint8_t*) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
 	{
@@ -49,7 +44,7 @@ static void uart_event_task(void *pvParameters)
 			}
 		}
 		/* Get free heap for the task */
-		*free_heap = (uint8_t)xPortGetFreeHeapSize();
+		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		/* Update watchdog timer */
 		watchdog_update();
 	}
@@ -64,7 +59,8 @@ static void uart_event_task(void *pvParameters)
  */
 static void cdc_task(void *pvParameters)
 {
-	uint8_t* free_heap = (uint8_t*) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
+
 	while (true)
 	{
 		tud_task(); // tinyusb device task
@@ -75,7 +71,7 @@ static void cdc_task(void *pvParameters)
 			gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
 		/* Get free heap for the task */
-		*free_heap = (uint8_t)xPortGetFreeHeapSize();
+		task_props->high_watermark = (uint8_t)xPortGetFreeHeapSize();
 		/* Update watchdog timer */
 		watchdog_update();
 	}
@@ -93,7 +89,8 @@ static void decode_reception_task(void *pvParameters)
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t receive_buffer_index = 0;
 	bool receive_buffer_overflow = false;
-	uint8_t* free_heap = (uint8_t*) pvParameters;
+
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
 	{
@@ -123,7 +120,7 @@ static void decode_reception_task(void *pvParameters)
 			error_counters.queue_receive_error++;
 		}
 		/* Get free heap for the task */
-		*free_heap = (uint8_t)xPortGetFreeHeapSize();
+		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		/* Update watchdog timer */
 		watchdog_update();
 	}
@@ -160,16 +157,12 @@ static inline void send_status()
  */
 void send_heap_status()
 {
-	/** @todo Use the idle task to calculate the % of free heap for each task */
 	uint8_t data[7];
 
-	data[0] = task_free_heap.cdc_task_free_heap;
-	data[1] = task_free_heap.uart_event_task_free_heap;
-	data[2] = task_free_heap.decode_reception_task_free_heap;
-	data[3] = task_free_heap.process_outbound_task_free_heap;
-	data[4] = task_free_heap.adc_read_task_free_heap;
-	data[5] = task_free_heap.keypad_task_free_heap;
-	data[6] = task_free_heap.encoder_read_task_free_heap;
+	for (uint8_t t = 0; t < NUM_TASKS; t++)
+	{
+		data[t] = task_props[t].high_watermark;
+	}
 
 	send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
 }
@@ -298,7 +291,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
  */
 static void process_outbound_task(void *pvParameters)
 {
-	uint8_t* free_heap = (uint8_t*) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
 	{
@@ -312,7 +305,7 @@ static void process_outbound_task(void *pvParameters)
 			error_counters.queue_receive_error++;
 		}
 		/* Get free heap size */
-		*free_heap = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		/* Update watchdog timer */
 		watchdog_update();
 	}
@@ -359,14 +352,13 @@ static inline bool setup_hardware(void)
 	error_counters.led_out_error = 0;
 	error_counters.queue_receive_error = 0;
 	error_counters.queue_send_error = 0;
-
-	task_handles.adc_read_task_handle = NULL;
-	task_handles.decode_reception_task_handle = NULL;
-	task_handles.cdc_task_handle = NULL;
-	task_handles.keypad_task_handle = NULL;
-	task_handles.encoder_read_task_handle = NULL;
-	task_handles.process_outbound_task_handle = NULL;
-	task_handles.uart_event_task_handle = NULL;
+	
+	/* Init task props */
+	for (uint8_t i = 0; i < NUM_TASKS; i++)
+	{
+		task_props[i].high_watermark = 0;
+		task_props[i].task_handle = NULL;
+	}
 
 	watchdog_enable(1000, true);
 
@@ -410,46 +402,13 @@ static inline void clean_up()
 	}
 
 	/* Delete all task handles previously created */
-	if (task_handles.cdc_task_handle != NULL)
+	for (uint8_t t = 0; t < NUM_TASKS; t++)
 	{
-		vTaskDelete(task_handles.cdc_task_handle);
-		task_handles.cdc_task_handle = NULL;
-	}
-
-	if (task_handles.uart_event_task_handle != NULL)
-	{
-		vTaskDelete(task_handles.uart_event_task_handle);
-		task_handles.uart_event_task_handle = NULL;
-	}
-
-	if (task_handles.decode_reception_task_handle != NULL)
-	{
-		vTaskDelete(task_handles.decode_reception_task_handle);
-		task_handles.decode_reception_task_handle = NULL;
-	}
-
-	if (task_handles.process_outbound_task_handle != NULL)
-	{
-		vTaskDelete(task_handles.process_outbound_task_handle);
-		task_handles.process_outbound_task_handle = NULL;
-	}
-
-	if (task_handles.adc_read_task_handle != NULL)
-	{
-		vTaskDelete(task_handles.adc_read_task_handle);
-		task_handles.adc_read_task_handle = NULL;
-	}
-
-	if (task_handles.keypad_task_handle != NULL)
-	{
-		vTaskDelete(task_handles.keypad_task_handle);
-		task_handles.keypad_task_handle = NULL;
-	}
-
-	if (task_handles.encoder_read_task_handle != NULL)
-	{
-		vTaskDelete(task_handles.encoder_read_task_handle);
-		task_handles.encoder_read_task_handle = NULL;
+		if (task_props[t].task_handle != NULL)
+		{
+			vTaskDelete(task_props[t].task_handle);
+			task_props[t].task_handle = NULL;
+		}
 	}
 }
 
@@ -486,9 +445,9 @@ int main(void)
 	success = xTaskCreate(cdc_task,
 	                      "cdc_task",
 	                      CDC_STACK_SIZE,
-	                      &task_free_heap.cdc_task_free_heap,
+	                      (void *)&task_props[CDC_TASK],
 	                      mainPROCESS_QUEUE_TASK_PRIORITY,
-	                      &task_handles.cdc_task_handle);
+	                      &task_props[CDC_TASK].task_handle);
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
@@ -500,18 +459,18 @@ int main(void)
 		success = xTaskCreate(uart_event_task,
 		                      "uart_event_task",
 		                      UART_EVENT_STACK_SIZE,
-		                      &task_free_heap.uart_event_task_free_heap,
+		                      (void *)&task_props[UART_EVENT_TASK],
 		                      mainPROCESS_QUEUE_TASK_PRIORITY,
-		                      &task_handles.uart_event_task_handle);
+		                      &task_props[UART_EVENT_TASK].task_handle);
 		if (success != pdPASS)
 			error_counters.error_state = true;
 
 		success = xTaskCreate(decode_reception_task,
 		                      "decode_reception_task",
 		                      DECODE_RECEPTION_STACK_SIZE,
-		                      &task_free_heap.decode_reception_task_free_heap,
+		                      (void *)&task_props[DECODE_RECEPTION_TASK],
 		                      mainPROCESS_QUEUE_TASK_PRIORITY + 1,
-		                      &task_handles.decode_reception_task_handle);
+		                      &task_props[DECODE_RECEPTION_TASK].task_handle);
 		if (success != pdPASS)
 			error_counters.error_state = true;
 	}
@@ -524,36 +483,36 @@ int main(void)
 	success = xTaskCreate(process_outbound_task,
 	                      "process_outbound_task",
 	                      PROCESS_OUTBOUND_STACK_SIZE,
-	                      &task_free_heap.process_outbound_task_free_heap,
+	                      (void *)&task_props[PROCESS_OUTBOUND_TASK],
 	                      mainPROCESS_QUEUE_TASK_PRIORITY,
-	                      &task_handles.process_outbound_task_handle);
+	                      &task_props[PROCESS_OUTBOUND_TASK].task_handle);
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
 	/* Initiate task to read the inputs */
 	success = xTaskCreate(adc_read_task, "adc_read_task",
 	                      ADC_READ_STACK_SIZE,
-	                      &task_free_heap.adc_read_task_free_heap,
+	                      (void *)&task_props[ADC_READ_TASK],
 	                      mainPROCESS_QUEUE_TASK_PRIORITY,
-	                      &task_handles.adc_read_task_handle);
+	                      &task_props[ADC_READ_TASK].task_handle);
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
 	success = xTaskCreate(keypad_task,
 	                      "keypad_task",
 	                      KEYPAD_STACK_SIZE,
-	                      &task_free_heap.keypad_task_free_heap,
+	                      (void *)&task_props[KEYPAD_TASK],
 	                      mainPROCESS_QUEUE_TASK_PRIORITY,
-	                      &task_handles.keypad_task_handle);
+	                      &task_props[KEYPAD_TASK].task_handle);
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
 	success = xTaskCreate(encoder_read_task,
 	                      "encoder_task",
 	                      ENCODER_READ_STACK_SIZE,
-	                      &task_free_heap.encoder_read_task_free_heap,
+	                      (void *)&task_props[ENCODER_READ_TASK],
 	                      mainPROCESS_QUEUE_TASK_PRIORITY,
-	                      &task_handles.encoder_read_task_handle);
+	                      &task_props[ENCODER_READ_TASK].task_handle);
 	if (success != pdPASS)
 		error_counters.error_state = true;
 

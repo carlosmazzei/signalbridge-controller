@@ -102,17 +102,40 @@ typedef struct task_handles_t
 /** 
  * Structure to hold free heap size
  */
-typedef struct task_free_heap_t
+typedef struct task_high_watermark_t
 {
-    uint8_t cdc_task_free_heap;
-    uint8_t uart_event_task_free_heap;
-    uint8_t decode_reception_task_free_heap;
-    uint8_t process_outbound_task_free_heap;
-    uint8_t adc_read_task_free_heap;
-    uint8_t keypad_task_free_heap;
-    uint8_t encoder_read_task_free_heap;
-} task_free_heap_t;
+    uint8_t cdc_task_high_watermark;
+    uint8_t uart_event_task_high_watermark;
+    uint8_t decode_reception_task_high_watermark;
+    uint8_t process_outbound_task_high_watermark;
+    uint8_t adc_read_task_high_watermark;
+    uint8_t keypad_task_high_watermark;
+    uint8_t encoder_read_task_high_watermark;
+} task_high_watermark_t;
 
+/** 
+ * Structure to hold task handle and high watermark 
+ */
+typedef struct task_props_t
+{
+    TaskHandle_t task_handle;
+    uint8_t high_watermark;
+} task_props_t;
+
+/**
+ * Enum of all tasks created
+ */
+typedef enum task_enum_t
+{
+    CDC_TASK,
+    UART_EVENT_TASK,
+    DECODE_RECEPTION_TASK,
+    PROCESS_OUTBOUND_TASK,
+    ADC_READ_TASK,
+    KEYPAD_TASK,
+    ENCODER_READ_TASK,
+    NUM_TASKS
+} task_enum_t;
 
 /**
  * Function prototypes
