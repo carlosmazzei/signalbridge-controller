@@ -11,6 +11,7 @@
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "stdA320.h"
+#include "main.h"
 
 /**
  * Keypad definitions

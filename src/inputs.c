@@ -94,7 +94,7 @@ bool input_init(const input_config_t *config)
 void keypad_task(void *pvParameters)
 {
 	bool toggle_adc_mux = false;
-	uint8_t *free_heap = (uint8_t *) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
 	{
@@ -134,7 +134,7 @@ void keypad_task(void *pvParameters)
 			keypad_cs_columns(false);
 		}
 
-		*free_heap = (uint8_t)xPortGetFreeHeapSize();
+		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 
@@ -209,7 +209,7 @@ void keypad_generate_event(uint8_t row, uint8_t column, bool state)
 void adc_read_task(void *pvParameters)
 {
 	adc_states_t adc_states;
-	uint8_t* free_heap = (uint8_t*) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	/* Initialize the ADC states */
 	for (int i = 0; i < ADC_CHANNELS; i++)
@@ -257,7 +257,7 @@ void adc_read_task(void *pvParameters)
 			adc_mux_select(bank, 0, false);
 		}
 
-		*free_heap = (uint8_t)xPortGetFreeHeapSize();
+		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 
