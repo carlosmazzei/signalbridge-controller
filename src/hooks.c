@@ -1,3 +1,14 @@
+/**
+ * @file hooks.c
+ * @brief Hooks for FreeRTOS
+ * @author Carlos Mazzei
+ *
+ * This file contains the code of the hooks for FreeRTOS.
+ *
+ * @copyright (c) 2020-2024 Carlos Mazzei
+ * All rights reserved.
+ */
+
 #include "hooks.h"
 
 /*-----------------------------------------------------------*/

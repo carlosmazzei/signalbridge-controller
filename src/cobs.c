@@ -1,3 +1,14 @@
+/**
+ * @file cobs.c
+ * @brief COBS encoding implementation
+ * @author Carlos Mazzei
+ *
+ * This file contains the COBS encoding implementation.
+ *
+ * @copyright (c) 2020-2024 Carlos Mazzei
+ * All rights reserved.
+ */
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -35,7 +46,7 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 }
 
 /** @brief COBS decode data from buffer
- * 
+ *
  *	@param buffer Pointer to encoded input bytes
  *	@param length Number of bytes to decode
  *	@param data Pointer to decoded output data

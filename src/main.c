@@ -1,3 +1,14 @@
+/**
+ * @file main.c
+ * @brief Main file of the project
+ * @author Carlos Mazzei
+ *
+ * This file contains the main function of the project.
+ *
+ * @copyright (c) 2020-2024 Carlos Mazzei
+ * All rights reserved.
+ */
+
 #include "main.h"
 
 /**
@@ -352,7 +363,7 @@ static inline bool setup_hardware(void)
 	error_counters.led_out_error = 0;
 	error_counters.queue_receive_error = 0;
 	error_counters.queue_send_error = 0;
-	
+
 	/* Init task props */
 	for (uint8_t i = 0; i < NUM_TASKS; i++)
 	{

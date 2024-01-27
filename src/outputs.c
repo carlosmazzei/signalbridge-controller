@@ -1,3 +1,14 @@
+/**
+ * @file outputs.c
+ * @brief Functions to output Leds, PWM and other
+ * @author Carlos Mazzei
+ *
+ * This file contains the functions to output Leds, PWM and other
+ *
+ * @copyright (c) 2020-2024 Carlos Mazzei
+ * All rights reserved.
+ */
+
 #include "outputs.h"
 
 /**

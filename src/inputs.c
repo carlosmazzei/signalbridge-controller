@@ -1,3 +1,14 @@
+/**
+ * @file inputs.c
+ * @brief Implementation of keyboard and rotary inputs
+ * @author Carlos Mazzei
+ *
+ * This file contains the input functions to read the keyboard and rotary
+ *
+ * @copyright (c) 2020-2024 Carlos Mazzei
+ * All rights reserved.
+ */
+
 #include "inputs.h"
 #include "data_event.h"
 #include "hardware/watchdog.h"
