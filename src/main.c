@@ -246,7 +246,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 	/** @todo Check if there is a more efficient way to do it without needing to loop */
 	for (uint8_t i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
 	{
-		decoded_data[i] = rx_buffer[i + 3];
+		decoded_data[i] = rx_buffer[i + 2];
 	}
 
 	switch (decoded_data[0])
