@@ -1,6 +1,12 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#ifdef __GNUC__
+#define CALLBACK_FUNCTION_PROTO __attribute__((unused))
+#else
+#define CALLBACK_FUNCTION_PROTO
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -73,15 +79,26 @@
 #define ENCODER_READ_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 
 /**
+ * Enum of all counters 
+ */
+typedef enum error_counter_enum_t
+{
+    QUEUE_SEND_ERROR,
+    QUEUE_RECEIVE_ERROR,
+    DISPLAY_OUT_ERROR,
+    LED_OUT_ERROR,
+    WATCHDOG_ERROR,
+    MSG_MALFORMED_ERROR,
+    RECEIVE_BUFFER_OVERFLOW_ERROR,
+    NUM_ERROR_COUNTERS
+} error_counter_enum_t;
+
+/**
  * Structure to hold errors counter
  */
 typedef struct error_counters_t
 {
-    uint16_t queue_send_error;
-    uint16_t queue_receive_error;
-    uint16_t display_out_error;
-    uint16_t led_out_error;
-    uint16_t watchdog_error;
+    uint16_t counters[NUM_ERROR_COUNTERS];
     bool error_state;
 } error_counters_t;
 
@@ -140,20 +157,20 @@ typedef enum task_enum_t
 /**
  * Function prototypes
  */
-static void uart_event_task(void *pvParameters);
+static void uart_event_task(void *pvParameters) CALLBACK_FUNCTION_PROTO;
+static void decode_reception_task(void *pvParameters) CALLBACK_FUNCTION_PROTO;
+static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length);
+static void process_inbound_data(const uint8_t *rx_buffer, size_t length);
+static void process_outbound_task(void *pvParameters) CALLBACK_FUNCTION_PROTO;
+
 void send_heap_status();
-static void decode_reception_task(void *pvParameters);
-static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length);
-static void process_inbound_data(uint8_t *rx_buffer);
-static void process_outbound_task(void *pvParameters);
-static inline void send_status();
+static inline void send_status(uint8_t index);
 static inline void enter_error_state();
 static inline void clean_up();
-static inline uint8_t calculate_percentage(uint32_t value);
 
 /**
  * Configure the hardware as necessary to run
  */
-static bool setup_hardware(void);
+static inline bool setup_hardware(void);
 
 #endif

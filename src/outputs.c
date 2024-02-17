@@ -26,7 +26,9 @@ uint8_t led_states[MAX_LED_STATE_SIZE];
  * Initialize all the outputs needed for the application: SPI, LEDs, PWM.
  *
  * @return True if successful.
+ * 
  * @todo Implement the I2C initialization.
+ * 
  */
 bool output_init()
 {
@@ -64,8 +66,10 @@ bool output_init()
  * @param index The index of the first byte of LED states to output.
  * @param states The LED states to output.
  * @param len The number of LED states to output.
+ * 
+ * @return True if successful.
  */
-bool led_out(uint8_t index, uint8_t *states, uint8_t len)
+bool led_out(uint8_t index, const uint8_t *states, uint8_t len)
 {
 	if (index + len < MAX_LED_STATE_SIZE + 1)
 	{
@@ -74,9 +78,9 @@ bool led_out(uint8_t index, uint8_t *states, uint8_t len)
 			led_states[index + i] = states[i];
 		}
 
-		size_t count = spi_write_blocking(spi_default, led_states, sizeof(led_states));
+		int count = spi_write_blocking(spi_default, led_states, sizeof(led_states));
 		led_select();
-		return true;
+		if (count > 0) return true;
 	}
 	return false;
 }
@@ -96,8 +100,10 @@ void led_select()
  *
  * @param data The data to send.
  * @param len The length of the data to send.
+ * 
+ * @return Bytes written
  */
-int display_out(uint8_t *data, uint8_t len)
+int display_out(const uint8_t *data, uint8_t len)
 {
 	size_t count = spi_write_blocking(spi_default, data, len);
 	return count;

@@ -40,26 +40,25 @@ static task_props_t task_props[NUM_TASKS];
 static void uart_event_task(void *pvParameters)
 {
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
-	task_props_t * task_props = (task_props_t*) pvParameters;
+	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	while (true)
 	{
-		if (tud_cdc_n_available(0))
-		{
-			uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
-			for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
-			{
-				BaseType_t success = xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY);
-				if (success != pdTRUE)
-					error_counters.queue_send_error++;
-			}
-		}
 		/* Get free heap for the task */
-		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		/* Update watchdog timer */
 		watchdog_update();
+
+		if (!tud_cdc_n_available(0)) continue;
+
+		uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
+		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
+		{
+			BaseType_t success = xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY);
+			if (success != pdTRUE)
+				error_counters.counters[QUEUE_SEND_ERROR]++;
+		}
 	}
-	vTaskDelete(NULL);
 }
 
 /** @brief CDC tasks
@@ -70,23 +69,22 @@ static void uart_event_task(void *pvParameters)
  */
 static void cdc_task(void *pvParameters)
 {
-	task_props_t * task_props = (task_props_t*) pvParameters;
+	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	while (true)
 	{
 		tud_task(); // tinyusb device task
 
-		if (tud_cdc_n_connected)
+		if (tud_cdc_n_connected(0))
 			gpio_put(PICO_DEFAULT_LED_PIN, 1);
 		else
 			gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
 		/* Get free heap for the task */
-		task_props->high_watermark = (uint8_t)xPortGetFreeHeapSize();
+		task_prop->high_watermark = (uint8_t)xPortGetFreeHeapSize();
 		/* Update watchdog timer */
 		watchdog_update();
 	}
-	vTaskDelete(NULL);
 }
 
 /** @brief Decode reception task
@@ -99,43 +97,46 @@ static void decode_reception_task(void *pvParameters)
 {
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t receive_buffer_index = 0;
-	bool receive_buffer_overflow = false;
-
-	task_props_t * task_props = (task_props_t*) pvParameters;
+	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	while (true)
 	{
+		/* Get free heap for the task */
+		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		/* Update watchdog timer */
+		watchdog_update();
+
+		/* Check if there is a problem dequeueing the data*/
 		uint8_t data;
-		if (xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
+		if (xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY) == pdFALSE)
 		{
-			if (data == PACKET_MARKER)
-			{
-				uint8_t decode_buffer[receive_buffer_index];
-				size_t num_decoded = cobs_decode(receive_buffer, receive_buffer_index, decode_buffer);
+			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
+			continue;
+		}
 
-				receive_buffer_index = 0;
-				receive_buffer_overflow = false;
-
-				process_inbound_data(decode_buffer);
-			}
-			else
+		if (data == PACKET_MARKER)
+		{
+			if (receive_buffer_index <= 0) 
 			{
-				if ((receive_buffer_index + 1) < MAX_ENCODED_BUFFER_SIZE)
-					receive_buffer[receive_buffer_index++] = data;
-				else
-					receive_buffer_overflow = true;
+				error_counters.counters[MSG_MALFORMED_ERROR]++;
+				continue;
 			}
+
+			uint8_t decode_buffer[receive_buffer_index];
+			size_t num_decoded = cobs_decode(receive_buffer, receive_buffer_index, decode_buffer);
+
+			receive_buffer_index = 0;
+
+			if (num_decoded > 0) process_inbound_data(decode_buffer, num_decoded);
 		}
 		else
 		{
-			error_counters.queue_receive_error++;
+			if ((receive_buffer_index + 1) < MAX_ENCODED_BUFFER_SIZE)
+				receive_buffer[receive_buffer_index++] = data;
+			else
+				error_counters.counters[RECEIVE_BUFFER_OVERFLOW_ERROR]++;
 		}
-		/* Get free heap for the task */
-		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		/* Update watchdog timer */
-		watchdog_update();
 	}
-	vTaskDelete(NULL);
 }
 
 /** @brief Send error counters to host
@@ -143,20 +144,15 @@ static void decode_reception_task(void *pvParameters)
  *  Send error counters to the host and format the message in chunks of bytes
  *
  */
-static inline void send_status()
+static inline void send_status(uint8_t index)
 {
-	uint8_t data[10];
+	uint8_t data[2];
 
-	data[0] = error_counters.display_out_error >> 8;
-	data[1] = error_counters.display_out_error;
-	data[2] = error_counters.queue_send_error >> 8;
-	data[3] = error_counters.queue_send_error;
-	data[4] = error_counters.queue_receive_error >> 8;
-	data[5] = error_counters.queue_receive_error;
-	data[6] = error_counters.led_out_error >> 8;
-	data[7] = error_counters.led_out_error;
-	data[8] = error_counters.watchdog_error >> 8;
-	data[9] = error_counters.watchdog_error;
+	if (index < NUM_ERROR_COUNTERS) 
+	{
+		data[0] = error_counters.counters[index] >> 8;
+		data[1] = (uint8_t)error_counters.counters[index];
+	}
 
 	send_data(PANEL_ID, PC_STATUS_CMD, data, sizeof(data));
 }
@@ -178,21 +174,6 @@ void send_heap_status()
 	send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
 }
 
-/** @brief Calculate percentage
- *
- * This function calculates the percentage of a value.
- *
- * @param value The value to calculate the percentage of.
- * @return The percentage of the value.
- */
-static inline uint8_t calculate_percentage(uint32_t value)
-{
-	// Cast value to uint64_t before multiplying
-	uint8_t percentage = ((uint64_t)value * 255) / UINT32_MAX;
-
-	return percentage;
-}
-
 /** @brief Send a packet of data.
  *
  * This function will encode and send a packet of data. After
@@ -203,7 +184,7 @@ static inline uint8_t calculate_percentage(uint32_t value)
  * @param send_data A pointer to the data to send.
  * @param length The length of the data to send.
  */
-static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t length)
+static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
 {
 	uint8_t i;
 	uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
@@ -236,24 +217,36 @@ static void send_data(uint16_t id, uint8_t command, uint8_t *send_data, uint8_t 
  * This function processes inbound messages from the MQTT server on the reception queue
  *
  * @param rx_buffer A pointer to a data buffer to be processed
+ * @param length Length of data to be processed
  */
-static void process_inbound_data(uint8_t *rx_buffer)
+static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 {
 	uint16_t rxID = 0;
 	uint8_t len = 0;
-	uint8_t i = 0;
 	uint8_t decoded_data[DATA_BUFFER_SIZE];
 	uint8_t leds[2];
 
-	rxID = *rx_buffer++ << 3;
-	rxID |= ((*rx_buffer & 0xE0) >> 5);
-	decoded_data[0] = *rx_buffer++ & 0x1F;
-	len = *rx_buffer++;
+	/* Check if inbound data is at least 3 bytes length. Otherwise return to not access invalid memory */
+	if (length < 3)
+	{
+		/* Message has no header with id and command, so it cannot be processed */
+		error_counters.counters[MSG_MALFORMED_ERROR]++;
+		return;
+	}
+
+	/* Initialize decoded_data variable */
+	memset(decoded_data, 0, DATA_BUFFER_SIZE);
+
+	/* Decode id and length of the message */
+	rxID = (uint16_t)(rx_buffer[0] << 3);
+	rxID |= ((rx_buffer[1] & 0xE0) >> 5);
+	decoded_data[0] = rx_buffer[1] & 0x1F;
+	len = rx_buffer[2];
 
 	/** @todo Check if there is a more efficient way to do it without needing to loop */
-	for (i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
+	for (uint8_t i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
 	{
-		decoded_data[i] = *rx_buffer++;
+		decoded_data[i] = rx_buffer[i + 3];
 	}
 
 	switch (decoded_data[0])
@@ -261,31 +254,31 @@ static void process_inbound_data(uint8_t *rx_buffer)
 	/**
 	 * Implement other inbound commands (LED, DISPLAY, etc)
 	 */
-	case (PC_LEDOUT_CMD):
+	case PC_LEDOUT_CMD:
 		leds[0] = decoded_data[2]; // Offset of the byte state to change
 		leds[1] = decoded_data[3]; // States of the LEDs to change
 		if (led_out(decoded_data[1], leds, sizeof(leds)) != true)
-			error_counters.led_out_error++;
+			error_counters.counters[LED_OUT_ERROR]++;
 		break;
 
-	case (PC_PWM_CMD):
+	case PC_PWM_CMD:
 		set_pwm_duty(decoded_data[1]);
 		break;
 
-	case (PC_DPYCTL_CMD):
+	case PC_DPYCTL_CMD:
 		if (display_out(&decoded_data[1], len) != len)
-			error_counters.display_out_error++;
+			error_counters.counters[DISPLAY_OUT_ERROR]++;
 		break;
 
-	case (PC_ECHO_CMD):
+	case PC_ECHO_CMD:
 		send_data(rxID, decoded_data[0], &decoded_data[1], len);
 		break;
 
-	case (PC_STATUS_CMD):
-		send_status();
+	case PC_STATUS_CMD:
+		send_status(decoded_data[1]);
 		break;
 
-	case (PC_HEAP_STATUS_CMD):
+	case PC_HEAP_STATUS_CMD:
 		send_heap_status();
 		break;
 
@@ -302,7 +295,7 @@ static void process_inbound_data(uint8_t *rx_buffer)
  */
 static void process_outbound_task(void *pvParameters)
 {
-	task_props_t * task_props = (task_props_t*) pvParameters;
+	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	while (true)
 	{
@@ -313,14 +306,13 @@ static void process_outbound_task(void *pvParameters)
 		}
 		else
 		{
-			error_counters.queue_receive_error++;
+			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
 		}
 		/* Get free heap size */
-		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		/* Update watchdog timer */
 		watchdog_update();
 	}
-	vTaskDelete(NULL);
 }
 
 /** @brief Setup hardware
@@ -359,10 +351,10 @@ static inline bool setup_hardware(void)
 	input_init(&config);
 
 	/* Init error counters and handles */
-	error_counters.display_out_error = 0;
-	error_counters.led_out_error = 0;
-	error_counters.queue_receive_error = 0;
-	error_counters.queue_send_error = 0;
+	for (uint8_t i = 0; i < NUM_ERROR_COUNTERS; i++)
+	{
+		error_counters.counters[i] = 0;
+	}
 
 	/* Init task props */
 	for (uint8_t i = 0; i < NUM_TASKS; i++)
@@ -386,7 +378,8 @@ static inline void enter_error_state()
 	bool state = true;
 	while (true)
 	{
-		gpio_put(PICO_DEFAULT_LED_PIN, state ^= 1);
+		state = !state;
+		gpio_put(PICO_DEFAULT_LED_PIN, state);
 		vTaskDelay(pdMS_TO_TICKS(500));
 		watchdog_update();
 	}
@@ -437,7 +430,7 @@ int main(void)
 	/* Add error counter and cleanup resources */
 	if (watchdog_caused_reboot())
 	{
-		error_counters.watchdog_error++;
+		error_counters.counters[WATCHDOG_ERROR]++;
 		clean_up();
 	}
 
@@ -534,8 +527,10 @@ int main(void)
 		enter_error_state();
 
 	/* Should not enter if everything initiated correctly */
-	for (;;)
-		;
+	while (true)
+	{	
+		/** @todo Try to recover from error state */
+	}
 
 	return 0;
 }
