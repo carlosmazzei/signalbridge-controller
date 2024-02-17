@@ -104,7 +104,6 @@ bool input_init(const input_config_t *config)
  */
 void keypad_task(void *pvParameters)
 {
-	bool toggle_adc_mux = false;
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
@@ -148,8 +147,6 @@ void keypad_task(void *pvParameters)
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
-
-	vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
 }
 
 /** @brief Set the columns of the keypad.
@@ -271,8 +268,6 @@ void adc_read_task(void *pvParameters)
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
-
-	vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
 }
 
 /** @brief Select the ADC input.
@@ -345,7 +340,13 @@ void encoder_read_task(void *pvParameters)
 {
 	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
-	uint8_t * free_heap = (uint8_t*) pvParameters;
+	task_props_t * task_prop = (task_props_t*) pvParameters;
+
+	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
+	{
+		encoder_state[i].old_encoder = 0;
+		encoder_state[i].count_encoder = 0;
+	}
 
 	while (true)
 	{
@@ -373,7 +374,7 @@ void encoder_read_task(void *pvParameters)
 				encoder_state[encoder_base].old_encoder <<= 2; // Remember previous state by shifting the lower bits up
 				encoder_state[encoder_base].old_encoder |= e11;
 				encoder_state[encoder_base].old_encoder |= ((e12 << 1) & 0x03);                                // AND the lower 2 bits of port b, then OR them with var old_Encoder1 to set new value
-				encoder_state[encoder_base].count_encoder += encoder_states[(encoder_state[encoder_base].old_encoder & 0x0f)]; // the lower 4 bits of old_Encoder1 are
+				encoder_state[encoder_base].count_encoder += encoder_states[encoder_state[encoder_base].old_encoder & 0x0f]; // the lower 4 bits of old_Encoder1 are
 
 				if (encoder_state[encoder_base].count_encoder == 4)
 					encoder_generate_event(encoder_base, 1); // then the index for enc_states
@@ -386,11 +387,11 @@ void encoder_read_task(void *pvParameters)
 			keypad_cs_rows(false);
 		}
 
-		*free_heap = (uint8_t)xPortGetFreeHeapSize();
+		/* Get free heap for the task */
+		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		/* Update watchdog timer */
 		watchdog_update();
 	}
-
-	vTaskDelete(NULL); // Delete task if for some reason it gets out of the loop
 }
 
 /** @brief Generate an encoder event.
@@ -404,6 +405,11 @@ void encoder_generate_event(uint8_t rotary, uint16_t direction)
 		return;
 
 	data_events_t encoder_event;
+	
+	/* Initialize encoder_event data */
+	encoder_event.data[0] = 0;
+	encoder_event.data[1] = 0;
+
 	encoder_event.command = PC_ROTARY_CMD;
 	encoder_event.data[0] |= rotary << 4;
 	encoder_event.data[1] |= direction;

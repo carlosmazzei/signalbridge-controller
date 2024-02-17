@@ -278,7 +278,8 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		send_status(decoded_data[1]);
 		break;
 
-	case PC_HEAP_STATUS_CMD:
+	case PC_HEAP_STATUS_CMD: 
+		/* x00 x38 x00*/
 		send_heap_status();
 		break;
 
