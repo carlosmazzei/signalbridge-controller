@@ -116,7 +116,7 @@ static void decode_reception_task(void *pvParameters)
 
 		if (data == PACKET_MARKER)
 		{
-			if (receive_buffer_index <= 0) 
+			if (receive_buffer_index <= 0)
 			{
 				error_counters.counters[MSG_MALFORMED_ERROR]++;
 				continue;
@@ -148,7 +148,7 @@ static inline void send_status(uint8_t index)
 {
 	uint8_t data[2];
 
-	if (index < NUM_ERROR_COUNTERS) 
+	if (index < NUM_ERROR_COUNTERS)
 	{
 		data[0] = error_counters.counters[index] >> 8;
 		data[1] = (uint8_t)error_counters.counters[index];
@@ -214,7 +214,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 /** @brief Task to process inbound messages
  *
- * This function processes inbound messages from the MQTT server on the reception queue
+ * This function processes inbound messages from the reception queue
  *
  * @param rx_buffer A pointer to a data buffer to be processed
  * @param length Length of data to be processed
@@ -278,7 +278,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		send_status(decoded_data[1]);
 		break;
 
-	case PC_HEAP_STATUS_CMD: 
+	case PC_HEAP_STATUS_CMD:
 		/* x00 x38 x00*/
 		send_heap_status();
 		break;
@@ -529,7 +529,7 @@ int main(void)
 
 	/* Should not enter if everything initiated correctly */
 	while (true)
-	{	
+	{
 		/** @todo Try to recover from error state */
 	}
 
