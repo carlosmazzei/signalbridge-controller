@@ -108,13 +108,13 @@ static void decode_reception_task(void *pvParameters)
 
 		/* Check if there is a problem dequeueing the data*/
 		uint8_t data;
-		if (xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY) == pdFALSE)
+		if (pdFALSE == xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
 		{
 			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
 			continue;
 		}
 
-		if (data == PACKET_MARKER)
+		if (PACKET_MARKER == data)
 		{
 			if (receive_buffer_index <= 0)
 			{
@@ -332,7 +332,7 @@ static inline bool setup_hardware(void)
 
 	/* Create queue to receive data events */
 	data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
-	if (data_event_queue == NULL)
+	if (NULL == data_event_queue)
 		return false;
 
 	/* Enable inputs (Keypad, ADC and Rotaries) */
@@ -460,7 +460,7 @@ int main(void)
 	encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t)); // The size of a single byte
 	if (encoded_reception_queue != NULL)
 	{
-		/* Created the queue  successfully, then create the UART event task */
+		/* Created the queue successfully, then create the UART event task */
 		success = xTaskCreate(uart_event_task,
 		                      "uart_event_task",
 		                      UART_EVENT_STACK_SIZE,
@@ -470,6 +470,7 @@ int main(void)
 		if (success != pdPASS)
 			error_counters.error_state = true;
 
+		/* Create task to decode reception */
 		success = xTaskCreate(decode_reception_task,
 		                      "decode_reception_task",
 		                      DECODE_RECEPTION_STACK_SIZE,
@@ -494,7 +495,8 @@ int main(void)
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
-	/* Initiate task to read the inputs */
+	/* Create task to read the inputs */
+	/* ADC inputs */
 	success = xTaskCreate(adc_read_task, "adc_read_task",
 	                      ADC_READ_STACK_SIZE,
 	                      (void *)&task_props[ADC_READ_TASK],
@@ -503,6 +505,7 @@ int main(void)
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
+	/* Keypad inputs */
 	success = xTaskCreate(keypad_task,
 	                      "keypad_task",
 	                      KEYPAD_STACK_SIZE,
@@ -512,6 +515,7 @@ int main(void)
 	if (success != pdPASS)
 		error_counters.error_state = true;
 
+	/* Encoder inputs */
 	success = xTaskCreate(encoder_read_task,
 	                      "encoder_task",
 	                      ENCODER_READ_STACK_SIZE,
@@ -522,7 +526,7 @@ int main(void)
 		error_counters.error_state = true;
 
 	/* Start the tasks and timer running. */
-	if (error_counters.error_state == false)
+	if (false == error_counters.error_state)
 		vTaskStartScheduler();
 	else
 		enter_error_state();
