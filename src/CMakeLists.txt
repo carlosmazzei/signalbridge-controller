@@ -18,7 +18,7 @@ pico_enable_stdio_uart(pi_controller 0)
 pico_add_extra_outputs(pi_controller) 
 
 target_include_directories(pi_controller PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include
         ${FREERTOS_KERNEL_PATH}/include
         )
 
