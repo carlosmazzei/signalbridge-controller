@@ -174,6 +174,22 @@ void send_heap_status()
 	send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
 }
 
+/** @brief Calculate XOR checksum
+ *
+ * @param data Pointer to the data
+ * @param length Length of the data
+ * @return uint8_t Calculated checksum
+ */
+static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
+{
+	uint8_t checksum = 0;
+	for (uint8_t i = 0; i < length; i++)
+	{
+		checksum ^= data[i];
+	}
+	return checksum;
+}
+
 /** @brief Send a packet of data.
  *
  * This function will encode and send a packet of data. After
@@ -189,21 +205,31 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	uint8_t i;
 	uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
 
+	if (length > DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE)
+	{
+		error_counters.counters[BUFFER_OVERFLOW_ERROR]++;
+		return;
+	}
+
 	id <<= 5;
 	uart_outbound_buffer[0] = (id >> 8);
 	uart_outbound_buffer[1] = id & 0xE0;
 	uart_outbound_buffer[1] |= (command & 0x1F);
 	uart_outbound_buffer[2] = length;
 
-	for (i = 3; (i < uart_outbound_buffer[2] + 3) && (i < DATA_BUFFER_SIZE); i++)
+	for (i = HEADER_SIZE; (i < length + HEADER_SIZE) && (i < DATA_BUFFER_SIZE); i++)
 	{
 		uart_outbound_buffer[i] = *send_data;
 		send_data++;
 	}
 
+	// Calculate and add checksum
+	uint8_t checksum = calculate_checksum(uart_outbound_buffer, length + HEADER_SIZE);
+	uart_outbound_buffer[i] = checksum;
+
 	uint8_t encode_buffer[MAX_ENCODED_BUFFER_SIZE];
-	size_t num_encoded = cobs_encode(uart_outbound_buffer, length + 3, encode_buffer);
-	encode_buffer[num_encoded] = 0x00; // Ensure the last byte is 0
+	size_t num_encoded = cobs_encode(uart_outbound_buffer, length + HEADER_SIZE + CHECKSUM_SIZE, encode_buffer);
+	encode_buffer[num_encoded] = PACKET_MARKER; // Ensure the last byte is the packet marker
 
 	for (i = 0; i < num_encoded + 1; i++)
 	{
@@ -222,68 +248,91 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 {
 	uint16_t rxID = 0;
+	uint8_t cmd = 0;
 	uint8_t len = 0;
 	uint8_t decoded_data[DATA_BUFFER_SIZE];
 	uint8_t leds[2];
 
-	/* Check if inbound data is at least 3 bytes length. Otherwise return to not access invalid memory */
-	if (length < 3)
+	/* Check if inbound data is at least 4 bytes length (3 header bytes + 1 checksum byte).
+	   Otherwise return to not access invalid memory */
+	if (length < HEADER_SIZE + CHECKSUM_SIZE)
 	{
-		/* Message has no header with id and command, so it cannot be processed */
+		/* Message has insufficient length, so it cannot be processed. Empty payload */
 		error_counters.counters[MSG_MALFORMED_ERROR]++;
+		return;
+	}
+
+	/* Decode id, command, and length of the message */
+	rxID = (uint16_t)(rx_buffer[0] << 3);
+	rxID |= ((rx_buffer[1] & 0xE0) >> 5);
+	cmd = rx_buffer[1] & 0x1F;
+	len = rx_buffer[2];
+
+	/* Verify that the received data length matches the reported payload length plus overhead */
+	if (length != (len + HEADER_SIZE + CHECKSUM_SIZE))
+	{
+		error_counters.counters[MSG_MALFORMED_ERROR]++;
+		return;
+	}
+
+	/* Check if DATA_BUFFER_SIZE is sufficient for the decoded data */
+	if (DATA_BUFFER_SIZE < len)
+	{
+		error_counters.counters[BUFFER_OVERFLOW_ERROR]++;
 		return;
 	}
 
 	/* Initialize decoded_data variable */
 	memset(decoded_data, 0, DATA_BUFFER_SIZE);
 
-	/* Decode id and length of the message */
-	rxID = (uint16_t)(rx_buffer[0] << 3);
-	rxID |= ((rx_buffer[1] & 0xE0) >> 5);
-	decoded_data[0] = rx_buffer[1] & 0x1F;
-	len = rx_buffer[2];
+	/* Calculate and verify checksum */
+	uint8_t calculated_checksum = calculate_checksum(rx_buffer, len + HEADER_SIZE);
+	uint8_t received_checksum = rx_buffer[len + 3];
 
-	/** @todo Check if there is a more efficient way to do it without needing to loop */
-	for (uint8_t i = 1; (i < len + 1) && (i < DATA_BUFFER_SIZE - 2); i++)
+	if (calculated_checksum != received_checksum)
 	{
-		decoded_data[i] = rx_buffer[i + 2];
+		error_counters.counters[CHECKSUM_ERROR]++;
+		return;
 	}
 
-	switch (decoded_data[0])
+	/* Copy payload data */
+	memcpy(decoded_data, rx_buffer + HEADER_SIZE, len);
+
+	switch (cmd)
 	{
 	/**
 	 * Implement other inbound commands (LED, DISPLAY, etc)
 	 */
 	case PC_LEDOUT_CMD:
-		leds[0] = decoded_data[2]; // Offset of the byte state to change
-		leds[1] = decoded_data[3]; // States of the LEDs to change
-		if (led_out(decoded_data[1], leds, sizeof(leds)) != true)
+		leds[0] = decoded_data[1]; // Offset of the byte state to change
+		leds[1] = decoded_data[2]; // States of the LEDs to change
+		if (led_out(decoded_data[0], leds, sizeof(leds)) != true)
 			error_counters.counters[LED_OUT_ERROR]++;
 		break;
 
 	case PC_PWM_CMD:
-		set_pwm_duty(decoded_data[1]);
+		set_pwm_duty(decoded_data[0]);
 		break;
 
 	case PC_DPYCTL_CMD:
-		if (display_out(&decoded_data[1], len) != len)
+		if (display_out(decoded_data, len) != len)
 			error_counters.counters[DISPLAY_OUT_ERROR]++;
 		break;
 
 	case PC_ECHO_CMD:
-		send_data(rxID, decoded_data[0], &decoded_data[1], len);
+		send_data(rxID, cmd, decoded_data, len);
 		break;
 
 	case PC_STATUS_CMD:
-		send_status(decoded_data[1]);
+		send_status(decoded_data[0]);
 		break;
 
 	case PC_HEAP_STATUS_CMD:
-		/* x00 x38 x00*/
 		send_heap_status();
 		break;
 
 	default:
+		error_counters.counters[UNKNOWN_CMD_ERROR]++;
 		break;
 	}
 }
