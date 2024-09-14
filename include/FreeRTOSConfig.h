@@ -29,23 +29,23 @@
 #define FREERTOS_CONFIG_H
 
 /*-----------------------------------------------------------
- * Application specific definitions.
- *
- * These definitions should be adjusted for your particular hardware and
- * application requirements.
- *
- * THESE PARAMETERS ARE DESCRIBED WITHIN THE 'CONFIGURATION' SECTION OF THE
- * FreeRTOS API DOCUMENTATION AVAILABLE ON THE FreeRTOS.org WEB SITE.
- *
- * See http://www.freertos.org/a00110.html
- *----------------------------------------------------------*/
+* Application specific definitions.
+*
+* These definitions should be adjusted for your particular hardware and
+* application requirements.
+*
+* THESE PARAMETERS ARE DESCRIBED WITHIN THE 'CONFIGURATION' SECTION OF THE
+* FreeRTOS API DOCUMENTATION AVAILABLE ON THE FreeRTOS.org WEB SITE.
+*
+* See http://www.freertos.org/a00110.html
+*----------------------------------------------------------*/
 
 /* Scheduler Related */
 #define configUSE_PREEMPTION                    1
-#define configUSE_TICKLESS_IDLE                 0
+#define configUSE_TICKLESS_IDLE                 1
 #define configUSE_IDLE_HOOK                     1
 #define configUSE_TICK_HOOK                     1
-#define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )
+#define configTICK_RATE_HZ                      ( ( TickType_t ) 1200 )
 #define configMAX_PRIORITIES                    32
 #define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
 #define configUSE_16_BIT_TICKS                  0
@@ -96,10 +96,10 @@
 
 /* Interrupt nesting behaviour configuration. */
 /*
-#define configKERNEL_INTERRUPT_PRIORITY         [dependent of processor]
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY    [dependent on processor and application]
-#define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
-*/
+ #define configKERNEL_INTERRUPT_PRIORITY         [dependent of processor]
+ #define configMAX_SYSCALL_INTERRUPT_PRIORITY    [dependent on processor and application]
+ #define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
+ */
 
 /* SMP port only */
 #define configNUM_CORES                         2
@@ -115,7 +115,7 @@
 #define configASSERT(x)                         assert(x)
 
 /* Set the following definitions to 1 to include the API function, or zero
-to exclude the API function. */
+   to exclude the API function. */
 #define INCLUDE_vTaskPrioritySet                1
 #define INCLUDE_uxTaskPriorityGet               1
 #define INCLUDE_vTaskDelete                     1
@@ -128,10 +128,10 @@ to exclude the API function. */
 #define INCLUDE_xTaskGetIdleTaskHandle          1
 #define INCLUDE_eTaskGetState                   1
 #define INCLUDE_xTimerPendFunctionCall          1
-#define INCLUDE_xTaskAbortDelay                 1
-#define INCLUDE_xTaskGetHandle                  1
-#define INCLUDE_xTaskResumeFromISR              1
-#define INCLUDE_xQueueGetMutexHolder            1
+#define INCLUDE_xTaskAbortDelay                 0
+#define INCLUDE_xTaskGetHandle                  0
+#define INCLUDE_xTaskResumeFromISR              0
+#define INCLUDE_xQueueGetMutexHolder            0
 
 /* A header file that defines trace macro can be included here. */
 

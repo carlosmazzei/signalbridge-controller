@@ -81,7 +81,7 @@ static void cdc_task(void *pvParameters)
 			gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
 		/* Get free heap for the task */
-		task_prop->high_watermark = (uint8_t)xPortGetFreeHeapSize();
+		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		/* Update watchdog timer */
 		watchdog_update();
 	}
@@ -202,7 +202,6 @@ static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
  */
 static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
 {
-	uint8_t i;
 	uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
 
 	if (length > DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE)
@@ -217,21 +216,24 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	uart_outbound_buffer[1] |= (command & 0x1F);
 	uart_outbound_buffer[2] = length;
 
-	for (i = HEADER_SIZE; (i < length + HEADER_SIZE) && (i < DATA_BUFFER_SIZE); i++)
-	{
-		uart_outbound_buffer[i] = *send_data;
-		send_data++;
-	}
+	// Use memcpy for payload
+	memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length);
 
 	// Calculate and add checksum
 	uint8_t checksum = calculate_checksum(uart_outbound_buffer, length + HEADER_SIZE);
-	uart_outbound_buffer[i] = checksum;
+	uart_outbound_buffer[HEADER_SIZE + length] = checksum;
 
 	uint8_t encode_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t num_encoded = cobs_encode(uart_outbound_buffer, length + HEADER_SIZE + CHECKSUM_SIZE, encode_buffer);
+
+	if (num_encoded + 1 >= MAX_ENCODED_BUFFER_SIZE)
+	{
+		error_counters.counters[BUFFER_OVERFLOW_ERROR]++;
+		return;
+	}
 	encode_buffer[num_encoded] = PACKET_MARKER; // Ensure the last byte is the packet marker
 
-	for (i = 0; i < num_encoded + 1; i++)
+	for (uint8_t i = 0; i < num_encoded + 1; i++)
 	{
 		tud_cdc_n_write_char(0, encode_buffer[i]);
 	}
@@ -379,8 +381,8 @@ static inline bool setup_hardware(void)
 	/* Initialize outputs */
 	output_init();
 
-	/* Create queue to receive data events */
-	data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t)); // The size of a single byte, created before hardware setup?
+	/* Create queue to receive data events with elements of type data_events_t */
+	data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t));
 	if (NULL == data_event_queue)
 		return false;
 
