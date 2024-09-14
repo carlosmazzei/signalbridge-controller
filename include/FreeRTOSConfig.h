@@ -45,7 +45,7 @@
 #define configUSE_TICKLESS_IDLE                 1
 #define configUSE_IDLE_HOOK                     1
 #define configUSE_TICK_HOOK                     1
-#define configTICK_RATE_HZ                      ( ( TickType_t ) 1200 )
+#define configTICK_RATE_HZ                      ( ( TickType_t ) 1300 )
 #define configMAX_PRIORITIES                    32
 #define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
 #define configUSE_16_BIT_TICKS                  0
