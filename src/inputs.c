@@ -48,7 +48,7 @@ bool input_init(const input_config_t *config)
 	input_config.input_event_queue = config->input_event_queue;
 
 	// Initialize encoder configuration
-	for (uint8_t i; i < MAX_NUM_ENCODERS; i++)
+	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
 	{
 		input_config.encoder_mask[i] = config->encoder_mask[i];
 	}
@@ -120,7 +120,7 @@ void keypad_task(void *pvParameters)
 
 			for (uint8_t r = 0; r < input_config.rows; r++)
 			{
-				if (input_config.encoder_mask[r] == true)
+				if (true == input_config.encoder_mask[r])
 					continue; // Skip encoder
 
 				keypad_set_rows(r); // Also set the ADC channels
@@ -130,11 +130,11 @@ void keypad_task(void *pvParameters)
 				bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
 				keypad_state[keycode] = ((keypad_state[keycode] << 1) & 0xFE) | pressed;
 
-				if ((keypad_state[keycode] & KEYPAD_STABILITY_MASK) == KEY_PRESSED_MASK)
+				if (KEY_PRESSED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
 				{
 					keypad_generate_event(r, c, KEY_PRESSED);
 				}
-				else if ((keypad_state[keycode] & KEYPAD_STABILITY_MASK) == KEY_RELEASED_MASK)
+				else if (KEY_RELEASED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
 				{
 					keypad_generate_event(r, c, KEY_RELEASED);
 				}
@@ -199,7 +199,7 @@ static inline void keypad_cs_columns(bool select)
  */
 void keypad_generate_event(uint8_t row, uint8_t column, bool state)
 {
-	if (input_config.input_event_queue == NULL)
+	if (NULL == input_config.input_event_queue)
 		return;
 
 	data_events_t key_event;
@@ -352,7 +352,7 @@ void encoder_read_task(void *pvParameters)
 	{
 		for (uint8_t r = 0; r < input_config.rows; r++)
 		{
-			if (input_config.encoder_mask[r] == false)
+			if (false == input_config.encoder_mask[r])
 				continue;
 
 			uint8_t encoder_base = r * (input_config.columns / 2);
@@ -376,7 +376,7 @@ void encoder_read_task(void *pvParameters)
 				encoder_state[encoder_base].old_encoder |= ((e12 << 1) & 0x03);                                // AND the lower 2 bits of port b, then OR them with var old_Encoder1 to set new value
 				encoder_state[encoder_base].count_encoder += encoder_states[encoder_state[encoder_base].old_encoder & 0x0f]; // the lower 4 bits of old_Encoder1 are
 
-				if (encoder_state[encoder_base].count_encoder == 4)
+				if (4 == encoder_state[encoder_base].count_encoder)
 					encoder_generate_event(encoder_base, 1); // then the index for enc_states
 				else if (encoder_state[0].count_encoder == -4)
 					encoder_generate_event(encoder_base, 0);
@@ -401,11 +401,11 @@ void encoder_read_task(void *pvParameters)
  */
 void encoder_generate_event(uint8_t rotary, uint16_t direction)
 {
-	if (input_config.input_event_queue == NULL)
+	if (NULL == input_config.input_event_queue)
 		return;
 
 	data_events_t encoder_event;
-	
+
 	/* Initialize encoder_event data */
 	encoder_event.data[0] = 0;
 	encoder_event.data[1] = 0;

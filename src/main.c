@@ -582,11 +582,5 @@ int main(void)
 	else
 		enter_error_state();
 
-	/* Should not enter if everything initiated correctly */
-	while (true)
-	{
-		/** @todo Try to recover from error state */
-	}
-
 	return 0;
 }
