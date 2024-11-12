@@ -11,6 +11,7 @@
 
 #include "inputs.h"
 #include "data_event.h"
+#include "task_props.h"
 #include "hardware/watchdog.h"
 
 /**
@@ -128,7 +129,7 @@ void keypad_task(void *pvParameters)
 
 				uint8_t keycode = keycode_base + r;
 				bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
-				keypad_state[keycode] = ((keypad_state[keycode] << 1) & 0xFE) | pressed;
+				keypad_state[keycode] = ((keypad_state[keycode] << 1) & 0xFE) | (uint8_t)pressed;
 
 				if (KEY_PRESSED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
 				{
@@ -197,7 +198,7 @@ static inline void keypad_cs_columns(bool select)
  * @param state of the key
  *
  */
-void keypad_generate_event(uint8_t row, uint8_t column, bool state)
+void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 {
 	if (NULL == input_config.input_event_queue)
 		return;
@@ -295,7 +296,7 @@ void adc_mux_select(bool bank, uint8_t channel, bool select)
  */
 void adc_generate_event(uint8_t channel, uint16_t value)
 {
-	if (input_config.input_event_queue == NULL)
+	if (NULL == input_config.input_event_queue)
 		return;
 
 	data_events_t adc_event;
@@ -329,7 +330,7 @@ uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *sam
 		adc_states->samples_index[channel] = 0;
 
 	// Return the moving average
-	return adc_states->adc_sum_values[channel] / ADC_NUM_TAPS;
+	return (uint16_t)(adc_states->adc_sum_values[channel] / ADC_NUM_TAPS);
 }
 
 /** @brief Read the encoder value.
@@ -372,8 +373,8 @@ void encoder_read_task(void *pvParameters)
 				bool e12 = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
 
 				encoder_state[encoder_base].old_encoder <<= 2; // Remember previous state by shifting the lower bits up
-				encoder_state[encoder_base].old_encoder |= e11;
-				encoder_state[encoder_base].old_encoder |= ((e12 << 1) & 0x03);                                // AND the lower 2 bits of port b, then OR them with var old_Encoder1 to set new value
+				encoder_state[encoder_base].old_encoder |= (uint8_t)e11;
+				encoder_state[encoder_base].old_encoder |= (((uint8_t)e12 << 1) & 0x03);                                // AND the lower 2 bits of port b, then OR them with var old_Encoder1 to set new value
 				encoder_state[encoder_base].count_encoder += encoder_states[encoder_state[encoder_base].old_encoder & 0x0f]; // the lower 4 bits of old_Encoder1 are
 
 				if (4 == encoder_state[encoder_base].count_encoder)
