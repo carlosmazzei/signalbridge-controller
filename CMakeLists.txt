@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Add TinyUSB lib
 set(FAMILY rp2040)
 set(BOARD pico_sdk)
 
