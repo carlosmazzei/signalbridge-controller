@@ -237,7 +237,7 @@ void adc_read_task(void *pvParameters)
 	{
 		for (uint8_t bank = 0; bank < input_config.adc_banks; bank++)
 		{
-			uint16_t offset = bank * input_config.adc_channels; // Offset for the current ADC bank
+			uint8_t offset = bank * input_config.adc_channels; // Offset for the current ADC bank
 
 			for (uint8_t chan = 0; chan < input_config.adc_channels; chan++)
 			{
@@ -246,7 +246,7 @@ void adc_read_task(void *pvParameters)
 				adc_select_input(bank);
 
 				// Calculate channel
-				uint16_t channel = offset + chan;
+				uint8_t channel = offset + chan;
 
 				// Settle the column
 				vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
