@@ -13,7 +13,10 @@ jobs:
       - name: "Setup submodules"
         run: git submodule update --init --recursive
       - name: "Build"
-        uses: threeal/cmake-action@v2.1.0
-        with:
-          build-dir: build
+        run: |
+            sudo apt install cmake python3 build-essential gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+            mkdir build
+            cd build
+            cmake ..
+            make
         
