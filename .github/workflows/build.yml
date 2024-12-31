@@ -13,8 +13,8 @@ env:
 
 jobs:
   build:
-    name: "Build"
-    runs-on: "ubuntu-latest"
+    name: Build
+    runs-on: ubuntu-latest
     steps:
       # Clean workspace before starting
       - name: Clean workspace
