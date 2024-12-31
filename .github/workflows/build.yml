@@ -37,7 +37,8 @@ jobs:
       - name: Install build tools
         run: |
           echo "Installing building tools"
-          sudo apt install cmake doxygen python3 build-essential gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+          sudo apt update
+          sudo apt install -y cmake doxygen python3 build-essential gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
           
       # Create build environment
       - name: Create Build Environment
