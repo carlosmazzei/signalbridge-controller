@@ -63,6 +63,12 @@ jobs:
         # Execute the build.  You can specify a specific target with "--target <NAME>"
         run: cmake --build . --config $BUILD_TYPE --target all --parallel $(nproc)
 
+      # Archive doxygen documentation
+      - name: Archive Doxygen Documentation
+        run: |
+          echo "Archiving Doxygen documentation"  
+          tar -czf ${{github.workspace}}/build/src/doc.tar.gz -C ${{github.workspace}}/build/docs/ doc_doxygen
+
       # Store build artifacts
       - name: Store Build Artifacts
         uses: actions/upload-artifact@v4
@@ -71,7 +77,7 @@ jobs:
           path: |
             build/src/*.uf2
             build/src/*.elf
-            build/src/*.hex
+            build/src/doc.tar.gz
           retention-days: 10
 
   release:
@@ -94,6 +100,6 @@ jobs:
         files: |
           artifacts/*.uf2
           artifacts/*.elf
-          artifacts/*.hex
+          artifacts/doc.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
