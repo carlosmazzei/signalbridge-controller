@@ -69,12 +69,13 @@ jobs:
         with:
           name: pico-build
           path: |
-            build/*.uf2
-            build/*.elf
-            build/*.hex
+            build/src/*.uf2
+            build/src/*.elf
+            build/src/*.hex
           retention-days: 10
 
   release:
+    name: Release
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     
