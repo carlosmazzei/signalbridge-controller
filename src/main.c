@@ -393,8 +393,9 @@ static inline void send_status(uint8_t index)
 
 	if (index < NUM_ERROR_COUNTERS)
 	{
-		data[0] = (uint8_t)(error_counters.counters[index] >> 8);
-		data[1] = (uint8_t)(error_counters.counters[index] & 0xFF);
+		data[0] = index;
+		data[1] = (uint8_t)(error_counters.counters[index] >> 8);
+		data[2] = (uint8_t)(error_counters.counters[index] & 0xFF);
 	}
 
 	send_data(PANEL_ID, PC_STATUS_CMD, data, sizeof(data));
