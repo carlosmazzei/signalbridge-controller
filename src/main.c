@@ -389,7 +389,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 static inline void send_status(uint8_t index)
 {
-	uint8_t data[2] = {0, 0};
+	uint8_t data[3] = {0, 0, 0};
 
 	if (index < NUM_ERROR_COUNTERS)
 	{
