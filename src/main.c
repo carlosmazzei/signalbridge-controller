@@ -2,7 +2,7 @@
  * @file main.c
  * @brief Main application for the A320 Pico Controller with FreeRTOS
  * @author
- *   - Carlos Mazzei <email@domain>
+ *   - Carlos Mazzei <carlos.mazzei@gmail.com>
  * @date 2020-2024
  *
  * This file contains the core FreeRTOS tasks and initialization code
@@ -48,7 +48,7 @@
 /**
  * @brief Size of the cobs encoded reception queue.
  */
-#define ENCODED_QUEUE_SIZE 100
+#define ENCODED_QUEUE_SIZE 1024
 
 /**
  * @brief Data buffer size (used for inbound/outbound data).
@@ -95,13 +95,18 @@
 /**
  * @brief Task priorities.
  */
-#define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
 #define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + 2)
+#define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + 2)
+#define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + 2)
+#define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
+#define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
+#define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
+#define mainENCODER_TASK_PRIORITY       (tskIDLE_PRIORITY + 1)
 
 /**
  * @brief FreeRTOS stack sizes for the tasks.
  */
-#define CDC_STACK_SIZE             (2 * configMINIMAL_STACK_SIZE)
+#define CDC_STACK_SIZE             (4 * configMINIMAL_STACK_SIZE)
 #define UART_EVENT_STACK_SIZE      (2 * configMINIMAL_STACK_SIZE)
 #define DECODE_RECEPTION_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 #define PROCESS_OUTBOUND_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
@@ -282,6 +287,11 @@ static inline void clean_up(void);
 
 /* --- Function Definitions --------------------------------------------------*/
 
+uint32_t ulPortGetRunTime( void )
+{
+	return time_us_32();
+}
+
 static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
 {
 	uint8_t checksum = 0;
@@ -317,6 +327,7 @@ static void uart_event_task(void *pvParameters)
 			{
 				error_counters.counters[QUEUE_SEND_ERROR]++;
 			}
+			watchdog_update();
 		}
 	}
 }
@@ -340,6 +351,7 @@ static void cdc_task(void *pvParameters)
 
 		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
+		taskYIELD();
 	}
 }
 
@@ -403,7 +415,7 @@ static inline void send_status(uint8_t index)
 
 void send_heap_status(void)
 {
-	uint8_t data[7] = {0};
+	uint8_t data[NUM_TASKS] = {0};
 
 	for (uint8_t t = 0; t < NUM_TASKS; t++)
 	{
@@ -615,7 +627,7 @@ static inline bool setup_hardware(void)
 	}
 
 	/* Watchdog 1s, pause on debug */
-	watchdog_enable(1000, true);
+	watchdog_enable(5000, true);
 
 	return true;
 }
@@ -698,7 +710,7 @@ int main(void)
 	                      "cdc_task",
 	                      CDC_STACK_SIZE,
 	                      (void *)&task_props[CDC_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainCDC_TASK_PRIORITY,
 	                      &task_props[CDC_TASK].task_handle);
 	if (success != pdPASS)
 	{
@@ -714,7 +726,7 @@ int main(void)
 		                      "uart_event_task",
 		                      UART_EVENT_STACK_SIZE,
 		                      (void *)&task_props[UART_EVENT_TASK],
-		                      mainPROCESS_QUEUE_TASK_PRIORITY,
+		                      mainUART_TASK_PRIORITY,
 		                      &task_props[UART_EVENT_TASK].task_handle);
 		if (success != pdPASS)
 		{
@@ -726,7 +738,7 @@ int main(void)
 		                      "decode_reception_task",
 		                      DECODE_RECEPTION_STACK_SIZE,
 		                      (void *)&task_props[DECODE_RECEPTION_TASK],
-		                      mainPROCESS_QUEUE_TASK_PRIORITY + 1,
+		                      mainDECODE_TASK_PRIORITY,
 		                      &task_props[DECODE_RECEPTION_TASK].task_handle);
 		if (success != pdPASS)
 		{
@@ -755,7 +767,7 @@ int main(void)
 	                      "adc_read_task",
 	                      ADC_READ_STACK_SIZE,
 	                      (void *)&task_props[ADC_READ_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainADC_TASK_PRIORITY,
 	                      &task_props[ADC_READ_TASK].task_handle);
 	if (success != pdPASS)
 	{
@@ -767,7 +779,7 @@ int main(void)
 	                      "keypad_task",
 	                      KEYPAD_STACK_SIZE,
 	                      (void *)&task_props[KEYPAD_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainKEY_TASK_PRIORITY,
 	                      &task_props[KEYPAD_TASK].task_handle);
 	if (success != pdPASS)
 	{
@@ -779,7 +791,7 @@ int main(void)
 	                      "encoder_task",
 	                      ENCODER_READ_STACK_SIZE,
 	                      (void *)&task_props[ENCODER_READ_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainENCODER_TASK_PRIORITY,
 	                      &task_props[ENCODER_READ_TASK].task_handle);
 	if (success != pdPASS)
 	{

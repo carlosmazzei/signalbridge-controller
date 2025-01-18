@@ -28,6 +28,9 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+#include <stdint.h>
+#include <assert.h>
+
 /*-----------------------------------------------------------
 * Application specific definitions.
 *
@@ -45,7 +48,7 @@
 #define configUSE_TICKLESS_IDLE                 1
 #define configUSE_IDLE_HOOK                     1
 #define configUSE_TICK_HOOK                     1
-#define configTICK_RATE_HZ                      ( ( TickType_t ) 1300 )
+#define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )
 #define configMAX_PRIORITIES                    10
 #define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
 #define configUSE_16_BIT_TICKS                  0
@@ -80,9 +83,14 @@
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
-#define configGENERATE_RUN_TIME_STATS           0
+#define configGENERATE_RUN_TIME_STATS           1
 #define configUSE_TRACE_FACILITY                1
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
+
+/* Runtime stats configurations */
+extern uint32_t ulPortGetRunTime( void );
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()
+#define portGET_RUN_TIME_COUNTER_VALUE()            ulPortGetRunTime()
 
 /* Co-routine related definitions. */
 #define configUSE_CO_ROUTINES                   0
@@ -110,7 +118,6 @@
 #define configSUPPORT_PICO_SYNC_INTEROP         1
 #define configSUPPORT_PICO_TIME_INTEROP         1
 
-#include <assert.h>
 /* Define to trap errors during development. */
 #define configASSERT(x)                         assert(x)
 
@@ -129,7 +136,7 @@
 #define INCLUDE_eTaskGetState                   1
 #define INCLUDE_xTimerPendFunctionCall          1
 #define INCLUDE_xTaskAbortDelay                 0
-#define INCLUDE_xTaskGetHandle                  0
+#define INCLUDE_xTaskGetHandle                  1
 #define INCLUDE_xTaskResumeFromISR              0
 #define INCLUDE_xQueueGetMutexHolder            0
 
