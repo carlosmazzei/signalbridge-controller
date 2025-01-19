@@ -24,6 +24,8 @@ The main objective of this project is to create a low-latency interface (with re
 - [7. Features](#7-features)
   - [Idle Hook](#idle-hook)
   - [Commands](#commands)
+    - [Detailed commands](#detailed-commands)
+      - [Task Status](#task-status)
 - [8. Code Overview](#8-code-overview)
   - [Task Architecture](#task-architecture)
   - [Key Files](#key-files)
@@ -180,6 +182,44 @@ The interface supports multiple commands to interact with inputs and outputs:
 - Report system status
 
 Refer to the documentation for details about available commands and their usage.
+
+#### Detailed commands
+
+##### Task Status
+
+The following metrics are available for each task:
+
+- **Absolute time**: This is the total 'time' that the task has actually been executing (the total time that the task has been in the Running state). The time base is number of ticks in the 32us system timer (unsigned 32 bit integer).
+- **Percentage time**: This shows essentially the same information but as a percentage of the total processing time rather than as an absolute time (unsigned 32 bit integer)
+- **High watermark:**: The value returned is the high water mark in words (for example, on a 32 bit machine a return value of 1 would indicate that 4 bytes of stack were unused). If the return value is zero then the task has likely overflowed its stack. If the return value is close to zero then the task has come close to overflowing its stack.
+- **Free minimum ever heap size**: Returns lowest amount of free heap space that has existed system the FreeRTOS application booted. Neither function provides information on how the unallocated memory is fragmented into smaller blocks.
+
+To request the status you must send the following COBS encoded message:
+
+| Byte 0 | Byte 1 | Byte 2 | Byte 3 |
+| ------ | ------ | ------ | ------ |
+| 0x00   | 0x38   | 0x01   | 0x00-7 |
+
+- Id: 1 (First 11 bits)
+- Cmd: 20 (PC_ECHO_CMD) (5 bits)
+- Length: 1
+- Task index: from 0 (idle task and overall heap) to 7 (0 - 6 task indentifier) and 7 for idle task stats
+
+Returns:
+
+| Byte 0 | Byte 1 | Byte 2 | Byte 3 | Byte 4 | Byte 5 | Byte 6 | Byte 7 | ... | Byte 15 |
+| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | --- | ------- |
+| 0x00   | 0x38   | 0x0D   | n      | ?      | ?      | ?      | ?      | ?   | ?       |
+
+- Id: 1 (First 11 bits)
+- Cmd: 20 (PC_ECHO_CMD) (5 bits)
+- Length: 13
+- Task index (n): from 0 (idle task and overall heap) to 7 (1 - 7 task indentifier)
+- Byte 4 - 7: absolute time
+- Byte 8 - 11: percentage time
+- Byte 12 - 15: high watermark
+
+If index is not valid, return index of FF.
 
 ## 8. Code Overview
 

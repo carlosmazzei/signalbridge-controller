@@ -146,21 +146,6 @@ typedef struct error_counters_t
 } error_counters_t;
 
 /**
- * @struct task_handles_t
- * @brief Holds FreeRTOS task handles for created tasks.
- */
-typedef struct task_handles_t
-{
-	TaskHandle_t cdc_task_handle;
-	TaskHandle_t uart_event_task_handle;
-	TaskHandle_t decode_reception_task_handle;
-	TaskHandle_t process_outbound_task_handle;
-	TaskHandle_t adc_read_task_handle;
-	TaskHandle_t keypad_task_handle;
-	TaskHandle_t encoder_read_task_handle;
-} task_handles_t;
-
-/**
  * @enum task_enum_t
  * @brief Enumerates the tasks created in the system.
  */
@@ -243,7 +228,7 @@ static inline void send_status(uint8_t index);
 /**
  * @brief Sends the heap usage (high watermark) of each task to the host.
  */
-void send_heap_status(void);
+void send_heap_status(uint8_t index);
 
 /**
  * @brief Processes a fully decoded inbound message.
@@ -310,7 +295,7 @@ static void uart_event_task(void *pvParameters)
 	for (;;)
 	{
 		/* Track free stack space for debugging */
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
 		if (!tud_cdc_n_available(0))
@@ -349,7 +334,7 @@ static void cdc_task(void *pvParameters)
 			gpio_put(PICO_DEFAULT_LED_PIN, 0);
 		}
 
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 		taskYIELD();
 	}
@@ -410,19 +395,78 @@ static inline void send_status(uint8_t index)
 		data[2] = (uint8_t)(error_counters.counters[index] & 0xFF);
 	}
 
-	send_data(PANEL_ID, PC_STATUS_CMD, data, sizeof(data));
+	send_data(PANEL_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
 }
 
-void send_heap_status(void)
+void send_heap_status(uint8_t index)
 {
-	uint8_t data[NUM_TASKS] = {0};
+	uint8_t data[12] = {0};
 
-	for (uint8_t t = 0; t < NUM_TASKS; t++)
+	/* Invalid index, return not recognized */
+	if (index > NUM_TASKS)
 	{
-		data[t] = task_props[t].high_watermark;
+		data[0] = 0xFF;
+		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, 1);
+		return;
 	}
 
-	send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
+	uint32_t value = 0;
+
+	/* Valid, but equal to NUM_TASKS, return idle task stats */
+	if (index == NUM_TASKS)
+	{
+		data[0] = index;
+
+		/* Absolute time */
+		value = ulTaskGetIdleRunTimeCounter();
+		data[1] = (value >> 24) % 0xFF;
+		data[2] = (value >> 16) % 0xFF;
+		data[3] = (value >> 8) % 0xFF;
+		data[4] = value % 0xFF;
+
+		/* Percent time */
+		value = ulTaskGetIdleRunTimePercent();
+		data[5] = (value >> 24) % 0xFF;
+		data[6] = (value >> 16) % 0xFF;
+		data[7] = (value >> 8) % 0xFF;
+		data[8] = value % 0xFF;
+
+		/* Minimum Ever Free Heap Size */
+		value = xPortGetMinimumEverFreeHeapSize();
+		data[9] = (value >> 24) % 0xFF;
+		data[10] = (value >> 16) % 0xFF;
+		data[11] = (value >> 8) % 0xFF;
+		data[12] = value % 0xFF;
+
+		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+		return;
+	}
+
+	/* Valid indexes */
+	data[0] = index;
+
+	/* Absolute time */
+	value = ulTaskGetRunTimeCounter(task_props[index].task_handle);
+	data[1] = (value >> 24) % 0xFF;
+	data[2] = (value >> 16) % 0xFF;
+	data[3] = (value >> 8) % 0xFF;
+	data[4] = value % 0xFF;
+
+	/* Percentage time */
+	value = ulTaskGetRunTimePercent(task_props[index].task_handle);
+	data[5] = (value >> 24) % 0xFF;
+	data[6] = (value >> 16) % 0xFF;
+	data[7] = (value >> 8) % 0xFF;
+	data[8] = value % 0xFF;
+
+	/* High watermark */
+	value = task_props[index].high_watermark;
+	data[9] = (value >> 24) % 0xFF;
+	data[10] = (value >> 16) % 0xFF;
+	data[11] = (value >> 8) % 0xFF;
+	data[12] = value % 0xFF;
+
+	send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 }
 
 static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
@@ -497,12 +541,12 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		send_data(rxID, cmd, decoded_data, len);
 		break;
 
-	case PC_STATUS_CMD:
+	case PC_ERROR_STATUS_CMD:
 		send_status(decoded_data[0]);
 		break;
 
-	case PC_HEAP_STATUS_CMD:
-		send_heap_status();
+	case PC_TASK_STATUS_CMD:
+		send_heap_status(decoded_data[0]);
 		break;
 
 	default:
@@ -519,7 +563,7 @@ static void decode_reception_task(void *pvParameters)
 
 	for (;;)
 	{
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
 		uint8_t data;
@@ -578,7 +622,7 @@ static void process_outbound_task(void *pvParameters)
 			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
 		}
 
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 }

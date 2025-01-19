@@ -10,7 +10,7 @@
 typedef struct task_props_t
 {
 	TaskHandle_t task_handle;
-	uint8_t high_watermark;
+	uint32_t high_watermark;
 } task_props_t;
 
 #endif
