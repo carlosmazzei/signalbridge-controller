@@ -2,7 +2,7 @@
  * @file main.c
  * @brief Main application for the A320 Pico Controller with FreeRTOS
  * @author
- *   - Carlos Mazzei <email@domain>
+ *   - Carlos Mazzei <carlos.mazzei@gmail.com>
  * @date 2020-2024
  *
  * This file contains the core FreeRTOS tasks and initialization code
@@ -48,7 +48,7 @@
 /**
  * @brief Size of the cobs encoded reception queue.
  */
-#define ENCODED_QUEUE_SIZE 100
+#define ENCODED_QUEUE_SIZE 1024
 
 /**
  * @brief Data buffer size (used for inbound/outbound data).
@@ -95,13 +95,18 @@
 /**
  * @brief Task priorities.
  */
-#define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
 #define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + 2)
+#define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + 2)
+#define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + 2)
+#define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
+#define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
+#define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
+#define mainENCODER_TASK_PRIORITY       (tskIDLE_PRIORITY + 1)
 
 /**
  * @brief FreeRTOS stack sizes for the tasks.
  */
-#define CDC_STACK_SIZE             (2 * configMINIMAL_STACK_SIZE)
+#define CDC_STACK_SIZE             (4 * configMINIMAL_STACK_SIZE)
 #define UART_EVENT_STACK_SIZE      (2 * configMINIMAL_STACK_SIZE)
 #define DECODE_RECEPTION_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 #define PROCESS_OUTBOUND_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
@@ -139,21 +144,6 @@ typedef struct error_counters_t
 	uint16_t counters[NUM_ERROR_COUNTERS]; /**< Array of error counters */
 	bool error_state;                  /**< Flag indicating critical error state */
 } error_counters_t;
-
-/**
- * @struct task_handles_t
- * @brief Holds FreeRTOS task handles for created tasks.
- */
-typedef struct task_handles_t
-{
-	TaskHandle_t cdc_task_handle;
-	TaskHandle_t uart_event_task_handle;
-	TaskHandle_t decode_reception_task_handle;
-	TaskHandle_t process_outbound_task_handle;
-	TaskHandle_t adc_read_task_handle;
-	TaskHandle_t keypad_task_handle;
-	TaskHandle_t encoder_read_task_handle;
-} task_handles_t;
 
 /**
  * @enum task_enum_t
@@ -238,7 +228,7 @@ static inline void send_status(uint8_t index);
 /**
  * @brief Sends the heap usage (high watermark) of each task to the host.
  */
-void send_heap_status(void);
+void send_heap_status(uint8_t index);
 
 /**
  * @brief Processes a fully decoded inbound message.
@@ -282,6 +272,11 @@ static inline void clean_up(void);
 
 /* --- Function Definitions --------------------------------------------------*/
 
+uint32_t ulPortGetRunTime( void )
+{
+	return time_us_32();
+}
+
 static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
 {
 	uint8_t checksum = 0;
@@ -300,7 +295,7 @@ static void uart_event_task(void *pvParameters)
 	for (;;)
 	{
 		/* Track free stack space for debugging */
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
 		if (!tud_cdc_n_available(0))
@@ -317,6 +312,7 @@ static void uart_event_task(void *pvParameters)
 			{
 				error_counters.counters[QUEUE_SEND_ERROR]++;
 			}
+			watchdog_update();
 		}
 	}
 }
@@ -338,8 +334,9 @@ static void cdc_task(void *pvParameters)
 			gpio_put(PICO_DEFAULT_LED_PIN, 0);
 		}
 
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
+		taskYIELD();
 	}
 }
 
@@ -389,27 +386,87 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 static inline void send_status(uint8_t index)
 {
-	uint8_t data[2] = {0, 0};
+	uint8_t data[3] = {0, 0, 0};
 
 	if (index < NUM_ERROR_COUNTERS)
 	{
-		data[0] = (uint8_t)(error_counters.counters[index] >> 8);
-		data[1] = (uint8_t)(error_counters.counters[index] & 0xFF);
+		data[0] = index;
+		data[1] = (uint8_t)(error_counters.counters[index] >> 8);
+		data[2] = (uint8_t)(error_counters.counters[index] & 0xFF);
 	}
 
-	send_data(PANEL_ID, PC_STATUS_CMD, data, sizeof(data));
+	send_data(PANEL_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
 }
 
-void send_heap_status(void)
+void send_heap_status(uint8_t index)
 {
-	uint8_t data[7] = {0};
+	uint8_t data[12] = {0};
 
-	for (uint8_t t = 0; t < NUM_TASKS; t++)
+	/* Invalid index, return not recognized */
+	if (index > NUM_TASKS)
 	{
-		data[t] = task_props[t].high_watermark;
+		data[0] = 0xFF;
+		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, 1);
+		return;
 	}
 
-	send_data(PANEL_ID, PC_HEAP_STATUS_CMD, data, sizeof(data));
+	uint32_t value = 0;
+
+	/* Valid, but equal to NUM_TASKS, return idle task stats */
+	if (index == NUM_TASKS)
+	{
+		data[0] = index;
+
+		/* Absolute time */
+		value = ulTaskGetIdleRunTimeCounter();
+		data[1] = (value >> 24) % 0xFF;
+		data[2] = (value >> 16) % 0xFF;
+		data[3] = (value >> 8) % 0xFF;
+		data[4] = value % 0xFF;
+
+		/* Percent time */
+		value = ulTaskGetIdleRunTimePercent();
+		data[5] = (value >> 24) % 0xFF;
+		data[6] = (value >> 16) % 0xFF;
+		data[7] = (value >> 8) % 0xFF;
+		data[8] = value % 0xFF;
+
+		/* Minimum Ever Free Heap Size */
+		value = xPortGetMinimumEverFreeHeapSize();
+		data[9] = (value >> 24) % 0xFF;
+		data[10] = (value >> 16) % 0xFF;
+		data[11] = (value >> 8) % 0xFF;
+		data[12] = value % 0xFF;
+
+		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+		return;
+	}
+
+	/* Valid indexes */
+	data[0] = index;
+
+	/* Absolute time */
+	value = ulTaskGetRunTimeCounter(task_props[index].task_handle);
+	data[1] = (value >> 24) % 0xFF;
+	data[2] = (value >> 16) % 0xFF;
+	data[3] = (value >> 8) % 0xFF;
+	data[4] = value % 0xFF;
+
+	/* Percentage time */
+	value = ulTaskGetRunTimePercent(task_props[index].task_handle);
+	data[5] = (value >> 24) % 0xFF;
+	data[6] = (value >> 16) % 0xFF;
+	data[7] = (value >> 8) % 0xFF;
+	data[8] = value % 0xFF;
+
+	/* High watermark */
+	value = task_props[index].high_watermark;
+	data[9] = (value >> 24) % 0xFF;
+	data[10] = (value >> 16) % 0xFF;
+	data[11] = (value >> 8) % 0xFF;
+	data[12] = value % 0xFF;
+
+	send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 }
 
 static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
@@ -484,12 +541,12 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		send_data(rxID, cmd, decoded_data, len);
 		break;
 
-	case PC_STATUS_CMD:
+	case PC_ERROR_STATUS_CMD:
 		send_status(decoded_data[0]);
 		break;
 
-	case PC_HEAP_STATUS_CMD:
-		send_heap_status();
+	case PC_TASK_STATUS_CMD:
+		send_heap_status(decoded_data[0]);
 		break;
 
 	default:
@@ -506,7 +563,7 @@ static void decode_reception_task(void *pvParameters)
 
 	for (;;)
 	{
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
 		uint8_t data;
@@ -565,7 +622,7 @@ static void process_outbound_task(void *pvParameters)
 			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
 		}
 
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 }
@@ -614,7 +671,7 @@ static inline bool setup_hardware(void)
 	}
 
 	/* Watchdog 1s, pause on debug */
-	watchdog_enable(1000, true);
+	watchdog_enable(5000, true);
 
 	return true;
 }
@@ -697,7 +754,7 @@ int main(void)
 	                      "cdc_task",
 	                      CDC_STACK_SIZE,
 	                      (void *)&task_props[CDC_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainCDC_TASK_PRIORITY,
 	                      &task_props[CDC_TASK].task_handle);
 	if (success != pdPASS)
 	{
@@ -713,7 +770,7 @@ int main(void)
 		                      "uart_event_task",
 		                      UART_EVENT_STACK_SIZE,
 		                      (void *)&task_props[UART_EVENT_TASK],
-		                      mainPROCESS_QUEUE_TASK_PRIORITY,
+		                      mainUART_TASK_PRIORITY,
 		                      &task_props[UART_EVENT_TASK].task_handle);
 		if (success != pdPASS)
 		{
@@ -725,7 +782,7 @@ int main(void)
 		                      "decode_reception_task",
 		                      DECODE_RECEPTION_STACK_SIZE,
 		                      (void *)&task_props[DECODE_RECEPTION_TASK],
-		                      mainPROCESS_QUEUE_TASK_PRIORITY + 1,
+		                      mainDECODE_TASK_PRIORITY,
 		                      &task_props[DECODE_RECEPTION_TASK].task_handle);
 		if (success != pdPASS)
 		{
@@ -754,7 +811,7 @@ int main(void)
 	                      "adc_read_task",
 	                      ADC_READ_STACK_SIZE,
 	                      (void *)&task_props[ADC_READ_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainADC_TASK_PRIORITY,
 	                      &task_props[ADC_READ_TASK].task_handle);
 	if (success != pdPASS)
 	{
@@ -766,7 +823,7 @@ int main(void)
 	                      "keypad_task",
 	                      KEYPAD_STACK_SIZE,
 	                      (void *)&task_props[KEYPAD_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainKEY_TASK_PRIORITY,
 	                      &task_props[KEYPAD_TASK].task_handle);
 	if (success != pdPASS)
 	{
@@ -778,7 +835,7 @@ int main(void)
 	                      "encoder_task",
 	                      ENCODER_READ_STACK_SIZE,
 	                      (void *)&task_props[ENCODER_READ_TASK],
-	                      mainPROCESS_QUEUE_TASK_PRIORITY,
+	                      mainENCODER_TASK_PRIORITY,
 	                      &task_props[ENCODER_READ_TASK].task_handle);
 	if (success != pdPASS)
 	{
