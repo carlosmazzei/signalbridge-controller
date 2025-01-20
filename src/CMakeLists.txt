@@ -11,6 +11,10 @@ target_sources(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
         )
 
+target_compile_definitions(pi_controller PUBLIC
+    configNUMBER_OF_CORES=2
+)
+
 # Instructions to enable/disable debugging using printf commands
 pico_enable_stdio_usb(pi_controller 0)
 pico_enable_stdio_uart(pi_controller 0)
@@ -24,13 +28,14 @@ target_include_directories(pi_controller PUBLIC
 
 target_link_libraries(  pi_controller 
                         pico_stdlib 
+                        pico_multicore
                         pico_unique_id 
                         tinyusb_device 
                         tinyusb_board 
                         hardware_adc
                         hardware_spi
                         hardware_pwm
-                        FreeRTOS-Kernel 
+                        FreeRTOS-Kernel
                         FreeRTOS-Kernel-Heap4
                     )
 

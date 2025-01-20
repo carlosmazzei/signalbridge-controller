@@ -57,33 +57,5 @@ void vApplicationIdleHook(void)
 
 void vApplicationTickHook(void)
 {
-#if mainCREATE_SIMPLE_BLINKY_DEMO_ONLY == 0
-	{
-/* The full demo includes a software timer demo/test that requires
-   prodding periodically from the tick interrupt. */
-#if (mainENABLE_TIMER_DEMO == 1)
-		vTimerPeriodicISRTests();
-#endif
-
-/* Call the periodic queue overwrite from ISR demo. */
-#if (mainENABLE_QUEUE_OVERWRITE == 1)
-		vQueueOverwritePeriodicISRDemo();
-#endif
-
-/* Call the periodic event group from ISR demo. */
-#if (mainENABLE_EVENT_GROUP == 1)
-		vPeriodicEventGroupsProcessing();
-#endif
-
-/* Call the code that uses a mutex from an ISR. */
-#if (mainENABLE_INTERRUPT_SEMAPHORE == 1)
-		vInterruptSemaphorePeriodicTest();
-#endif
-
-/* Call the code that 'gives' a task notification from an ISR. */
-#if (mainENABLE_TASK_NOTIFY == 1)
-		xNotifyTaskFromISR();
-#endif
-	}
-#endif
+	/* Tick hook */
 }

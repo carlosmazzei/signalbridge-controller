@@ -95,9 +95,9 @@
 /**
  * @brief Task priorities.
  */
-#define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + 2)
-#define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + 2)
-#define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + 2)
+#define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
+#define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + 1)
+#define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + 1)
 #define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
 #define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
 #define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
@@ -107,12 +107,12 @@
  * @brief FreeRTOS stack sizes for the tasks.
  */
 #define CDC_STACK_SIZE             (4 * configMINIMAL_STACK_SIZE)
-#define UART_EVENT_STACK_SIZE      (2 * configMINIMAL_STACK_SIZE)
-#define DECODE_RECEPTION_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
-#define PROCESS_OUTBOUND_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
-#define ADC_READ_STACK_SIZE        (2 * configMINIMAL_STACK_SIZE)
-#define KEYPAD_STACK_SIZE          (2 * configMINIMAL_STACK_SIZE)
-#define ENCODER_READ_STACK_SIZE    (2 * configMINIMAL_STACK_SIZE)
+#define UART_EVENT_STACK_SIZE      (3 * configMINIMAL_STACK_SIZE)
+#define DECODE_RECEPTION_STACK_SIZE (3 * configMINIMAL_STACK_SIZE)
+#define PROCESS_OUTBOUND_STACK_SIZE (3 * configMINIMAL_STACK_SIZE)
+#define ADC_READ_STACK_SIZE        (4 * configMINIMAL_STACK_SIZE)
+#define KEYPAD_STACK_SIZE          (5 * configMINIMAL_STACK_SIZE)
+#define ENCODER_READ_STACK_SIZE    (5 * configMINIMAL_STACK_SIZE)
 
 /* --- Enums and Structs -----------------------------------------------------*/
 
@@ -128,6 +128,7 @@ typedef enum error_counter_enum_t
 	LED_OUT_ERROR,
 	WATCHDOG_ERROR,
 	MSG_MALFORMED_ERROR,
+	COBS_DECODE_ERROR,
 	RECEIVE_BUFFER_OVERFLOW_ERROR,
 	CHECKSUM_ERROR,
 	BUFFER_OVERFLOW_ERROR,
@@ -579,7 +580,7 @@ static void decode_reception_task(void *pvParameters)
 			if (receive_buffer_index <= 0)
 			{
 				/* Packet marker received but no data in buffer */
-				error_counters.counters[MSG_MALFORMED_ERROR]++;
+				error_counters.counters[COBS_DECODE_ERROR]++;
 				continue;
 			}
 
@@ -728,6 +729,10 @@ int main(void)
 	BaseType_t success;
 	error_counters.error_state = false;
 
+	/* Create core masks */
+	UBaseType_t uxCore0Affinity = (1 << 0);  // Core 0 only
+	UBaseType_t uxCore1Affinity = (1 << 1);  // Core 1 only
+
 	if (watchdog_caused_reboot())
 	{
 		error_counters.counters[WATCHDOG_ERROR]++;
@@ -841,6 +846,16 @@ int main(void)
 	{
 		error_counters.error_state = true;
 	}
+
+	/* Assign core affinity */
+	vTaskCoreAffinitySet(task_props[CDC_TASK].task_handle, uxCore0Affinity);
+	vTaskCoreAffinitySet(task_props[UART_EVENT_TASK].task_handle, uxCore0Affinity);
+
+	vTaskCoreAffinitySet(task_props[DECODE_RECEPTION_TASK].task_handle, uxCore1Affinity);
+	vTaskCoreAffinitySet(task_props[PROCESS_OUTBOUND_TASK].task_handle, uxCore1Affinity);
+	vTaskCoreAffinitySet(task_props[ADC_READ_TASK].task_handle, uxCore1Affinity);
+	vTaskCoreAffinitySet(task_props[KEYPAD_TASK].task_handle, uxCore1Affinity);
+	vTaskCoreAffinitySet(task_props[ENCODER_READ_TASK].task_handle, uxCore1Affinity);
 
 	/* Start scheduler if no critical error was found */
 	if (!error_counters.error_state)
