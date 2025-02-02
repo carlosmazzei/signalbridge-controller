@@ -162,6 +162,17 @@ typedef enum task_enum_t
 	NUM_TASKS /**< Number of tasks in the system */
 } task_enum_t;
 
+/**
+ * @struct cdc_stats_t
+ * @brief Holds bytes sent and receive statistics
+ */
+typedef struct cdc_stats_t
+{
+	uint32_t bytes_sent;
+	uint32_t bytes_received;
+} cdc_stats_t;
+
+
 /* --- Static Global Variables -----------------------------------------------*/
 
 /**
@@ -183,6 +194,11 @@ static error_counters_t error_counters;
  * @brief Stores properties (such as watermarks) for each task.
  */
 static task_props_t task_props[NUM_TASKS];
+
+/**
+ * @brief Stores CDC statistics
+ */
+static cdc_stats_t cdc_stats;
 
 /* --- Static Function Prototypes --------------------------------------------*/
 
@@ -337,7 +353,7 @@ static void cdc_task(void *pvParameters)
 
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
-		taskYIELD();
+		vTaskDelay(pdMS_TO_TICKS(2));
 	}
 }
 
