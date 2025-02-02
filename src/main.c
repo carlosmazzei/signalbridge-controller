@@ -117,10 +117,10 @@
 /* --- Enums and Structs -----------------------------------------------------*/
 
 /**
- * @enum error_counter_enum_t
+ * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
-typedef enum error_counter_enum_t
+typedef enum statistics_counter_enum_t
 {
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
@@ -133,18 +133,20 @@ typedef enum error_counter_enum_t
 	CHECKSUM_ERROR,
 	BUFFER_OVERFLOW_ERROR,
 	UNKNOWN_CMD_ERROR,
-	NUM_ERROR_COUNTERS /**< Number of error counters */
-} error_counter_enum_t;
+	BYTES_SENT,
+	BYTES_RECEIVED,
+	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
+} statistics_counter_enum_t;
 
 /**
- * @struct error_counters_t
+ * @struct statistics_counters_t
  * @brief Holds counters for different error types.
  */
-typedef struct error_counters_t
+typedef struct statistics_counters_t
 {
-	uint16_t counters[NUM_ERROR_COUNTERS]; /**< Array of error counters */
+	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
 	bool error_state;                  /**< Flag indicating critical error state */
-} error_counters_t;
+} statistics_counters_t;
 
 /**
  * @enum task_enum_t
@@ -186,9 +188,9 @@ static QueueHandle_t encoded_reception_queue = NULL;
 static QueueHandle_t data_event_queue = NULL;
 
 /**
- * @brief Stores various error counters and a global error state.
+ * @brief Stores various statistics counters and a global error state.
  */
-static error_counters_t error_counters;
+static statistics_counters_t statistics_counters;
 
 /**
  * @brief Stores properties (such as watermarks) for each task.
@@ -323,11 +325,12 @@ static void uart_event_task(void *pvParameters)
 		}
 
 		uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
+		cdc_stats.bytes_received += count;
 		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
 		{
 			if (xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY) != pdTRUE)
 			{
-				error_counters.counters[QUEUE_SEND_ERROR]++;
+				statistics_counters.counters[QUEUE_SEND_ERROR]++;
 			}
 			watchdog_update();
 		}
@@ -364,7 +367,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	/* Check for buffer overflow risk */
 	if (length > (DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE))
 	{
-		error_counters.counters[BUFFER_OVERFLOW_ERROR]++;
+		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
 		return;
 	}
 
@@ -386,7 +389,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	/* Check for buffer overflow after encoding */
 	if (num_encoded + 1 >= MAX_ENCODED_BUFFER_SIZE)
 	{
-		error_counters.counters[BUFFER_OVERFLOW_ERROR]++;
+		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
 		return;
 	}
 
@@ -396,20 +399,23 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	/* Send via USB CDC */
 	for (uint8_t i = 0; i < num_encoded + 1; i++)
 	{
-		tud_cdc_n_write_char(0, encode_buffer[i]);
+		cdc_stats.bytes_sent += tud_cdc_n_write_char(0, encode_buffer[i]);
 	}
-	tud_cdc_write_flush();
+	cdc_stats.bytes_sent += tud_cdc_write_flush();
 }
 
 static inline void send_status(uint8_t index)
 {
-	uint8_t data[3] = {0, 0, 0};
+	uint8_t data[5] = {0, 0, 0, 0, 0};
 
-	if (index < NUM_ERROR_COUNTERS)
+	/* Return the corresponding statistic if index is valid */
+	if (index < NUM_STATISTICS_COUNTERS)
 	{
 		data[0] = index;
-		data[1] = (uint8_t)(error_counters.counters[index] >> 8);
-		data[2] = (uint8_t)(error_counters.counters[index] & 0xFF);
+		data[1] = (statistics_counters.counters[index] >> 24) & 0xFF;
+		data[2] = (statistics_counters.counters[index] >> 16) & 0xFF;
+		data[3] = (statistics_counters.counters[index] >> 8) & 0xFF;
+		data[4] = statistics_counters.counters[index] & 0xFF;
 	}
 
 	send_data(PANEL_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
@@ -436,24 +442,24 @@ void send_heap_status(uint8_t index)
 
 		/* Absolute time */
 		value = ulTaskGetIdleRunTimeCounter();
-		data[1] = (value >> 24) % 0xFF;
-		data[2] = (value >> 16) % 0xFF;
-		data[3] = (value >> 8) % 0xFF;
-		data[4] = value % 0xFF;
+		data[1] = (value >> 24) & 0xFF;
+		data[2] = (value >> 16) & 0xFF;
+		data[3] = (value >> 8) & 0xFF;
+		data[4] = value & 0xFF;
 
 		/* Percent time */
 		value = ulTaskGetIdleRunTimePercent();
-		data[5] = (value >> 24) % 0xFF;
-		data[6] = (value >> 16) % 0xFF;
-		data[7] = (value >> 8) % 0xFF;
-		data[8] = value % 0xFF;
+		data[5] = (value >> 24) & 0xFF;
+		data[6] = (value >> 16) & 0xFF;
+		data[7] = (value >> 8) & 0xFF;
+		data[8] = value & 0xFF;
 
 		/* Minimum Ever Free Heap Size */
 		value = xPortGetMinimumEverFreeHeapSize();
-		data[9] = (value >> 24) % 0xFF;
-		data[10] = (value >> 16) % 0xFF;
-		data[11] = (value >> 8) % 0xFF;
-		data[12] = value % 0xFF;
+		data[9] = (value >> 24) & 0xFF;
+		data[10] = (value >> 16) & 0xFF;
+		data[11] = (value >> 8) & 0xFF;
+		data[12] = value & 0xFF;
 
 		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 		return;
@@ -464,24 +470,24 @@ void send_heap_status(uint8_t index)
 
 	/* Absolute time */
 	value = ulTaskGetRunTimeCounter(task_props[index].task_handle);
-	data[1] = (value >> 24) % 0xFF;
-	data[2] = (value >> 16) % 0xFF;
-	data[3] = (value >> 8) % 0xFF;
-	data[4] = value % 0xFF;
+	data[1] = (value >> 24) & 0xFF;
+	data[2] = (value >> 16) & 0xFF;
+	data[3] = (value >> 8) & 0xFF;
+	data[4] = value & 0xFF;
 
 	/* Percentage time */
 	value = ulTaskGetRunTimePercent(task_props[index].task_handle);
-	data[5] = (value >> 24) % 0xFF;
-	data[6] = (value >> 16) % 0xFF;
-	data[7] = (value >> 8) % 0xFF;
-	data[8] = value % 0xFF;
+	data[5] = (value >> 24) & 0xFF;
+	data[6] = (value >> 16) & 0xFF;
+	data[7] = (value >> 8) & 0xFF;
+	data[8] = value & 0xFF;
 
 	/* High watermark */
 	value = task_props[index].high_watermark;
-	data[9] = (value >> 24) % 0xFF;
-	data[10] = (value >> 16) % 0xFF;
-	data[11] = (value >> 8) % 0xFF;
-	data[12] = value % 0xFF;
+	data[9] = (value >> 24) & 0xFF;
+	data[10] = (value >> 16) & 0xFF;
+	data[11] = (value >> 8) & 0xFF;
+	data[12] = value & 0xFF;
 
 	send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 }
@@ -491,7 +497,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 	if (length < (HEADER_SIZE + CHECKSUM_SIZE))
 	{
 		/* Not enough data to include header + checksum */
-		error_counters.counters[MSG_MALFORMED_ERROR]++;
+		statistics_counters.counters[MSG_MALFORMED_ERROR]++;
 		return;
 	}
 
@@ -503,13 +509,13 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 	if (length != (len + HEADER_SIZE + CHECKSUM_SIZE))
 	{
-		error_counters.counters[MSG_MALFORMED_ERROR]++;
+		statistics_counters.counters[MSG_MALFORMED_ERROR]++;
 		return;
 	}
 
 	if (DATA_BUFFER_SIZE < len)
 	{
-		error_counters.counters[BUFFER_OVERFLOW_ERROR]++;
+		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
 		return;
 	}
 
@@ -519,7 +525,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 	if (calculated_checksum != received_checksum)
 	{
-		error_counters.counters[CHECKSUM_ERROR]++;
+		statistics_counters.counters[CHECKSUM_ERROR]++;
 		return;
 	}
 
@@ -536,7 +542,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		leds[1] = decoded_data[2];
 		if (!led_out(decoded_data[0], leds, sizeof(leds)))
 		{
-			error_counters.counters[LED_OUT_ERROR]++;
+			statistics_counters.counters[LED_OUT_ERROR]++;
 		}
 	}
 	break;
@@ -549,7 +555,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 	{
 		if (display_out(decoded_data, len) != len)
 		{
-			error_counters.counters[DISPLAY_OUT_ERROR]++;
+			statistics_counters.counters[DISPLAY_OUT_ERROR]++;
 		}
 	}
 	break;
@@ -567,7 +573,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		break;
 
 	default:
-		error_counters.counters[UNKNOWN_CMD_ERROR]++;
+		statistics_counters.counters[UNKNOWN_CMD_ERROR]++;
 		break;
 	}
 }
@@ -587,7 +593,7 @@ static void decode_reception_task(void *pvParameters)
 		if (pdFALSE == xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
 		{
 			/* Failed to receive data from queue */
-			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
+			statistics_counters.counters[QUEUE_RECEIVE_ERROR]++;
 			continue;
 		}
 
@@ -596,7 +602,7 @@ static void decode_reception_task(void *pvParameters)
 			if (receive_buffer_index <= 0)
 			{
 				/* Packet marker received but no data in buffer */
-				error_counters.counters[COBS_DECODE_ERROR]++;
+				statistics_counters.counters[COBS_DECODE_ERROR]++;
 				continue;
 			}
 
@@ -618,7 +624,7 @@ static void decode_reception_task(void *pvParameters)
 			}
 			else
 			{
-				error_counters.counters[RECEIVE_BUFFER_OVERFLOW_ERROR]++;
+				statistics_counters.counters[RECEIVE_BUFFER_OVERFLOW_ERROR]++;
 			}
 		}
 	}
@@ -636,7 +642,7 @@ static void process_outbound_task(void *pvParameters)
 		}
 		else
 		{
-			error_counters.counters[QUEUE_RECEIVE_ERROR]++;
+			statistics_counters.counters[QUEUE_RECEIVE_ERROR]++;
 		}
 
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
@@ -675,9 +681,9 @@ static inline bool setup_hardware(void)
 	input_init(&config);
 
 	/* Reset all error counters */
-	for (uint8_t i = 0; i < NUM_ERROR_COUNTERS; i++)
+	for (uint8_t i = 0; i < NUM_STATISTICS_COUNTERS; i++)
 	{
-		error_counters.counters[i] = 0;
+		statistics_counters.counters[i] = 0;
 	}
 
 	/* Reset task props */
@@ -743,7 +749,7 @@ static inline void clean_up(void)
 int main(void)
 {
 	BaseType_t success;
-	error_counters.error_state = false;
+	statistics_counters.error_state = false;
 
 	/* Create core masks */
 	UBaseType_t uxCore0Affinity = (1 << 0);  // Core 0 only
@@ -751,7 +757,7 @@ int main(void)
 
 	if (watchdog_caused_reboot())
 	{
-		error_counters.counters[WATCHDOG_ERROR]++;
+		statistics_counters.counters[WATCHDOG_ERROR]++;
 		clean_up();
 	}
 
@@ -761,13 +767,13 @@ int main(void)
 	/* Initialize TinyUSB stack */
 	if (!tud_init(BOARD_TUD_RHPORT))
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Setup hardware, queues, etc. */
 	if (!setup_hardware())
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Create the CDC task */
@@ -779,7 +785,7 @@ int main(void)
 	                      &task_props[CDC_TASK].task_handle);
 	if (success != pdPASS)
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Create queue for encoded data */
@@ -795,7 +801,7 @@ int main(void)
 		                      &task_props[UART_EVENT_TASK].task_handle);
 		if (success != pdPASS)
 		{
-			error_counters.error_state = true;
+			statistics_counters.error_state = true;
 		}
 
 		/* Decode reception task */
@@ -807,12 +813,12 @@ int main(void)
 		                      &task_props[DECODE_RECEPTION_TASK].task_handle);
 		if (success != pdPASS)
 		{
-			error_counters.error_state = true;
+			statistics_counters.error_state = true;
 		}
 	}
 	else
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Outbound processing task */
@@ -824,7 +830,7 @@ int main(void)
 	                      &task_props[PROCESS_OUTBOUND_TASK].task_handle);
 	if (success != pdPASS)
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* ADC read task */
@@ -836,7 +842,7 @@ int main(void)
 	                      &task_props[ADC_READ_TASK].task_handle);
 	if (success != pdPASS)
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Keypad task */
@@ -848,7 +854,7 @@ int main(void)
 	                      &task_props[KEYPAD_TASK].task_handle);
 	if (success != pdPASS)
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Encoder read task */
@@ -860,7 +866,7 @@ int main(void)
 	                      &task_props[ENCODER_READ_TASK].task_handle);
 	if (success != pdPASS)
 	{
-		error_counters.error_state = true;
+		statistics_counters.error_state = true;
 	}
 
 	/* Assign core affinity */
@@ -874,7 +880,7 @@ int main(void)
 	vTaskCoreAffinitySet(task_props[ENCODER_READ_TASK].task_handle, uxCore1Affinity);
 
 	/* Start scheduler if no critical error was found */
-	if (!error_counters.error_state)
+	if (!statistics_counters.error_state)
 	{
 		vTaskStartScheduler();
 	}
