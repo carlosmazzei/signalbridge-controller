@@ -164,17 +164,6 @@ typedef enum task_enum_t
 	NUM_TASKS /**< Number of tasks in the system */
 } task_enum_t;
 
-/**
- * @struct cdc_stats_t
- * @brief Holds bytes sent and receive statistics
- */
-typedef struct cdc_stats_t
-{
-	uint32_t bytes_sent;
-	uint32_t bytes_received;
-} cdc_stats_t;
-
-
 /* --- Static Global Variables -----------------------------------------------*/
 
 /**
@@ -196,11 +185,6 @@ static statistics_counters_t statistics_counters;
  * @brief Stores properties (such as watermarks) for each task.
  */
 static task_props_t task_props[NUM_TASKS];
-
-/**
- * @brief Stores CDC statistics
- */
-static cdc_stats_t cdc_stats;
 
 /* --- Static Function Prototypes --------------------------------------------*/
 
@@ -325,7 +309,7 @@ static void uart_event_task(void *pvParameters)
 		}
 
 		uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
-		cdc_stats.bytes_received += count;
+		statistics_counters.counters[BYTES_RECEIVED] += count;
 		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
 		{
 			if (xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY) != pdTRUE)
@@ -399,9 +383,9 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	/* Send via USB CDC */
 	for (uint8_t i = 0; i < num_encoded + 1; i++)
 	{
-		cdc_stats.bytes_sent += tud_cdc_n_write_char(0, encode_buffer[i]);
+		statistics_counters.counters[BYTES_SENT] += tud_cdc_n_write_char(0, encode_buffer[i]);
 	}
-	cdc_stats.bytes_sent += tud_cdc_write_flush();
+	statistics_counters.counters[BYTES_SENT] += tud_cdc_write_flush();
 }
 
 static inline void send_status(uint8_t index)
