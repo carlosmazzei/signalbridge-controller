@@ -48,7 +48,12 @@
 /**
  * @brief Size of the cobs encoded reception queue.
  */
-#define ENCODED_QUEUE_SIZE 1024
+#define ENCODED_QUEUE_SIZE 32000
+
+/**
+ * @brief Size of the CDC transmit queue.
+ */
+#define CDC_TRANSMIT_QUEUE_SIZE 1024
 
 /**
  * @brief Data buffer size (used for inbound/outbound data).
@@ -106,7 +111,7 @@
 /**
  * @brief FreeRTOS stack sizes for the tasks.
  */
-#define CDC_STACK_SIZE             (4 * configMINIMAL_STACK_SIZE)
+#define CDC_STACK_SIZE             (3 * configMINIMAL_STACK_SIZE)
 #define UART_EVENT_STACK_SIZE      (3 * configMINIMAL_STACK_SIZE)
 #define DECODE_RECEPTION_STACK_SIZE (3 * configMINIMAL_STACK_SIZE)
 #define PROCESS_OUTBOUND_STACK_SIZE (3 * configMINIMAL_STACK_SIZE)
@@ -124,6 +129,7 @@ typedef enum statistics_counter_enum_t
 {
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
+	CDC_QUEUE_SEND_ERROR,
 	DISPLAY_OUT_ERROR,
 	LED_OUT_ERROR,
 	WATCHDOG_ERROR,
@@ -155,6 +161,7 @@ typedef struct statistics_counters_t
 typedef enum task_enum_t
 {
 	CDC_TASK,
+	CDC_WRITE_TASK,
 	UART_EVENT_TASK,
 	DECODE_RECEPTION_TASK,
 	PROCESS_OUTBOUND_TASK,
@@ -163,6 +170,15 @@ typedef enum task_enum_t
 	ENCODER_READ_TASK,
 	NUM_TASKS /**< Number of tasks in the system */
 } task_enum_t;
+
+/**
+ * @struct cdc_packet_t
+ * @brief Holds CDC output queue packets.
+ */
+typedef struct cdc_packet_t {
+	uint8_t length;
+	uint8_t data[MAX_ENCODED_BUFFER_SIZE];
+} cdc_packet_t;
 
 /* --- Static Global Variables -----------------------------------------------*/
 
@@ -177,6 +193,11 @@ static QueueHandle_t encoded_reception_queue = NULL;
 static QueueHandle_t data_event_queue = NULL;
 
 /**
+ * @brief Queue to store packets to be sent over USB CDC.
+ */
+static QueueHandle_t cdc_transmit_queue = NULL;
+
+/**
  * @brief Stores various statistics counters and a global error state.
  */
 static statistics_counters_t statistics_counters;
@@ -185,6 +206,10 @@ static statistics_counters_t statistics_counters;
  * @brief Stores properties (such as watermarks) for each task.
  */
 static task_props_t task_props[NUM_TASKS];
+
+// Declare global variables to hold the CDC RTS and DTR states
+static volatile bool cdc_rts = false;
+static volatile bool cdc_dtr = false;
 
 /* --- Static Function Prototypes --------------------------------------------*/
 
@@ -249,11 +274,18 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length);
 static void decode_reception_task(void *pvParameters);
 
 /**
- * @brief Task that processes outbound messages from the `data_event_queue` and sends them to the host.
+ * @brief Task that processes outbound messages from the `data_event_queue`.
  *
  * @param[in] pvParameters Pointer to task parameters (task_props_t).
  */
 static void process_outbound_task(void *pvParameters);
+
+/**
+ * @brief Task that processes CDC writes from the `cdc_transmit_queue`.
+ *
+ * @param[in] pvParameters Pointer to task parameters (task_props_t).
+ */
+static void cdc_write_task(void *pvParameters);
 
 /**
  * @brief Sets up and initializes all required hardware resources.
@@ -274,6 +306,27 @@ static inline void enter_error_state(void);
 static inline void clean_up(void);
 
 /* --- Function Definitions --------------------------------------------------*/
+
+/**
+ * @brief Callback invoked when line state changes (DTR, RTS).
+ *
+ * @param[in] itf Interface number
+ * @param[in] dtr Data Terminal Ready state
+ * @param[in] rts Request To Send state
+ */
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+	// Update the global flow control variables
+	cdc_dtr = dtr;
+	cdc_rts = rts;
+
+	// You can add additional handling. For example:
+	if (!dtr)
+	{
+		// Host no longer open the serial port:
+		// Might want to flush or suspend transmissions
+	}
+}
 
 uint32_t ulPortGetRunTime( void )
 {
@@ -312,7 +365,7 @@ static void uart_event_task(void *pvParameters)
 		statistics_counters.counters[BYTES_RECEIVED] += count;
 		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
 		{
-			if (xQueueSend(encoded_reception_queue, &receive_buffer[i], portMAX_DELAY) != pdTRUE)
+			if (xQueueSend(encoded_reception_queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE)
 			{
 				statistics_counters.counters[QUEUE_SEND_ERROR]++;
 			}
@@ -380,12 +433,55 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	/* Append marker */
 	encode_buffer[num_encoded] = PACKET_MARKER;
 
-	/* Send via USB CDC */
-	for (uint8_t i = 0; i < num_encoded + 1; i++)
+	cdc_packet_t packet;
+	packet.length = num_encoded + 1;
+	memcpy(packet.data, encode_buffer, packet.length);
+
+	/* Enqueue data to be sent via USB CDC */
+	if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(2)) != pdTRUE)
 	{
-		statistics_counters.counters[BYTES_SENT] += tud_cdc_n_write_char(0, encode_buffer[i]);
+		statistics_counters.counters[CDC_QUEUE_SEND_ERROR]++;
 	}
-	statistics_counters.counters[BYTES_SENT] += tud_cdc_write_flush();
+}
+
+static void cdc_write_task(void *pvParameters)
+{
+	task_props_t *task_prop = (task_props_t *)pvParameters;
+	cdc_packet_t packet;
+	for (;;)
+	{
+		/* Wait for a packet to be sent */
+		if (xQueueReceive(cdc_transmit_queue, &packet, portMAX_DELAY) == pdTRUE)
+		{
+			/* Wait until the host is ready to receive data (both DTR & RTS asserted) */
+			while (!(cdc_dtr && cdc_rts))
+			{
+				/* If host is not ready, yield briefly before checking again. */
+				vTaskDelay(pdMS_TO_TICKS(5));
+			}
+
+			size_t total_written = 0;
+			while (total_written < packet.length)
+			{
+				/* Check how many bytes is available to send */
+				uint32_t n_avail = tud_cdc_n_write_available(0);
+				uint32_t n_write = MIN(n_avail, packet.length - total_written);
+				if (n_write)
+				{
+					tud_cdc_n_write(0, &packet.data[total_written], n_write);
+					total_written += n_write;
+				}
+				/* Allow TinyUSB to proceed */
+				tud_task();
+				taskYIELD();
+			}
+			/* Flush after all possible bytes are written */
+			uint32_t bytes_flushed = tud_cdc_write_flush();
+			statistics_counters.counters[BYTES_SENT] += bytes_flushed;
+		}
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		watchdog_update();
+	}
 }
 
 static inline void send_status(uint8_t index)
@@ -576,7 +672,6 @@ static void decode_reception_task(void *pvParameters)
 		uint8_t data;
 		if (pdFALSE == xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
 		{
-			/* Failed to receive data from queue */
 			statistics_counters.counters[QUEUE_RECEIVE_ERROR]++;
 			continue;
 		}
@@ -587,6 +682,7 @@ static void decode_reception_task(void *pvParameters)
 			{
 				/* Packet marker received but no data in buffer */
 				statistics_counters.counters[COBS_DECODE_ERROR]++;
+				receive_buffer_index = 0;
 				continue;
 			}
 
@@ -599,17 +695,19 @@ static void decode_reception_task(void *pvParameters)
 			{
 				process_inbound_data(decode_buffer, num_decoded);
 			}
+			else
+			{
+				statistics_counters.counters[COBS_DECODE_ERROR]++;
+			}
+		}
+		else if (receive_buffer_index < MAX_ENCODED_BUFFER_SIZE - 1)
+		{
+			receive_buffer[receive_buffer_index++] = data;
 		}
 		else
 		{
-			if ((receive_buffer_index + 1) < MAX_ENCODED_BUFFER_SIZE)
-			{
-				receive_buffer[receive_buffer_index++] = data;
-			}
-			else
-			{
-				statistics_counters.counters[RECEIVE_BUFFER_OVERFLOW_ERROR]++;
-			}
+			statistics_counters.counters[RECEIVE_BUFFER_OVERFLOW_ERROR]++;
+			receive_buffer_index = 0;
 		}
 	}
 }
@@ -710,6 +808,12 @@ static inline void clean_up(void)
 		data_event_queue = NULL;
 	}
 
+	if (cdc_transmit_queue)
+	{
+		vQueueDelete(cdc_transmit_queue);
+		cdc_transmit_queue = NULL;
+	}
+
 	/* Delete all tasks */
 	for (uint8_t t = 0; t < NUM_TASKS; t++)
 	{
@@ -805,6 +909,27 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
+	/* CDC writer queue */
+	cdc_transmit_queue = xQueueCreate(CDC_TRANSMIT_QUEUE_SIZE, sizeof(cdc_packet_t));
+	if (cdc_transmit_queue != NULL)
+	{
+		/* CDC write task */
+		success = xTaskCreate(cdc_write_task,
+		                      "cdc_write_task",
+		                      CDC_STACK_SIZE,
+		                      (void *)&task_props[CDC_WRITE_TASK],
+		                      mainCDC_TASK_PRIORITY,
+		                      &task_props[CDC_WRITE_TASK].task_handle);
+		if (success != pdPASS)
+		{
+			statistics_counters.error_state = true;
+		}
+	}
+	else
+	{
+		statistics_counters.error_state = true;
+	}
+
 	/* Outbound processing task */
 	success = xTaskCreate(process_outbound_task,
 	                      "process_outbound_task",
@@ -856,6 +981,7 @@ int main(void)
 	/* Assign core affinity */
 	vTaskCoreAffinitySet(task_props[CDC_TASK].task_handle, uxCore0Affinity);
 	vTaskCoreAffinitySet(task_props[UART_EVENT_TASK].task_handle, uxCore0Affinity);
+	vTaskCoreAffinitySet(task_props[CDC_WRITE_TASK].task_handle, uxCore0Affinity);
 
 	vTaskCoreAffinitySet(task_props[DECODE_RECEPTION_TASK].task_handle, uxCore1Affinity);
 	vTaskCoreAffinitySet(task_props[PROCESS_OUTBOUND_TASK].task_handle, uxCore1Affinity);
