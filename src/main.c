@@ -48,12 +48,12 @@
 /**
  * @brief Size of the cobs encoded reception queue.
  */
-#define ENCODED_QUEUE_SIZE 32000
+#define ENCODED_QUEUE_SIZE 2048
 
 /**
  * @brief Size of the CDC transmit queue.
  */
-#define CDC_TRANSMIT_QUEUE_SIZE 1024
+#define CDC_TRANSMIT_QUEUE_SIZE 2048
 
 /**
  * @brief Data buffer size (used for inbound/outbound data).
@@ -207,8 +207,14 @@ static statistics_counters_t statistics_counters;
  */
 static task_props_t task_props[NUM_TASKS];
 
-// Declare global variables to hold the CDC RTS and DTR states
+/**
+ * @brief Global variable to track CDC RTS flow control.
+ */
 static volatile bool cdc_rts = false;
+
+/**
+ * @brief Global variable to track CDC DTR flow control.
+ */
 static volatile bool cdc_dtr = false;
 
 /* --- Static Function Prototypes --------------------------------------------*/
@@ -305,8 +311,6 @@ static inline void enter_error_state(void);
  */
 static inline void clean_up(void);
 
-/* --- Function Definitions --------------------------------------------------*/
-
 /**
  * @brief Callback invoked when line state changes (DTR, RTS).
  *
@@ -314,18 +318,15 @@ static inline void clean_up(void);
  * @param[in] dtr Data Terminal Ready state
  * @param[in] rts Request To Send state
  */
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
+
+/* --- Function Definitions --------------------------------------------------*/
+
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
-	// Update the global flow control variables
+	(void)itf;
 	cdc_dtr = dtr;
 	cdc_rts = rts;
-
-	// You can add additional handling. For example:
-	if (!dtr)
-	{
-		// Host no longer open the serial port:
-		// Might want to flush or suspend transmissions
-	}
 }
 
 uint32_t ulPortGetRunTime( void )
@@ -434,11 +435,11 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	encode_buffer[num_encoded] = PACKET_MARKER;
 
 	cdc_packet_t packet;
-	packet.length = num_encoded + 1;
+	packet.length = (uint8_t)num_encoded + 1;
 	memcpy(packet.data, encode_buffer, packet.length);
 
 	/* Enqueue data to be sent via USB CDC */
-	if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(2)) != pdTRUE)
+	if (xQueueSend(cdc_transmit_queue, &packet, 0) != pdTRUE)
 	{
 		statistics_counters.counters[CDC_QUEUE_SEND_ERROR]++;
 	}
@@ -451,7 +452,7 @@ static void cdc_write_task(void *pvParameters)
 	for (;;)
 	{
 		/* Wait for a packet to be sent */
-		if (xQueueReceive(cdc_transmit_queue, &packet, portMAX_DELAY) == pdTRUE)
+		if (pdTRUE == xQueueReceive(cdc_transmit_queue, &packet, portMAX_DELAY))
 		{
 			/* Wait until the host is ready to receive data (both DTR & RTS asserted) */
 			while (!(cdc_dtr && cdc_rts))
@@ -476,8 +477,8 @@ static void cdc_write_task(void *pvParameters)
 				taskYIELD();
 			}
 			/* Flush after all possible bytes are written */
-			uint32_t bytes_flushed = tud_cdc_write_flush();
-			statistics_counters.counters[BYTES_SENT] += bytes_flushed;
+			statistics_counters.counters[BYTES_SENT] += total_written;
+			tud_cdc_write_flush();
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
