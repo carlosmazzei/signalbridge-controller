@@ -23,9 +23,7 @@
 /* FreeRTOS include files */
 #include "FreeRTOS.h"
 #include "queue.h"
-#include "hooks.h"
 #include "task.h"
-#include "semphr.h"
 
 /* Pico & hardware includes */
 #include "pico/stdlib.h"
