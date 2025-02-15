@@ -437,7 +437,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	memcpy(packet.data, encode_buffer, packet.length);
 
 	/* Enqueue data to be sent via USB CDC */
-	if (xQueueSend(cdc_transmit_queue, &packet, 0) != pdTRUE)
+	if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(1)) != pdTRUE)
 	{
 		statistics_counters.counters[CDC_QUEUE_SEND_ERROR]++;
 	}
