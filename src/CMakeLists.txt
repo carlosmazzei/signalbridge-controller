@@ -9,6 +9,7 @@ target_sources(pi_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/inputs.c
         ${CMAKE_CURRENT_SOURCE_DIR}/outputs.c
         ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/tm1639.c
         )
 
 target_compile_definitions(pi_controller PUBLIC
@@ -26,6 +27,8 @@ target_include_directories(pi_controller PUBLIC
         ${FREERTOS_KERNEL_PATH}/include
         )
 
+add_definitions(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
+
 target_link_libraries(  pi_controller 
                         pico_stdlib 
                         pico_multicore
@@ -35,6 +38,7 @@ target_link_libraries(  pi_controller
                         hardware_adc
                         hardware_spi
                         hardware_pwm
+                        hardware_pio
                         FreeRTOS-Kernel
                         FreeRTOS-Kernel-Heap4
                     )

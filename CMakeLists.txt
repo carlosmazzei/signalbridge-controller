@@ -7,7 +7,7 @@ set(BOARD pico_sdk)
 include(lib/pico-sdk/pico_sdk_init.cmake)
 
 # Pull in FreeRTOS
-set(FREERTOS_KERNEL_PATH "../lib/FreeRTOS-Kernel/")
+set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS-Kernel/")
 include(FreeRTOS_Kernel_import.cmake)
 
 project(pi_controller C CXX ASM)
