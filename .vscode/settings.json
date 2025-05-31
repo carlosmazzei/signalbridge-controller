@@ -1,6 +1,69 @@
 {
+    "cmake.generator": "Unix Makefiles",
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.installPrefix": "${workspaceFolder}/install",
+    "cmake.exportCompileCommandsFile": true,
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+
     "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "sonarlint.analysisExcludesStandalone": "**/lib/**",
+
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
     "editor.defaultFormatter": "zachflower.uncrustify",
     "editor.formatOnSave": true,
-    "sonarlint.analysisExcludesStandalone": "**/lib/**",
+    
+    "[c]": {
+        "editor.defaultFormatter": "zachflower.uncrustify",
+        "editor.formatOnSave": true
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "zachflower.uncrustify", 
+        "editor.formatOnSave": true
+    },
+    
+    "git.ignoreLimitWarning": true,
+    
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+    
+    "doxdocgen.file.fileTemplate": "@file {name}",
+    "doxdocgen.file.copyrightTag": [
+        "@copyright Copyright (c) {year}"
+    ],
+    "doxdocgen.generic.authorTag": "@author Carlos Mazzei",
+    "doxdocgen.generic.dateTemplate": "{date}",
+    "doxdocgen.generic.generateSmartText": true,
+    "doxdocgen.generic.briefTemplate": "@brief {text}",
+    "doxdocgen.generic.paramTemplate": "@param {param} {text}",
+    "doxdocgen.generic.returnTemplate": "@return {type} {text}",
+    
+    "uncrustify.configPath.linux": "${workspaceFolder}/uncrustify.cfg",
+    "uncrustify.configPath.osx": "${workspaceFolder}/uncrustify.cfg",
+    "uncrustify.configPath.windows": "${workspaceFolder}/uncrustify.cfg",
+
+    "files.associations": {
+        "*.h": "c",
+        "*.c": "c",
+        "*.hpp": "cpp",
+        "*.cpp": "cpp",
+        "*.cmake": "cmake",
+        "CMakeLists.txt": "cmake",
+        "*.uf2": "binary",
+        "*.pio": "ini",
+        "*.cfg": "ini"
+    },
+
+    "search.exclude": {
+			"**/lib": true
+		},
+
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.env.linux": {
+        "PICO_SDK_PATH": "${workspaceFolder}/lib/pico-sdk",
+        "FREERTOS_KERNEL_PATH": "${workspaceFolder}/lib/FreeRTOS",
+        "PICO_TOOLCHAIN_PATH": "/usr/bin"
+    },
 }

@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "Mac",
-            "compilerPath": "/opt/homebrew/bin/arm-none-eabi-gcc",
+            "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "gnu11",
             "cppStandard": "gnu++17",
             "intelliSenseMode": "gcc-arm",
