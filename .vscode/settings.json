@@ -1,0 +1,6 @@
+{
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "editor.defaultFormatter": "zachflower.uncrustify",
+    "editor.formatOnSave": true,
+    "sonarlint.analysisExcludesStandalone": "**/lib/**",
+}

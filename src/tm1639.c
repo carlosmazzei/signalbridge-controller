@@ -31,14 +31,40 @@ const uint8_t tm1639_digit_patterns[] = {
 /**
  * @brief Initialize the TM1639 driver
  */
-tm1639_t* tm1639_init(uint8_t chip_id,
-                      void (*select_interface)(uint8_t chip_id, bool select),
-                      spi_inst_t *spi,
-                      uint8_t dio_pin,
-                      uint8_t clk_pin,
-                      SemaphoreHandle_t spi_mutex,
-                      TickType_t mutex_timeout)
+output_driver_t* tm1639_init(uint8_t chip_id,
+                             void (*select_interface)(uint8_t chip_id, bool select),
+                             spi_inst_t *spi,
+                             uint8_t dio_pin,
+                             uint8_t clk_pin)
 {
+	output_driver_t *config = pvPortMalloc(sizeof(output_driver_t));
+	if (!config)
+	{
+		return NULL;
+	}
+
+	// Check if all the parameters are valid
+	if (config->chip_id >= MAX_SPI_INTERFACES || !config->select_interface ||
+	    !config->spi)
+	{
+		vPortFree(config);
+		return NULL;
+	}
+
+	// Check if the GPIO pins are valid
+	if (config->dio_pin >= NUM_GPIO || config->clk_pin >= NUM_GPIO)
+	{
+		vPortFree(config);
+		return NULL;
+	}
+
+	// Initialize GPIO pins and SPI interface
+	config->chip_id = chip_id;
+	config->select_interface = select_interface;
+	config->spi = spi;
+	config->dio_pin = dio_pin;
+	config->clk_pin = clk_pin;
+
 	// Initialize buffer and state
 	memset(config->active_buffer, 0, sizeof(config->active_buffer));
 	memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
@@ -50,30 +76,33 @@ tm1639_t* tm1639_init(uint8_t chip_id,
 	int8_t clear_result = tm1639_clear(config);
 	if (clear_result != TM1639_OK)
 	{
-		return clear_result;
+		vPortFree(config);
+		return NULL;
 	}
 
 	// Set maximum brightness
 	int8_t brightness_result = tm1639_set_brightness(config, 7);
 	if (brightness_result != TM1639_OK)
 	{
-		return brightness_result;
+		vPortFree(config);
+		return NULL;
 	}
 
 	// Turn on display
 	int8_t display_result = tm1639_display_on(config);
 	if (display_result != TM1639_OK)
 	{
-		return display_result;
+		vPortFree(config);
+		return NULL;
 	}
 
-	return TM1639_OK;
+	return config;
 }
 
 /**
  * @brief Start a transmission by setting STB low via multiplexer
  */
-static void tm1639_start(const tm1639_t *config)
+static void tm1639_start(const output_driver_t *config)
 {
 	config->select_interface(config->chip_id, true); // Select the chip (STB low)
 }
@@ -81,40 +110,9 @@ static void tm1639_start(const tm1639_t *config)
 /**
  * @brief End a transmission by setting STB high via multiplexer
  */
-static void tm1639_stop(const tm1639_t *config)
+static void tm1639_stop(const output_driver_t *config)
 {
 	config->select_interface(config->chip_id, false); // Deselect the chip (STB high)
-}
-
-/**
- * @brief Acquire the SPI mutex with timeout
- *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
- */
-static int8_t tm1639_acquire_mutex(tm1639_t *config)
-{
-	if (!config->spi_mutex) {
-		return TM1639_OK; // No mutex to acquire
-	}
-
-	if (pdTRUE == xSemaphoreTake(config->spi_mutex, config->mutex_timeout)) {
-		return TM1639_OK;
-	} else {
-		return TM1639_ERR_MUTEX_TIMEOUT;
-	}
-}
-
-/**
- * @brief Release the SPI mutex
- *
- * @param config Pointer to TM1639 configuration structure
- */
-static void tm1639_release_mutex(const tm1639_t *config)
-{
-	if (config->spi_mutex) {
-		xSemaphoreGive(config->spi_mutex);
-	}
 }
 
 /**
@@ -122,7 +120,7 @@ static void tm1639_release_mutex(const tm1639_t *config)
  *
  * @return int Error code, 0 if successful
  */
-static int8_t tm1639_write_byte(const tm1639_t *config, uint8_t data)
+static int8_t tm1639_write_byte(const output_driver_t *config, uint8_t data)
 {
 	// Use SPI hardware to write the byte
 	int bytes_written = spi_write_blocking(config->spi, &data, 1);
@@ -136,7 +134,7 @@ static int8_t tm1639_write_byte(const tm1639_t *config, uint8_t data)
 /**
  * @brief Configure GPIO for reading from DIO pin
  */
-static void tm1639_set_read_mode(const tm1639_t *config)
+static void tm1639_set_read_mode(const output_driver_t *config)
 {
 	// Disable SPI function for DIO pin
 	gpio_set_function(config->dio_pin, GPIO_FUNC_NULL);
@@ -154,7 +152,7 @@ static void tm1639_set_read_mode(const tm1639_t *config)
 /**
  * @brief Configure GPIO back to SPI mode for writing
  */
-static void tm1639_set_write_mode(const tm1639_t *config)
+static void tm1639_set_write_mode(const output_driver_t *config)
 {
 	// Restore SPI function for DIO pin
 	gpio_set_function(config->dio_pin, GPIO_FUNC_SPI);
@@ -167,7 +165,7 @@ static void tm1639_set_write_mode(const tm1639_t *config)
  * Since SPI hardware typically doesn't allow mid-transaction direction change,
  * we need to bit-bang the read operation.
  */
-static int8_t tm1639_read_bytes(const tm1639_t *config, uint8_t *data, uint8_t count)
+static int8_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count)
 {
 	if (!config || !data)
 	{
@@ -213,26 +211,16 @@ static int8_t tm1639_read_bytes(const tm1639_t *config, uint8_t *data, uint8_t c
 /**
  * @brief Send a command to the TM1639
  */
-int8_t tm1639_send_command(tm1639_t *config, uint8_t cmd)
+int8_t tm1639_send_command(output_driver_t *config, uint8_t cmd)
 {
 	if (!config)
 	{
 		return TM1639_ERR_INVALID_PARAM;
 	}
 
-	// Acquire mutex
-	int8_t mutex_result = tm1639_acquire_mutex(config);
-	if (mutex_result != TM1639_OK)
-	{
-		return mutex_result;
-	}
-
 	tm1639_start(config);
 	int8_t result = tm1639_write_byte(config, cmd);
 	tm1639_stop(config);
-
-	// Release mutex
-	tm1639_release_mutex(config);
 
 	return result;
 }
@@ -240,7 +228,7 @@ int8_t tm1639_send_command(tm1639_t *config, uint8_t cmd)
 /**
  * @brief Set the display memory address (0x00-0x0F)
  */
-int8_t tm1639_set_address(tm1639_t *config, uint8_t addr)
+int8_t tm1639_set_address(output_driver_t *config, uint8_t addr)
 {
 	if (!config)
 	{
@@ -260,7 +248,7 @@ int8_t tm1639_set_address(tm1639_t *config, uint8_t addr)
 /**
  * @brief Set the data command mode
  */
-int8_t tm1639_set_data_command(tm1639_t *config, uint8_t cmd)
+int8_t tm1639_set_data_command(output_driver_t *config, uint8_t cmd)
 {
 	if (!config)
 	{
@@ -274,7 +262,7 @@ int8_t tm1639_set_data_command(tm1639_t *config, uint8_t cmd)
 /**
  * @brief Write data to a specific address
  */
-int8_t tm1639_write_data_at(tm1639_t *config, uint8_t addr, uint8_t data)
+int8_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data)
 {
 	if (!config)
 	{
@@ -286,20 +274,12 @@ int8_t tm1639_write_data_at(tm1639_t *config, uint8_t addr, uint8_t data)
 		return TM1639_ERR_ADDRESS_RANGE;
 	}
 
-	// Acquire mutex
-	int8_t mutex_result = tm1639_acquire_mutex(config);
-	if (mutex_result != TM1639_OK)
-	{
-		return mutex_result;
-	}
-
 	tm1639_start(config);
 	// Set fixed address mode
 	int8_t result = tm1639_write_byte(config, 0x44); // DATA_CMD_FIXED_ADDR
 	if (result != TM1639_OK)
 	{
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
@@ -308,16 +288,12 @@ int8_t tm1639_write_data_at(tm1639_t *config, uint8_t addr, uint8_t data)
 	if (result != TM1639_OK)
 	{
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
 	// Write the data
 	result = tm1639_write_byte(config, data);
 	tm1639_stop(config);
-
-	// Release mutex
-	tm1639_release_mutex(config);
 
 	if (TM1639_OK == result)
 	{
@@ -331,7 +307,7 @@ int8_t tm1639_write_data_at(tm1639_t *config, uint8_t addr, uint8_t data)
 /**
  * @brief Update specific bytes in the preparation buffer
  */
-uint8_t tm1639_update_buffer(tm1639_t *config, uint8_t addr, uint8_t data)
+int8_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data)
 {
 	if (!config)
 	{
@@ -353,7 +329,7 @@ uint8_t tm1639_update_buffer(tm1639_t *config, uint8_t addr, uint8_t data)
 /**
  * @brief Write multiple bytes starting at the given address
  */
-int8_t tm1639_write_data(tm1639_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length)
+int8_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length)
 {
 	if (!config || !data_bytes)
 	{
@@ -365,20 +341,12 @@ int8_t tm1639_write_data(tm1639_t *config, uint8_t addr, const uint8_t *data_byt
 		return TM1639_ERR_ADDRESS_RANGE;
 	}
 
-	// Acquire mutex
-	int8_t mutex_result = tm1639_acquire_mutex(config);
-	if (mutex_result != TM1639_OK)
-	{
-		return mutex_result;
-	}
-
 	tm1639_start(config);
 	// Set auto-increment mode
 	int8_t result = tm1639_write_byte(config, 0x40); // DATA_CMD_AUTO_INC
 	if (result != TM1639_OK)
 	{
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
@@ -387,7 +355,6 @@ int8_t tm1639_write_data(tm1639_t *config, uint8_t addr, const uint8_t *data_byt
 	if (result != TM1639_OK)
 	{
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
@@ -400,7 +367,6 @@ int8_t tm1639_write_data(tm1639_t *config, uint8_t addr, const uint8_t *data_byt
 			if (result != TM1639_OK)
 			{
 				tm1639_stop(config);
-				tm1639_release_mutex(config);
 				return result;
 			}
 
@@ -409,25 +375,17 @@ int8_t tm1639_write_data(tm1639_t *config, uint8_t addr, const uint8_t *data_byt
 	}
 
 	tm1639_stop(config);
-	tm1639_release_mutex(config);
 	return TM1639_OK;
 }
 
 /**
  * @brief Read the key scan data
  */
-int8_t tm1639_read_keys(tm1639_t *config, uint8_t *key_data)
+int8_t tm1639_read_keys(output_driver_t *config, uint8_t *key_data)
 {
 	if (!config || !key_data)
 	{
 		return TM1639_ERR_INVALID_PARAM;
-	}
-
-	// Acquire mutex
-	int8_t mutex_result = tm1639_acquire_mutex(config);
-	if (mutex_result != TM1639_OK)
-	{
-		return mutex_result;
 	}
 
 	tm1639_start(config);
@@ -436,7 +394,6 @@ int8_t tm1639_read_keys(tm1639_t *config, uint8_t *key_data)
 	if (result != TM1639_OK)
 	{
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
@@ -444,14 +401,13 @@ int8_t tm1639_read_keys(tm1639_t *config, uint8_t *key_data)
 	result = tm1639_read_bytes(config, key_data, 2);
 	tm1639_stop(config);
 
-	tm1639_release_mutex(config);
 	return result;
 }
 
 /**
  * @brief Read key states and return number of pressed keys
  */
-int8_t tm1639_get_key_states(tm1639_t *config, tm1639_key_t *keys)
+int8_t tm1639_get_key_states(output_driver_t *config, tm1639_key_t *keys)
 {
 	if (!config || !keys)
 	{
@@ -508,7 +464,7 @@ int8_t tm1639_get_key_states(tm1639_t *config, tm1639_key_t *keys)
 /**
  * @brief Set the display brightness level (0-7)
  */
-uint8_t tm1639_set_brightness(tm1639_t *config, uint8_t level)
+int8_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
 {
 	if (!config)
 	{
@@ -530,7 +486,7 @@ uint8_t tm1639_set_brightness(tm1639_t *config, uint8_t level)
 /**
  * @brief Turn the display on
  */
-uint8_t tm1639_display_on(tm1639_t *config)
+int8_t tm1639_display_on(output_driver_t *config)
 {
 	if (!config)
 	{
@@ -544,7 +500,7 @@ uint8_t tm1639_display_on(tm1639_t *config)
 /**
  * @brief Turn the display off
  */
-uint8_t tm1639_display_off(tm1639_t *config)
+int8_t tm1639_display_off(output_driver_t *config)
 {
 	if (!config)
 	{
@@ -558,7 +514,7 @@ uint8_t tm1639_display_off(tm1639_t *config)
 /**
  * @brief Clear the display (set all segments off)
  */
-uint8_t tm1639_clear(tm1639_t *config)
+int8_t tm1639_clear(output_driver_t *config)
 {
 	if (!config)
 	{
@@ -570,25 +526,17 @@ uint8_t tm1639_clear(tm1639_t *config)
 	memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
 	config->buffer_modified = false;
 
-	// Acquire mutex
-	uint8_t mutex_result = tm1639_acquire_mutex(config);
-	if (mutex_result != TM1639_OK) {
-		return mutex_result;
-	}
-
 	// Write zeros to all addresses
 	tm1639_start(config);
 	uint8_t result = tm1639_write_byte(config, 0x40); // DATA_CMD_AUTO_INC
 	if (result != TM1639_OK) {
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
 	result = tm1639_write_byte(config, 0xC0); // Start address 0
 	if (result != TM1639_OK) {
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
@@ -597,21 +545,21 @@ uint8_t tm1639_clear(tm1639_t *config)
 		result = tm1639_write_byte(config, 0);
 		if (result != TM1639_OK) {
 			tm1639_stop(config);
-			tm1639_release_mutex(config);
 			return result;
 		}
 	}
 
 	tm1639_stop(config);
-	tm1639_release_mutex(config);
 	return TM1639_OK;
 }
 
 /**
  * @brief Flush the preparation buffer to the display immediately
  */
-uint8_t tm1639_flush(tm1639_t *config) {
-	if (!config) {
+int8_t tm1639_flush(output_driver_t *config)
+{
+	if (!config)
+	{
 		return TM1639_ERR_INVALID_PARAM;
 	}
 
@@ -621,25 +569,26 @@ uint8_t tm1639_flush(tm1639_t *config) {
 	// Reset the modified flag
 	config->buffer_modified = false;
 
-	// Acquire mutex
-	uint8_t mutex_result = tm1639_acquire_mutex(config);
-	if (mutex_result != TM1639_OK) {
-		return mutex_result;
-	}
-
 	// Write to the display
 	tm1639_start(config);
 	uint8_t result = tm1639_write_byte(config, 0x40); // DATA_CMD_AUTO_INC
 	if (result != TM1639_OK) {
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
+		return result;
+	}
+
+	// Write to the display
+	tm1639_start(config);
+	result = tm1639_write_byte(config, 0x40); // DATA_CMD_AUTO_INC
+	if (result != TM1639_OK)
+	{
+		tm1639_stop(config);
 		return result;
 	}
 
 	result = tm1639_write_byte(config, 0xC0); // Start address 0
 	if (result != TM1639_OK) {
 		tm1639_stop(config);
-		tm1639_release_mutex(config);
 		return result;
 	}
 
@@ -648,20 +597,18 @@ uint8_t tm1639_flush(tm1639_t *config) {
 		result = tm1639_write_byte(config, config->active_buffer[i]);
 		if (result != TM1639_OK) {
 			tm1639_stop(config);
-			tm1639_release_mutex(config);
 			return result;
 		}
 	}
 
 	tm1639_stop(config);
-	tm1639_release_mutex(config);
 	return TM1639_OK;
 }
 
 /**
  * @brief Update the display with the current buffer contents
  */
-uint8_t tm1639_update(tm1639_t *config) {
+int8_t tm1639_update(output_driver_t *config) {
 	if (!config) {
 		return TM1639_ERR_INVALID_PARAM;
 	}
@@ -677,7 +624,7 @@ uint8_t tm1639_update(tm1639_t *config) {
 /**
  * @brief Set segments for a specific position (for 7-segment displays)
  */
-uint8_t tm1639_set_segment(tm1639_t *config, uint8_t position, uint8_t segments, bool dp) {
+int8_t tm1639_set_segment(output_driver_t *config, uint8_t position, uint8_t segments, bool dp) {
 	if (!config) {
 		return TM1639_ERR_INVALID_PARAM;
 	}
@@ -705,7 +652,7 @@ uint8_t tm1639_set_segment(tm1639_t *config, uint8_t position, uint8_t segments,
 /**
  * @brief Set an entire row in matrix mode
  */
-uint8_t tm1639_set_matrix_row(tm1639_t *config, uint8_t row, uint8_t data) {
+int8_t tm1639_set_matrix_row(output_driver_t *config, uint8_t row, uint8_t data) {
 	if (!config) {
 		return TM1639_ERR_INVALID_PARAM;
 	}
@@ -727,7 +674,7 @@ uint8_t tm1639_set_matrix_row(tm1639_t *config, uint8_t row, uint8_t data) {
 /**
  * @brief Display a hexadecimal digit (0-F) at the specified position
  */
-uint8_t tm1639_set_digit(tm1639_t *config, uint8_t position, uint8_t digit, bool dp) {
+int8_t tm1639_set_digit(output_driver_t *config, uint8_t position, uint8_t digit, bool dp) {
 	if (!config) {
 		return TM1639_ERR_INVALID_PARAM;
 	}
@@ -743,7 +690,7 @@ uint8_t tm1639_set_digit(tm1639_t *config, uint8_t position, uint8_t digit, bool
 /**
  * @brief Deinitialize the TM1639 driver and release resources
  */
-uint8_t tm1639_deinit(tm1639_t *config)
+int8_t tm1639_deinit(output_driver_t *config)
 {
 	if (!config)
 	{

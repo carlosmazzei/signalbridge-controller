@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "hardware/spi.h"
 
 /**
  * SPI frequency in Hz
@@ -29,6 +30,7 @@
 
 /* Constants */
 #define MAX_SPI_INTERFACES 8
+#define NUM_GPIO 30
 
 /* Device type definitions */
 #define DEVICE_NONE           0
@@ -48,6 +50,7 @@
 		DEVICE_NONE, /* Device 6 */ \
 		DEVICE_NONE /* Device 7 */ \
 }
+/** --- Statistics Structures --- */
 
 /**
  * @enum out_statistics_counter_enum_t
@@ -69,24 +72,64 @@ typedef struct out_statistics_counters_t
 	bool error_state;                  /**< Flag indicating critical error state */
 } out_statistics_counters_t;
 
+/* --- Driver Structures --- */
+
+/**
+ * @struct output_driver_t
+ * @brief Holds the configuration for an output device.
+ */
+typedef struct output_driver_t {
+	/* Chip ID (0-7) */
+	uint8_t chip_id;
+
+	/* Function pointer for chip selection (true = select/stb low, false = deselect/stb high) */
+	void (*select_interface)(uint8_t chip_id, bool select);
+	void (*set_digits)(uint8_t *digits, uint8_t len);
+	void (*set_leds)(uint8_t *leds, uint8_t len);
+
+	/* SPI instance */
+	spi_inst_t *spi;
+	uint8_t dio_pin;
+	uint8_t clk_pin;
+
+	/* SPI buffer */
+	uint8_t active_buffer[16]; // Active display buffer
+	uint8_t prep_buffer[16]; // Preparation buffer for double buffering
+	bool buffer_modified;    // Flag indicating if the prep buffer has changed
+	uint8_t brightness;      // Brightness level (0-7)
+	bool display_on;         // Display on/off
+} output_driver_t;
+
+/**
+ * @struct output_drivers_t
+ * @brief Manages a set of output drivers.
+ */
+typedef struct output_drivers_t {
+	output_driver_t *driver_handles[MAX_SPI_INTERFACES];
+} output_drivers_t;
+
 /**
  * Function Prototypes
  */
 
-/** @brief Send data to LED controllers
+/** @brief Output the state of the LEDs to the SPI bus.
  *
- * @param index The index of the LED controller.
- * @param states The states to send.
- * @param len The length of the states.
+ * @param payload The data to send.
+ * @param length The length of the data to send.
  *
- * @return true if successful, false otherwise
+ * @return True if successful.
  */
-bool led_out(uint8_t index, const uint8_t *states, uint8_t len);
+int led_out(const uint8_t *payload, uint8_t length);
 
-/** @brief Select the LED controller */
-void led_select(void);
-
-/** @brief Initialize the output system */
+/** @brief Initialize the outputs.
+ *
+ * Initialize all the outputs needed for the application: SPI, LEDs, PWM.
+ *
+ * @return True if successful.
+ *
+ * @todo Implement the I2C initialization.
+ *
+ */
 bool output_init(void);
 
 /** @brief Send data to display controllers
@@ -103,5 +146,20 @@ int display_out(const uint8_t *payload, uint8_t length);
  * @param duty The duty cycle to set.
  */
 void set_pwm_duty(uint8_t duty);
+
+/**
+ * @brief Select the interace chip through multiplexer
+ *
+ * @param chip_select Chip select number (0-7)
+ * @param select True to select (STB low), false to deselect (STB high)
+ */
+static void select_interface(uint8_t chip_select, bool select);
+
+/**
+ * @brief Initialize the multiplexer for chip select control
+ *
+ * @return int Error code, 0 if successful
+ */
+static int8_t init_mux(void);
 
 #endif

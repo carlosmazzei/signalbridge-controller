@@ -616,10 +616,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 	{
 	case PC_LEDOUT_CMD:
 	{
-		uint8_t leds[2];
-		leds[0] = decoded_data[1];
-		leds[1] = decoded_data[2];
-		if (!led_out(decoded_data[0], leds, sizeof(leds)))
+		if (led_out(decoded_data, len) != len)
 		{
 			statistics_counters.counters[LED_OUT_ERROR]++;
 		}
