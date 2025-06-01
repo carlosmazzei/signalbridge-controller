@@ -1,14 +1,15 @@
 {
     "cmake.generator": "Unix Makefiles",
-    "cmake.configureOnOpen": false,
+    "cmake.configureOnOpen": true,
     "cmake.buildDirectory": "${workspaceFolder}/build",
     "cmake.sourceDirectory": "${workspaceFolder}",
     "cmake.installPrefix": "${workspaceFolder}/install",
     "cmake.exportCompileCommandsFile": true,
-    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+    "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
 
     "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "sonarlint.analysisExcludesStandalone": "**/lib/**",
+    "sonarlint.ls.javaHome": "",
 
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
@@ -66,4 +67,8 @@
         "FREERTOS_KERNEL_PATH": "${workspaceFolder}/lib/FreeRTOS",
         "PICO_TOOLCHAIN_PATH": "/usr/bin"
     },
+
+    "cortex-debug.armToolchainPath": "/usr/bin",
+    "cortex-debug.openocdPath": "/usr/bin/openocd",
+    "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc"
 }

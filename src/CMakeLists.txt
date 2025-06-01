@@ -13,6 +13,7 @@ target_sources(pi_controller PRIVATE
 
 target_compile_definitions(pi_controller PRIVATE
     configNUMBER_OF_CORES=2
+    PICO_USE_FASTEST_SUPPORTED_CLOCK=1
 )
 
 # Instructions to enable/disable debugging using printf commands
