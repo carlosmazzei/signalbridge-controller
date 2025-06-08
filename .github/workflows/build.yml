@@ -27,29 +27,15 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }} # Para puxar de registro privado (GHCR.io)
 
     steps:
-      # Clean workspace before starting
-      - name: Clean workspace
-        run: |
-          echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"
-          mkdir -p "${{ github.workspace }}"
-
       # Checkout the repository
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Checkout submodules as well
 
-      # Setup submodules
-      - name: Setup submodules
-        run: |
-          echo "Setting up submodules"
-          git submodule update --init --recursive
-
-      # Install build tools
-      - name: Install build tools
-        run: |
-          echo "Installing building tools"
-          sudo apt update
-          sudo apt install -y cmake doxygen python3 build-essential gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+      # Verify toolchain version
+      - name: Verify installed toolchain version
+        run: arm-none-eabi-gcc --version
           
       # Create build environment
       - name: Create Build Environment
@@ -66,7 +52,7 @@ jobs:
         # Note the current convention is to use the -S and -B options here to specify source
         # and build directories, but this is only available with CMake 3.13 and higher.
         # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-        run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+        run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} -DPICO_TOOLCHAIN_PATH=${{ env.PICO_TOOLCHAIN_PATH }}
     
       # Build the project
       - name: Build
