@@ -189,10 +189,8 @@ jobs:
         with:
           name: pico-build
           path: |
-            build/**/*.uf2
-            build/**/*.elf
-            build/**/*.bin
-            build/**/*.hex
+            build/src/*.uf2
+            build/src/*.elf
             build/src/doc.tar.gz
           retention-days: 10
 
