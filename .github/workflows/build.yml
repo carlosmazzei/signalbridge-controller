@@ -22,6 +22,7 @@ jobs:
       # This image is built from the .devcontainer/Dockerfile in the repository
       # and pushed to the GitHub Container Registry (GHCR.io) on every commit.
       image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
+      options: --user=vscode # Alternative to running as vscode to match with devcontainer
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }} # Para puxar de registro privado (GHCR.io)
