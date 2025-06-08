@@ -10,6 +10,7 @@ env:
   BUILD_TYPE: Release
   PICO_PLATFORM: rp2040
   PICO_BOARD: pico
+  # Use relative paths from the source directory
   PICO_SDK_PATH: ./lib/pico-sdk
   FREERTOS_KERNEL_PATH: ./lib/FreeRTOS-Kernel
   PICO_TOOLCHAIN_PATH: /usr/bin
@@ -26,97 +27,197 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     
     steps:
+      # Checkout the repository with submodules
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
+      # Verify toolchain installation
       - name: Verify installed toolchain version
         run: arm-none-eabi-gcc --version
 
+      # Comprehensive debugging of paths and directory structure
       - name: Debug - Show directory structure and paths
         run: |
-          echo "=== Current working directory ==="
-          pwd
-          echo "=== Directory contents ==="
-          ls -la
-          echo "=== Lib directory ==="
-          ls -la lib/
-          echo "=== Environment variables ==="
+          echo "==================== DEBUGGING PATHS ===================="
+          echo "Current working directory: $(pwd)"
+          echo ""
+          echo "=== Environment Variables ==="
+          echo "BUILD_TYPE: $BUILD_TYPE"
+          echo "PICO_PLATFORM: $PICO_PLATFORM"
+          echo "PICO_BOARD: $PICO_BOARD"
           echo "PICO_SDK_PATH: $PICO_SDK_PATH"
           echo "FREERTOS_KERNEL_PATH: $FREERTOS_KERNEL_PATH"
           echo "PICO_TOOLCHAIN_PATH: $PICO_TOOLCHAIN_PATH"
-          echo "=== Checking if paths exist ==="
+          echo ""
+          echo "=== Root Directory Contents ==="
+          ls -la
+          echo ""
+          echo "=== Lib Directory ==="
+          if [ -d "lib" ]; then
+            ls -la lib/
+          else
+            echo "❌ lib directory does not exist"
+          fi
+          echo ""
+          echo "=== Verifying SDK and FreeRTOS paths ==="
           if [ -d "$PICO_SDK_PATH" ]; then
             echo "✅ PICO_SDK_PATH exists: $PICO_SDK_PATH"
-            ls -la "$PICO_SDK_PATH" | head -10
+            echo "Contents:"
+            ls -la "$PICO_SDK_PATH" | head -5
           else
             echo "❌ PICO_SDK_PATH does not exist: $PICO_SDK_PATH"
           fi
+          echo ""
           if [ -d "$FREERTOS_KERNEL_PATH" ]; then
             echo "✅ FREERTOS_KERNEL_PATH exists: $FREERTOS_KERNEL_PATH"
-            ls -la "$FREERTOS_KERNEL_PATH" | head -10
+            echo "Contents:"
+            ls -la "$FREERTOS_KERNEL_PATH" | head -5
           else
             echo "❌ FREERTOS_KERNEL_PATH does not exist: $FREERTOS_KERNEL_PATH"
           fi
+          echo ""
           echo "=== CMake files in project ==="
-          find . -name "*.cmake" -type f | head -10
-          echo "=== Looking for FreeRTOS_Kernel_import.cmake ==="
-          find . -name "*FreeRTOS*import*" -type f
+          find . -name "*.cmake" -type f 2>/dev/null | head -10
+          echo ""
+          echo "=== Looking for FreeRTOS import files ==="
+          find . -name "*FreeRTOS*" -name "*.cmake" -type f 2>/dev/null
+          echo ""
+          echo "=== CMakeLists.txt files ==="
+          find . -name "CMakeLists.txt" -type f 2>/dev/null
+          echo "=========================================================="
 
+      # Create build directory
       - name: Create Build Environment
-        run: mkdir -p build
-
-      - name: Debug - Show build directory
         run: |
-          echo "=== After creating build directory ==="
-          ls -la
-          ls -la build/
+          echo "Creating build directory..."
+          mkdir -p build
+          echo "Build directory created."
 
+      # Debug build directory
+      - name: Debug - Show build directory status
+        run: |
+          echo "=== Build Directory Status ==="
+          ls -la
+          echo "=== Build Directory Contents ==="
+          ls -la build/
+          echo "=== Current working directory ==="
+          pwd
+
+      # Configure CMake with detailed output
       - name: Configure CMake
         working-directory: build
         shell: bash
         run: |
-          echo "=== Current directory during cmake ==="
-          pwd
-          echo "=== Parent directory contents ==="
+          echo "==================== CMAKE CONFIGURATION ===================="
+          echo "Current directory: $(pwd)"
+          echo "Parent directory contents:"
           ls -la ..
-          echo "=== Parent lib directory ==="
+          echo ""
+          echo "Parent lib directory:"
           ls -la ../lib/
-          echo "=== Running cmake with debug output ==="
+          echo ""
+          echo "=== Resolving paths relative to build directory ==="
+          RESOLVED_PICO_SDK=$(realpath ../lib/pico-sdk)
+          RESOLVED_FREERTOS=$(realpath ../lib/FreeRTOS-Kernel)
+          echo "Resolved PICO_SDK_PATH: $RESOLVED_PICO_SDK"
+          echo "Resolved FREERTOS_KERNEL_PATH: $RESOLVED_FREERTOS"
+          echo ""
+          echo "=== Running CMake with verbose output ==="
           cmake .. \
             -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
             -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} \
             -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} \
             -DPICO_TOOLCHAIN_PATH=${{ env.PICO_TOOLCHAIN_PATH }} \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
             --debug-output
+          echo "=========================================================="
 
+      # Build the project
       - name: Build
         working-directory: build
         shell: bash
-        run: cmake --build . --config $BUILD_TYPE
+        run: |
+          echo "==================== BUILDING PROJECT ===================="
+          echo "Starting build process..."
+          cmake --build . --config $BUILD_TYPE --verbose
+          echo ""
+          echo "=== Build completed - checking outputs ==="
+          find . -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
+          echo "=========================================================="
 
+      # Archive documentation if it exists
       - name: Archive Doxygen Documentation
         run: |
-          echo "Archiving Doxygen documentation"
+          echo "==================== DOCUMENTATION ===================="
           if [ -d "build/docs/doc_doxygen" ]; then
+            echo "✅ Doxygen documentation found"
+            echo "Creating documentation archive..."
             tar -czf build/src/doc.tar.gz -C build/docs/ doc_doxygen
+            echo "Documentation archived successfully"
           else
-            echo "Doxygen documentation not found, skipping archive"
+            echo "ℹ️  Doxygen documentation not found, skipping archive"
+            echo "Available directories in build:"
+            find build -type d -name "*doc*" 2>/dev/null || echo "No documentation directories found"
           fi
+          echo "=========================================================="
 
+      # Debug artifacts before upload
+      - name: Debug - Show artifacts
+        run: |
+          echo "==================== ARTIFACTS ===================="
+          echo "=== Looking for build artifacts ==="
+          find build -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
+          echo ""
+          echo "=== Build directory structure ==="
+          find build -type f | head -20
+          echo "=========================================================="
+
+      # Store build artifacts
       - name: Store Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: pico-build
           path: |
-            build/src/*.uf2
-            build/src/*.elf
+            build/**/*.uf2
+            build/**/*.elf
+            build/**/*.bin
+            build/**/*.hex
             build/src/doc.tar.gz
           retention-days: 10
 
+  # Release job (only runs on releases)
   release:
     name: Release
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_nam
+    if: github.event_name == 'release' && github.event.action == 'published'
+    
+    steps:
+      # Download artifacts from build job
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pico-build
+          path: artifacts
+
+      # Debug downloaded artifacts
+      - name: Debug - Show downloaded artifacts
+        run: |
+          echo "=== Downloaded artifacts ==="
+          find artifacts -type f
+          ls -la artifacts/
+
+      # Upload to GitHub release
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.uf2
+            artifacts/**/*.elf
+            artifacts/**/*.bin
+            artifacts/**/*.hex
+            artifacts/doc.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }
