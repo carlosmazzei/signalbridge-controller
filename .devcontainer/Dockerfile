@@ -20,6 +20,7 @@ RUN apt-get update && \
     "libnewlib-arm-none-eabi=3.3.0-1.3+deb12u1" \
     "libstdc++-arm-none-eabi-newlib=15:12.2.rel1-1+23" \
     "openjdk-17-jre-headless=17.0.15+6-1~deb12u1" \
+    "openssh-client=1:9.2p1-2+deb12u6" \
     "python3=3.11.2-1+b1" \
     "sudo=1.9.13p3-1+deb12u1" \
     "uncrustify=0.72.0+dfsg1-2" && \
