@@ -24,7 +24,6 @@ RUN apt-get update && \
     "python3=3.11.2-1+b1" \
     "sudo=1.9.13p3-1+deb12u1" \
     "uncrustify=0.72.0+dfsg1-2" && \
-    # Limpeza para reduzir o tamanho da imagem
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/tmp/*
 
