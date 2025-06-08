@@ -10,7 +10,7 @@ env:
   BUILD_TYPE: Release
   PICO_PLATFORM: rp2040
   PICO_BOARD: pico
-  # Use relative paths from the source directory
+  # Use relative paths from project root
   PICO_SDK_PATH: ./lib/pico-sdk
   FREERTOS_KERNEL_PATH: ./lib/FreeRTOS-Kernel
   PICO_TOOLCHAIN_PATH: /usr/bin
@@ -107,25 +107,34 @@ jobs:
 
       # Configure CMake with detailed output
       - name: Configure CMake
-        working-directory: build
         shell: bash
         run: |
           echo "==================== CMAKE CONFIGURATION ===================="
           echo "Current directory: $(pwd)"
-          echo "Parent directory contents:"
-          ls -la ..
+          echo "Directory contents:"
+          ls -la
           echo ""
-          echo "Parent lib directory:"
-          ls -la ../lib/
+          echo "Lib directory:"
+          ls -la lib/
           echo ""
-          echo "=== Resolving paths relative to build directory ==="
-          RESOLVED_PICO_SDK=$(realpath ../lib/pico-sdk)
-          RESOLVED_FREERTOS=$(realpath ../lib/FreeRTOS-Kernel)
-          echo "Resolved PICO_SDK_PATH: $RESOLVED_PICO_SDK"
-          echo "Resolved FREERTOS_KERNEL_PATH: $RESOLVED_FREERTOS"
+          echo "=== Paths relative to project root ==="
+          echo "PICO_SDK_PATH: ${{ env.PICO_SDK_PATH }}"
+          echo "FREERTOS_KERNEL_PATH: ${{ env.FREERTOS_KERNEL_PATH }}"
           echo ""
-          echo "=== Running CMake with verbose output ==="
-          cmake .. \
+          echo "=== Verifying paths exist ==="
+          if [ -d "${{ env.PICO_SDK_PATH }}" ]; then
+            echo "✅ PICO_SDK_PATH exists: ${{ env.PICO_SDK_PATH }}"
+          else
+            echo "❌ PICO_SDK_PATH does not exist: ${{ env.PICO_SDK_PATH }}"
+          fi
+          if [ -d "${{ env.FREERTOS_KERNEL_PATH }}" ]; then
+            echo "✅ FREERTOS_KERNEL_PATH exists: ${{ env.FREERTOS_KERNEL_PATH }}"
+          else
+            echo "❌ FREERTOS_KERNEL_PATH does not exist: ${{ env.FREERTOS_KERNEL_PATH }}"
+          fi
+          echo ""
+          echo "=== Running CMake from project root ==="
+          cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
             -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} \
             -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} \
