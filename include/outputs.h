@@ -59,6 +59,7 @@
 typedef enum out_statistics_counter_enum_t
 {
 	OUT_CONTROLLER_ID_ERROR,
+	OUT_DRIVER_INIT_ERROR,
 	OUT_NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
 } out_statistics_counter_enum_t;
 

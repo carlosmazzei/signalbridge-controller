@@ -9,7 +9,7 @@
 
     "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "sonarlint.analysisExcludesStandalone": "**/lib/**",
-    "sonarlint.ls.javaHome": "",
+    "sonarlint.ls.javaHome": "/usr/lib/jvm/java-17-openjdk-arm64",
 
     "editor.tabSize": 4,
     "editor.insertSpaces": true,

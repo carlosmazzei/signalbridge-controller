@@ -2,6 +2,8 @@ name: "Build"
 
 on:
   push:
+    paths-ignore: # Ignora mudanças no Dockerfile para não acionar o CI duas vezes
+        - '.devcontainer/**'
   release:
     types: [published]
 
@@ -15,6 +17,15 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    container:
+      # Get the most recent devcontainer image from the GitHub Container Registry
+      # This image is built from the .devcontainer/Dockerfile in the repository
+      # and pushed to the GitHub Container Registry (GHCR.io) on every commit.
+      image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }} # Para puxar de registro privado (GHCR.io)
+
     steps:
       # Clean workspace before starting
       - name: Clean workspace

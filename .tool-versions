@@ -1,5 +1,0 @@
-# .tool-versions
-nodejs 20.11.1
-python 3.11.7
-cmake 3.28.1 # Example if asdf-cmake plugin supports specific binary downloads
-doxygen 1.11.0
