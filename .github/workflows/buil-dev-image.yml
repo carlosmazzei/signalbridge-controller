@@ -4,16 +4,16 @@ name: Build & Push Embedded DevContainer Image
 on:
   push:
     paths:
-      - '.devcontainer/Dockerfile' # Dispara se o Dockerfile mudar
-      - '.devcontainer/**'         # Ou outros arquivos na pasta .devcontainer
-  workflow_dispatch: # Permite disparo manual
+      - '.devcontainer/Dockerfile' 
+      - '.devcontainer/**'         
+  workflow_dispatch: 
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Permissão necessária para escrever no GHCR.io
+      packages: write 
 
     steps:
       - name: Checkout code
@@ -29,25 +29,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Build e Push da Imagem Alpine 3.22 (versão mais recente e 'latest') ---
-      - name: Define tags for Alpine 3.22 image
-        id: image_tags_322
+      # --- Build and Push Image Debian 12 ---
+      - name: Define tags for Debian 12 image
+        id: image_tags_debian12
         run: |
-          IMAGE_NAME=ghcr.io/${{ github.repository }}/devcontainer-embedded
+          IMAGE_NAME=ghcr.io/${{ github.repository }}/devcontainer-embedded-debian
           echo "tag_latest=${IMAGE_NAME}:latest" >> $GITHUB_OUTPUT
-          echo "tag_alpine_322=${IMAGE_NAME}:alpine-3.22" >> $GITHUB_OUTPUT
-          echo "tag_sha=${IMAGE_NAME}:${{ github.sha }}" >> $GITHUB_OUTPUT 
+          echo "tag_debian12=${IMAGE_NAME}:debian-12" >> $GITHUB_OUTPUT
+          echo "tag_sha=${IMAGE_NAME}:${{ github.sha }}" >> $GITHUB_OUTPUT # Tag com o SHA do commit
 
-      - name: Build and push Alpine 3.22 DevContainer image
+      - name: Build and push Debian 12 DevContainer image
         uses: docker/build-push-action@v5
         with:
-          context: .devcontainer # O contexto do build é a pasta .devcontainer
-          file: .devcontainer/Dockerfile # O Dockerfile está dentro de .devcontainer
-          # build-args: ALPINE_VERSION=3.22 # Passa a versão do Alpine para o Dockerfile
+          context: .devcontainer 
+          file: .devcontainer/Dockerfile 
           push: true
           tags: |
-            ${{ steps.image_tags_322.outputs.tag_latest }}
-            ${{ steps.image_tags_322.outputs.tag_alpine_322 }}
-            ${{ steps.image_tags_322.outputs.tag_sha }}
-          cache-from: type=gha # Opcional: para usar o cache do GitHub Actions
-          cache-to: type=gha,mode=max # Opcional: para salvar o cache
+            ${{ steps.image_tags_debian12.outputs.tag_latest }}
+            ${{ steps.image_tags_debian12.outputs.tag_debian12 }}
+            ${{ steps.image_tags_debian12.outputs.tag_sha }}
+          cache-from: type=gha 
+          cache-to: type=gha,mode=max 
