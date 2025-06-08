@@ -28,14 +28,16 @@
                 "jeff-hykin.better-cpp-syntax",
                 "cschlosser.doxdocgen",
                 "zachflower.uncrustify",
-                "SonarSource.sonarlint-vscode"
+                "SonarSource.sonarlint-vscode",
+                "jbenden.c-cpp-flylint"
             ]
         }
     },
     "containerEnv": {
         "PICO_SDK_PATH": "${containerWorkspaceFolder}/lib/pico-sdk",
         "FREERTOS_KERNEL_PATH": "${containerWorkspaceFolder}/lib/FreeRTOS-Kernel",
-        "PICO_TOOLCHAIN_PATH": "/usr/bin"
+        "PICO_TOOLCHAIN_PATH": "/usr/bin",
+        "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-arm64"
     },
     "mounts": [
         "source=/dev,target=/dev,type=bind,consistency=cached"

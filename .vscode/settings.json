@@ -1,6 +1,24 @@
 {
-    "cmake.generator": "Unix Makefiles",
     "cmake.configureOnOpen": true,
+    "cmake.preferredGenerators": ["Unix Makefiles"],
+    "cmake.defaultVariants": {
+        "buildType": {
+            "default": "debug",
+            "description": "The build type"
+        }
+    },
+    "cmake.configureArgs": [
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DCMAKE_C_COMPILER=/usr/bin/arm-none-eabi-gcc",
+        "-DPICO_BOARD=pico",
+        "-DPICO_PLATFORM=rp2040",
+        "-DPICO_COMPILER=pico_arm_cortex_m0plus_gcc",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DPICO_SDK_PATH=${env:PICO_SDK_PATH}",
+        "-DFREERTOS_KERNEL_PATH=${env:FREERTOS_KERNEL_PATH}",
+        "-DPICO_TOOLCHAIN_PATH=${env:PICO_TOOLCHAIN_PATH}"
+    ],
+    "cmake.buildArgs": ["-j4"],
     "cmake.buildDirectory": "${workspaceFolder}/build",
     "cmake.sourceDirectory": "${workspaceFolder}",
     "cmake.installPrefix": "${workspaceFolder}/install",
@@ -9,8 +27,13 @@
 
     "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "sonarlint.analysisExcludesStandalone": "**/lib/**",
-    "sonarlint.ls.javaHome": "/usr/lib/jvm/java-17-openjdk-arm64",
-
+    "sonarlint.ls.javaHome": "/usr/lib/jvm/java-17-openjdk-amd64",
+    "sonarlint.rules": {
+        "c":{
+            "misra-c2012-*": "on"
+        }
+    },
+    
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
     "editor.detectIndentation": false,
@@ -67,8 +90,4 @@
         "FREERTOS_KERNEL_PATH": "${workspaceFolder}/lib/FreeRTOS",
         "PICO_TOOLCHAIN_PATH": "/usr/bin"
     },
-
-    "cortex-debug.armToolchainPath": "/usr/bin",
-    "cortex-debug.openocdPath": "/usr/bin/openocd",
-    "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc"
 }
