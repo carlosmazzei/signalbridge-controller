@@ -34,18 +34,62 @@ jobs:
       - name: Verify installed toolchain version
         run: arm-none-eabi-gcc --version
 
+      - name: Debug - Show directory structure and paths
+        run: |
+          echo "=== Current working directory ==="
+          pwd
+          echo "=== Directory contents ==="
+          ls -la
+          echo "=== Lib directory ==="
+          ls -la lib/
+          echo "=== Environment variables ==="
+          echo "PICO_SDK_PATH: $PICO_SDK_PATH"
+          echo "FREERTOS_KERNEL_PATH: $FREERTOS_KERNEL_PATH"
+          echo "PICO_TOOLCHAIN_PATH: $PICO_TOOLCHAIN_PATH"
+          echo "=== Checking if paths exist ==="
+          if [ -d "$PICO_SDK_PATH" ]; then
+            echo "✅ PICO_SDK_PATH exists: $PICO_SDK_PATH"
+            ls -la "$PICO_SDK_PATH" | head -10
+          else
+            echo "❌ PICO_SDK_PATH does not exist: $PICO_SDK_PATH"
+          fi
+          if [ -d "$FREERTOS_KERNEL_PATH" ]; then
+            echo "✅ FREERTOS_KERNEL_PATH exists: $FREERTOS_KERNEL_PATH"
+            ls -la "$FREERTOS_KERNEL_PATH" | head -10
+          else
+            echo "❌ FREERTOS_KERNEL_PATH does not exist: $FREERTOS_KERNEL_PATH"
+          fi
+          echo "=== CMake files in project ==="
+          find . -name "*.cmake" -type f | head -10
+          echo "=== Looking for FreeRTOS_Kernel_import.cmake ==="
+          find . -name "*FreeRTOS*import*" -type f
+
       - name: Create Build Environment
-        run: mkdir -p build  
+        run: mkdir -p build
+
+      - name: Debug - Show build directory
+        run: |
+          echo "=== After creating build directory ==="
+          ls -la
+          ls -la build/
 
       - name: Configure CMake
-        working-directory: build  
+        working-directory: build
         shell: bash
         run: |
+          echo "=== Current directory during cmake ==="
+          pwd
+          echo "=== Parent directory contents ==="
+          ls -la ..
+          echo "=== Parent lib directory ==="
+          ls -la ../lib/
+          echo "=== Running cmake with debug output ==="
           cmake .. \
             -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
             -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} \
             -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} \
-            -DPICO_TOOLCHAIN_PATH=${{ env.PICO_TOOLCHAIN_PATH }}
+            -DPICO_TOOLCHAIN_PATH=${{ env.PICO_TOOLCHAIN_PATH }} \
+            --debug-output
 
       - name: Build
         working-directory: build
@@ -75,20 +119,4 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'release' && github.event.action == 'published'
-    steps:
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: pico-build
-          path: artifacts
-
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/*.uf2
-            artifacts/*.elf
-            artifacts/doc.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: github.event_nam
