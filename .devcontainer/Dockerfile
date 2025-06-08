@@ -47,5 +47,9 @@ USER ${USERNAME}
 # Define o diretório de trabalho padrão
 WORKDIR /workspace
 
+ENV PICO_SDK_PATH=/workspace/lib/pico-sdk
+ENV FREERTOS_KERNEL_PATH=/workspace/lib/FreeRTOS-Kernel
+ENV PICO_TOOLCHAIN_PATH=/usr/bin
+
 # Define o shell padrão para o usuário do container (agora bash)
 CMD ["bash"]
