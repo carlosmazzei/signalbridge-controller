@@ -54,7 +54,7 @@ jobs:
         shell: bash
         # Execute the build.  You can specify a specific target with "--target <NAME>"
         run: |
-          cmake ${{github.workspace}} \
+          cmake .. \
             -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
             -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} \
             -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} \
