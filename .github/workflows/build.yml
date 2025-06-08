@@ -1,14 +1,12 @@
 name: "Build"
-
 on:
   push:
-    paths-ignore: # Ignora mudanças no Dockerfile para não acionar o CI duas vezes
-        - '.devcontainer/**'
+    paths-ignore:
+      - '.devcontainer/**'
   release:
     types: [published]
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   PICO_PLATFORM: rp2040
   PICO_BOARD: pico
@@ -21,35 +19,26 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     container:
-      # Get the most recent devcontainer image from the GitHub Container Registry
-      # This image is built from the .devcontainer/Dockerfile in the repository
-      # and pushed to the GitHub Container Registry (GHCR.io) on every commit.
       image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
-      options: --user=root # Alternative to running as root 
+      options: --user=root
       credentials:
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }} # Para puxar de registro privado (GHCR.io)
-
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
     steps:
-      # Checkout the repository
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive' # Checkout submodules as well
+          submodules: 'recursive'
 
-      # Verify toolchain version
       - name: Verify installed toolchain version
         run: arm-none-eabi-gcc --version
-          
-      # Create build environment
+
       - name: Create Build Environment
-        # Some projects don't allow in-source building, so create a separate build directory
-        # We'll use this as our working directory for all subsequent commands
-        shell: bash
-        run: cmake -E make_directory ${{github.workspace}}/build
+        run: mkdir -p build  
 
       - name: Configure CMake
-        working-directory: ${{ github.workspace }}/build  # ← This was missing!
+        working-directory: build  
         shell: bash
         run: |
           cmake .. \
@@ -57,20 +46,21 @@ jobs:
             -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} \
             -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} \
             -DPICO_TOOLCHAIN_PATH=${{ env.PICO_TOOLCHAIN_PATH }}
-    
-      # Build the project
+
       - name: Build
-        working-directory: ${{ github.workspace }}/build
+        working-directory: build
         shell: bash
         run: cmake --build . --config $BUILD_TYPE
 
-      # Archive doxygen documentation
       - name: Archive Doxygen Documentation
         run: |
-          echo "Archiving Doxygen documentation"  
-          tar -czf ${{github.workspace}}/build/src/doc.tar.gz -C ${{github.workspace}}/build/docs/ doc_doxygen
+          echo "Archiving Doxygen documentation"
+          if [ -d "build/docs/doc_doxygen" ]; then
+            tar -czf build/src/doc.tar.gz -C build/docs/ doc_doxygen
+          else
+            echo "Doxygen documentation not found, skipping archive"
+          fi
 
-      # Store build artifacts
       - name: Store Build Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -84,23 +74,21 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    needs: build
     if: github.event_name == 'release' && github.event.action == 'published'
-    
     steps:
-    # Download artifacts from previous build
-    - name: Download Build Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: pico-build
-        path: artifacts
-    
-    # Upload to release
-    - name: Upload Release Assets
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          artifacts/*.uf2
-          artifacts/*.elf
-          artifacts/doc.tar.gz
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pico-build
+          path: artifacts
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.uf2
+            artifacts/*.elf
+            artifacts/doc.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
