@@ -85,9 +85,8 @@
 		},
 
     "terminal.integrated.defaultProfile.linux": "bash",
-    "terminal.integrated.env.linux": {
-        "PICO_SDK_PATH": "${workspaceFolder}/lib/pico-sdk",
-        "FREERTOS_KERNEL_PATH": "${workspaceFolder}/lib/FreeRTOS",
-        "PICO_TOOLCHAIN_PATH": "/usr/bin"
-    },
+
+    "c-cpp-flylint.lizard.enable": false,
+    "c-cpp-flylint.flexelint.enable": false,
+    "c-cpp-flylint.clang.enable": false
 }

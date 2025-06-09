@@ -143,6 +143,9 @@ fi
 
 # Display useful information
 echo ""
+echo "=== Environment Variables (docker container) ==="
+env | sort
+echo ""
 echo "=== Development Environment Ready ==="
 echo "Workspace: $(pwd)"
 echo "VS Code Extensions: Automatically installed via devcontainer"

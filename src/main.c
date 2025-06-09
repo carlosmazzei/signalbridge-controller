@@ -502,7 +502,7 @@ static inline void send_status(uint8_t index)
 
 void send_heap_status(uint8_t index)
 {
-	uint8_t data[12] = {0};
+	uint8_t data[13] = {0};
 
 	/* Invalid index, return not recognized */
 	if (index > NUM_TASKS)
@@ -674,7 +674,7 @@ static void decode_reception_task(void *pvParameters)
 
 		if (PACKET_MARKER == data)
 		{
-			if (receive_buffer_index <= 0)
+			if (0 == receive_buffer_index)
 			{
 				/* Packet marker received but no data in buffer */
 				statistics_counters.counters[COBS_DECODE_ERROR]++;

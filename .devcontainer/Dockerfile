@@ -15,6 +15,7 @@ RUN apt-get update && \
     "cmake=3.25.1-1" \
     "cppcheck=2.10-2" \
     "doxygen=1.9.4-4" \
+    "flawfinder=2.0.19-1.1" \
     "gcc-arm-none-eabi=15:12.2.rel1-1" \
     "gdb-multiarch=13.1-3" \
     "git=1:2.39.5-0+deb12u2" \
@@ -28,10 +29,6 @@ RUN apt-get update && \
     "uncrustify=0.72.0+dfsg1-2" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/tmp/*
-
-ENV PICO_SDK_PATH=/workspace/lib/pico-sdk
-ENV FREERTOS_KERNEL_PATH=/workspace/lib/FreeRTOS-Kernel
-ENV PICO_TOOLCHAIN_PATH=/usr/bin
 
 # Configurações para o usuário de desenvolvimento dentro do container
 ARG USERNAME=vscode
