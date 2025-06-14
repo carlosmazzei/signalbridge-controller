@@ -9,6 +9,7 @@ ENV LANG=C.UTF-8
 # Instalação de ferramentas de cross-compilação e outras dependências de desenvolvimento.
 # As versões dos pacotes são as da distribuição Debian 12 Stable (Bookworm).
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends jq &&\
     apt-get install -y --no-install-recommends \
     "bash=5.2.15-2+b8" \
     "build-essential=12.9" \
