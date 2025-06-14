@@ -1,5 +1,5 @@
 # .github/workflows/build-dev-image.yml
-name: Build & Push Embedded DevContainer Image
+name: Build Image & Push Embedded DevContainer Image
 
 on:
   push:

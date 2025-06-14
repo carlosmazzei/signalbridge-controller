@@ -15,5 +15,5 @@
     "openssh-client": "1:9.2p1-2+deb12u6",
     "python3": "3.11.2-1+b1",
     "sudo": "1.9.13p3-1+deb12u1",
-    "uncrustify": "0.72.0+dfsg1-2"
+    "uncrustify": ""
 }
