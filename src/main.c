@@ -344,7 +344,7 @@ static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
 
 static void uart_event_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
+	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 
 	for (;;)
@@ -375,7 +375,7 @@ static void uart_event_task(void *pvParameters)
 
 static void cdc_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
+	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
 	for (;;)
 	{
 		/* TinyUSB device tasks */
@@ -445,7 +445,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 static void cdc_write_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
+	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
 	cdc_packet_t packet;
 	for (;;)
 	{
@@ -656,7 +656,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 static void decode_reception_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
+	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t receive_buffer_index = 0;
 
@@ -710,7 +710,7 @@ static void decode_reception_task(void *pvParameters)
 
 static void process_outbound_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
+	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
 	for (;;)
 	{
 		data_events_t data_event;
@@ -779,7 +779,7 @@ static inline bool setup_hardware(void)
 
 static inline void enter_error_state(void)
 {
-	bool state = true;
+	bool state = true; // cppcheck-suppress variableScope
 	for (;;)
 	{
 		state = !state;

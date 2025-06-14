@@ -15,7 +15,6 @@
         "-DPICO_COMPILER=pico_arm_cortex_m0plus_gcc",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         "-DPICO_SDK_PATH=${env:PICO_SDK_PATH}",
-        "-DFREERTOS_KERNEL_PATH=${env:FREERTOS_KERNEL_PATH}",
         "-DPICO_TOOLCHAIN_PATH=${env:PICO_TOOLCHAIN_PATH}"
     ],
     "cmake.buildArgs": ["-j4"],

@@ -28,7 +28,6 @@
     },
     "containerEnv": {
         "PICO_SDK_PATH": "${containerWorkspaceFolder}/lib/pico-sdk",
-        "FREERTOS_KERNEL_PATH": "${containerWorkspaceFolder}/lib/FreeRTOS-Kernel",
         "PICO_TOOLCHAIN_PATH": "/usr/bin",
         "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-arm64"
     },

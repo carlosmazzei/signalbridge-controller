@@ -1,55 +1,53 @@
-# Usa Debian 12 (Bookworm) como versão base.
-# Esta é a versão estável mais atual do Debian.
+# Uses Debian 12 (Bookworm) as the base version.
+# This is the latest stable version of Debian.
 FROM debian:12 AS build_stage
 
-# Define variáveis de ambiente para localização e não interatividade.
+# Set environment variables for locale and non-interactivity.
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 
-# Instalação de ferramentas de cross-compilação e outras dependências de desenvolvimento.
-# As versões dos pacotes são as da distribuição Debian 12 Stable (Bookworm).
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends jq &&\
-    apt-get install -y --no-install-recommends \
-    "bash=5.2.15-2+b8" \
-    "build-essential=12.9" \
-    "cmake=3.25.1-1" \
-    "cppcheck=2.10-2" \
-    "doxygen=1.9.4-4" \
-    "flawfinder=2.0.19-1.1" \
-    "gcc-arm-none-eabi=15:12.2.rel1-1" \
-    "gdb-multiarch=13.1-3" \
-    "git=1:2.39.5-0+deb12u2" \
-    "libnewlib-arm-none-eabi=3.3.0-1.3+deb12u1" \
-    "libstdc++-arm-none-eabi-newlib=15:12.2.rel1-1+23" \
-    "nodejs=18.19.0+dfsg-6~deb12u2" \
-    "openjdk-17-jre-headless=17.0.15+6-1~deb12u1" \
-    "openssh-client=1:9.2p1-2+deb12u6" \
-    "python3=3.11.2-1+b1" \
-    "sudo=1.9.13p3-1+deb12u1" \
-    "uncrustify=0.72.0+dfsg1-2" && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /var/tmp/*
+# Copy dependencies.json first before using it
+COPY dependencies.json /tmp/dependencies.json
 
-# Configurações para o usuário de desenvolvimento dentro do container
+# Installation of cross-compilation tools and other development dependencies.
+# The package versions are from Debian 12 Stable (Bookworm) distribution.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends jq sudo && \
+    echo "Installing build dependencies..." && \
+    # Check if dependencies.json exists and is valid JSON
+    if [ ! -f /tmp/dependencies.json ]; then \
+        echo "ERROR: dependencies.json not found"; \
+        exit 1; \
+    fi && \
+    if ! jq empty /tmp/dependencies.json 2>/dev/null; then \
+        echo "ERROR: dependencies.json is not valid JSON"; \
+        exit 1; \
+    fi && \
+    # Install packages from dependencies.json
+    jq -r 'to_entries | .[] | .key + "=" + .value' /tmp/dependencies.json | xargs apt-get install -y && \
+    # Clean up
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/dependencies.json
+
+# Settings for the development user inside the container
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-# Crie o usuário 'vscode' e defina-o como o shell padrão para bash.
+# Create the 'vscode' user and set bash as the default shell.
 RUN mkdir -p /etc/sudoers.d/ && \
-    addgroup --gid ${USER_GID} ${USERNAME} \
-    && adduser --uid ${USER_UID} --ingroup ${USERNAME} --shell /bin/bash --disabled-password --gecos "" ${USERNAME} \
-    && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME} \
-    && usermod -aG sudo ${USERNAME} \
-    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME} \
-    && rm -rf /tmp/*
-    
+    addgroup --gid ${USER_GID} ${USERNAME} && \
+    adduser --uid ${USER_UID} --ingroup ${USERNAME} --shell /bin/bash --disabled-password --gecos "" ${USERNAME} && \
+    echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} && \
+    chmod 0440 /etc/sudoers.d/${USERNAME} && \
+    usermod -aG sudo ${USERNAME} && \
+    chown -R ${USERNAME}:${USERNAME} /home/${USERNAME} && \
+    rm -rf /tmp/*
+
 USER ${USERNAME}
 
-# Define o diretório de trabalho padrão
+# Set the default working directory
 WORKDIR /workspace
 
-# Define o shell padrão para o usuário do container (agora bash)
+# Set the default shell for the container user (now bash)
 CMD ["bash"]

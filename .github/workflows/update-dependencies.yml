@@ -1,0 +1,213 @@
+name: Dependencies
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+jobs:
+  updates:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
+      options: --user=root
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Verify .devcontainer directory exists
+        run: |
+          if [[ ! -d .devcontainer ]]; then
+            echo "::error::.devcontainer directory not found in repository root"
+            exit 1
+          fi
+          echo "✓ .devcontainer directory found"
+
+      - name: Verify dependencies.json exists
+        run: |
+          if [[ ! -f .devcontainer/dependencies.json ]]; then
+            echo "::error::dependencies.json file not found in .devcontainer directory"
+            exit 1
+          fi
+          echo "✓ .devcontainer/dependencies.json found"
+
+      - name: Verify update script exists
+        run: |
+          if [[ ! -f update-dependencies.sh ]]; then
+            echo "::error::update-dependencies.sh script not found in repository root"
+            exit 1
+          fi
+          echo "✓ update-dependencies.sh found"
+
+      - name: Validate dependencies.json format
+        run: |
+          if ! python3 -m json.tool .devcontainer/dependencies.json > /dev/null 2>&1; then
+            echo "::error::.devcontainer/dependencies.json is not valid JSON"
+            exit 1
+          fi
+          echo "✓ .devcontainer/dependencies.json is valid JSON"
+
+      - name: Show current dependencies
+        run: |
+          echo "Current dependencies:"
+          cat .devcontainer/dependencies.json | python3 -m json.tool
+
+      - name: Update package lists
+        run: |
+          echo "Updating package lists..."
+          if ! apt-get update; then
+            echo "::error::Failed to update package lists"
+            exit 1
+          fi
+          echo "✓ Package lists updated"
+
+      - name: Make script executable and run
+        run: |
+          echo "Making update script executable..."
+          chmod +x ./update-dependencies.sh
+          
+          echo "Running dependency update script without backup..."
+          if ! NO_BACKUP=true ./update-dependencies.sh; then
+            echo "::error::Dependency update script failed"
+            exit 1
+          fi
+          echo "✓ Dependency update completed successfully"
+
+      - name: Validate updated JSON
+        run: |
+          if [[ ! -f .devcontainer/dependencies.json ]]; then
+            echo "::error::.devcontainer/dependencies.json was removed by the update script"
+            exit 1
+          fi
+          
+          if ! python3 -m json.tool .devcontainer/dependencies.json > /dev/null 2>&1; then
+            echo "::error::Updated .devcontainer/dependencies.json is not valid JSON"
+            exit 1
+          fi
+          echo "✓ Updated .devcontainer/dependencies.json is valid"
+
+      - name: Show updated dependencies
+        run: |
+          echo "Updated dependencies:"
+          cat .devcontainer/dependencies.json | python3 -m json.tool
+
+      - name: Check for changes
+        id: verify-changed-files
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          
+          if [ -n "$(git status --porcelain .devcontainer/dependencies.json)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "✓ Changes detected in .devcontainer/dependencies.json"
+            
+            # Show what changed
+            echo "::group::Changes made"
+            if git diff .devcontainer/dependencies.json; then
+              echo "✓ Diff displayed successfully"
+            else
+              echo "::warning::Could not show diff"
+            fi
+            echo "::endgroup::"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ No changes detected in .devcontainer/dependencies.json"
+          fi
+
+      - name: Commit changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          git add .devcontainer/dependencies.json
+          if ! git commit -m "chore(deps): update .devcontainer/dependencies.json"; then
+            echo "::error::Failed to commit changes"
+            exit 1
+          fi
+          echo "✓ Changes committed successfully"
+
+      - name: Create Pull Request
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deps): update .devcontainer/dependencies.json"
+          branch: features/update-dependencies
+          title: "🔄 Update DevContainer APT packages"
+          body: |
+            ## 📦 DevContainer Dependencies Update
+            
+            This PR updates the `.devcontainer/dependencies.json` file with the latest available package versions.
+            
+            ### Changes
+            - Updated package versions to latest available candidates
+            - Only packages with newer versions were updated
+            - Existing higher versions were preserved
+            
+            ### Files Modified
+            - `.devcontainer/dependencies.json`
+            
+            ### How to Review
+            1. Check the diff to see which packages were updated
+            2. Verify that version numbers look reasonable
+            3. Test the devcontainer build if desired
+            
+            ### Automation Details
+            - 🤖 Generated automatically by GitHub Actions
+            - 📅 Triggered: ${{ github.event_name }}
+            - 🔗 Workflow: [${{ github.workflow }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - 📋 Script: `update-dependencies.sh --no-backup`
+            
+            ---
+            *This PR was created automatically. Please review the changes before merging.*
+          labels: |
+            dependencies
+            devcontainer
+            automated
+            chore
+          delete-branch: true
+          draft: false
+
+      - name: PR Creation Status
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          echo "✅ Pull request created successfully"
+          echo "🔗 Check the 'Pull requests' tab to review and merge"
+
+      - name: No Changes Status
+        if: steps.verify-changed-files.outputs.changed == 'false'
+        run: |
+          echo "ℹ️ No updates needed - all packages are already at latest versions"
+
+      - name: Cleanup on failure
+        if: failure()
+        run: |
+          echo "::group::Debugging Information"
+          echo "Git status:"
+          git status || echo "Git status failed"
+          
+          echo "Current directory contents:"
+          ls -la || echo "Directory listing failed"
+          
+          echo ".devcontainer directory contents:"
+          ls -la .devcontainer/ 2>/dev/null || echo "Could not read .devcontainer directory"
+          
+          echo "dependencies.json content (if exists):"
+          cat .devcontainer/dependencies.json 2>/dev/null || echo "Could not read .devcontainer/dependencies.json"
+          
+          echo "Update script content:"
+          cat update-dependencies.sh 2>/dev/null || echo "Could not read update-dependencies.sh"
+          
+          echo "Recent git log:"
+          git log --oneline -5 2>/dev/null || echo "Could not show git log"
+          
+          echo "Environment variables:"
+          env | grep -E "^(GITHUB_|NO_BACKUP|DRY_RUN|VERBOSE)" || echo "No relevant env vars found"
+          echo "::endgroup::"
