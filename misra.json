@@ -1,0 +1,6 @@
+{
+    "script": "misra",
+    "args": [
+        "--rule-texts=/workspaces/a320-pico-controller-freertos/misra.txt"
+    ]
+}

@@ -15,7 +15,6 @@
  */
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdint.h>
@@ -123,8 +122,7 @@
  * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
-typedef enum statistics_counter_enum_t
-{
+typedef enum statistics_counter_enum_t {
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
@@ -146,8 +144,7 @@ typedef enum statistics_counter_enum_t
  * @struct statistics_counters_t
  * @brief Holds counters for different error types.
  */
-typedef struct statistics_counters_t
-{
+typedef struct statistics_counters_t {
 	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
 	bool error_state;                  /**< Flag indicating critical error state */
 } statistics_counters_t;
@@ -156,8 +153,7 @@ typedef struct statistics_counters_t
  * @enum task_enum_t
  * @brief Enumerates the tasks created in the system.
  */
-typedef enum task_enum_t
-{
+typedef enum task_enum_t {
 	CDC_TASK,
 	CDC_WRITE_TASK,
 	UART_EVENT_TASK,
@@ -362,7 +358,7 @@ static void uart_event_task(void *pvParameters)
 
 		uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
 		statistics_counters.counters[BYTES_RECEIVED] += count;
-		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
+		for (uint32_t i = 0; (i < count) && (i < (uint32_t)MAX_ENCODED_BUFFER_SIZE); i++)
 		{
 			if (xQueueSend(encoded_reception_queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE)
 			{
@@ -413,7 +409,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	uart_outbound_buffer[1] = (id & 0xE0) | (command & 0x1F);
 	uart_outbound_buffer[2] = length;
 
-	memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length);
+	memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length); // flawfinder: ignore
 
 	/* Calculate and store checksum */
 	uint8_t checksum = calculate_checksum(uart_outbound_buffer, (uint8_t)(length + HEADER_SIZE));
@@ -434,7 +430,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 	cdc_packet_t packet;
 	packet.length = (uint8_t)num_encoded + 1;
-	memcpy(packet.data, encode_buffer, packet.length);
+	memcpy(packet.data, encode_buffer, packet.length); // flawfinder: ignore
 
 	/* Enqueue data to be sent via USB CDC */
 	if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(1)) != pdTRUE)
@@ -598,6 +594,17 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		return;
 	}
 
+	/* Check if the id matches the exepcted panel */
+	if (rxID != PANEL_ID)
+	{
+		statistics_counters.counters[UNKNOWN_CMD_ERROR]++;
+		return;
+	}
+
+	/* Copy payload data */
+	uint8_t decoded_data[DATA_BUFFER_SIZE] = {0};
+	memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len); // flawfinder: ignore
+
 	/* Verify checksum */
 	uint8_t calculated_checksum = calculate_checksum(rx_buffer, (uint8_t)(len + HEADER_SIZE));
 	uint8_t received_checksum = rx_buffer[len + HEADER_SIZE];
@@ -607,10 +614,6 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		statistics_counters.counters[CHECKSUM_ERROR]++;
 		return;
 	}
-
-	/* Copy payload data */
-	uint8_t decoded_data[DATA_BUFFER_SIZE] = {0};
-	memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len);
 
 	switch (cmd)
 	{

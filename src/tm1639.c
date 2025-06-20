@@ -6,7 +6,6 @@
  * the TM1639 LED driver chip
  */
 
- #include <stdio.h>
  #include <string.h>
 
  #include "pico/stdlib.h"
@@ -18,15 +17,7 @@
  #include "semphr.h"
 
  #include "tm1639.h"
-
-// Segment patterns for hex digits 0-F
-// Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
-const uint8_t tm1639_digit_patterns[] = {
-	0x3F, 0x06, 0x5B, 0x4F, // 0, 1, 2, 3
-	0x66, 0x6D, 0x7D, 0x07, // 4, 5, 6, 7
-	0x7F, 0x6F, 0x77, 0x7C, // 8, 9, A, b
-	0x39, 0x5E, 0x79, 0x71 // C, d, E, F
-};
+ #include "outputs.h"
 
 /**
  * @brief Initialize the TM1639 driver
@@ -529,13 +520,15 @@ int8_t tm1639_clear(output_driver_t *config)
 	// Write zeros to all addresses
 	tm1639_start(config);
 	uint8_t result = tm1639_write_byte(config, 0x40); // DATA_CMD_AUTO_INC
-	if (result != TM1639_OK) {
+	if (result != TM1639_OK)
+	{
 		tm1639_stop(config);
 		return result;
 	}
 
 	result = tm1639_write_byte(config, 0xC0); // Start address 0
-	if (result != TM1639_OK) {
+	if (result != TM1639_OK)
+	{
 		tm1639_stop(config);
 		return result;
 	}
@@ -543,7 +536,8 @@ int8_t tm1639_clear(output_driver_t *config)
 	// Write 16 bytes of 0
 	for (uint8_t i = 0; i < 16; i++) {
 		result = tm1639_write_byte(config, 0);
-		if (result != TM1639_OK) {
+		if (result != TM1639_OK)
+		{
 			tm1639_stop(config);
 			return result;
 		}
@@ -572,7 +566,8 @@ int8_t tm1639_flush(output_driver_t *config)
 	// Write to the display
 	tm1639_start(config);
 	uint8_t result = tm1639_write_byte(config, 0x40); // DATA_CMD_AUTO_INC
-	if (result != TM1639_OK) {
+	if (result != TM1639_OK)
+	{
 		tm1639_stop(config);
 		return result;
 	}
@@ -587,7 +582,8 @@ int8_t tm1639_flush(output_driver_t *config)
 	}
 
 	result = tm1639_write_byte(config, 0xC0); // Start address 0
-	if (result != TM1639_OK) {
+	if (result != TM1639_OK)
+	{
 		tm1639_stop(config);
 		return result;
 	}
@@ -595,7 +591,8 @@ int8_t tm1639_flush(output_driver_t *config)
 	// Write all 16 bytes from buffer
 	for (uint8_t i = 0; i < 16; i++) {
 		result = tm1639_write_byte(config, config->active_buffer[i]);
-		if (result != TM1639_OK) {
+		if (result != TM1639_OK)
+		{
 			tm1639_stop(config);
 			return result;
 		}
@@ -608,28 +605,31 @@ int8_t tm1639_flush(output_driver_t *config)
 /**
  * @brief Update the display with the current buffer contents
  */
-int8_t tm1639_update(output_driver_t *config) {
-	if (!config) {
+int8_t tm1639_update(output_driver_t *config)
+{
+	if (!config)
+	{
 		return TM1639_ERR_INVALID_PARAM;
 	}
 
 	// Only update if buffer has been modified
-	if (!config->buffer_modified) {
+	if (!config->buffer_modified)
+	{
 		return TM1639_OK;
 	}
 
 	return tm1639_flush(config);
 }
 
-/**
- * @brief Set segments for a specific position (for 7-segment displays)
- */
-int8_t tm1639_set_segment(output_driver_t *config, uint8_t position, uint8_t segments, bool dp) {
-	if (!config) {
+int8_t tm1639_set_segment(output_driver_t *config, uint8_t position, uint8_t segments, bool dp)
+{
+	if (!config)
+	{
 		return TM1639_ERR_INVALID_PARAM;
 	}
 
-	if (position >= 8) { // Max 8 positions
+	if (position >= 8)   // Max 8 positions
+	{
 		return TM1639_ERR_ADDRESS_RANGE;
 	}
 
@@ -638,7 +638,8 @@ int8_t tm1639_set_segment(output_driver_t *config, uint8_t position, uint8_t seg
 
 	// Set segments with decimal point if needed
 	uint8_t data = segments;
-	if (dp) {
+	if (dp)
+	{
 		data |= 0x80; // Set MSB for decimal point
 	}
 
@@ -652,12 +653,15 @@ int8_t tm1639_set_segment(output_driver_t *config, uint8_t position, uint8_t seg
 /**
  * @brief Set an entire row in matrix mode
  */
-int8_t tm1639_set_matrix_row(output_driver_t *config, uint8_t row, uint8_t data) {
-	if (!config) {
+int8_t tm1639_set_matrix_row(output_driver_t *config, uint8_t row, uint8_t data)
+{
+	if (!config)
+	{
 		return TM1639_ERR_INVALID_PARAM;
 	}
 
-	if (row >= 8) { // Max 8 rows
+	if (row >= 8)   // Max 8 rows
+	{
 		return TM1639_ERR_ADDRESS_RANGE;
 	}
 
@@ -671,20 +675,46 @@ int8_t tm1639_set_matrix_row(output_driver_t *config, uint8_t row, uint8_t data)
 	return TM1639_OK;
 }
 
-/**
- * @brief Display a hexadecimal digit (0-F) at the specified position
- */
-int8_t tm1639_set_digit(output_driver_t *config, uint8_t position, uint8_t digit, bool dp) {
-	if (!config) {
-		return TM1639_ERR_INVALID_PARAM;
+uint8_t tm1639_set_digits(output_driver_t *config,
+                          const uint8_t* digits,
+                          const size_t length,
+                          const uint8_t dot_position)
+{
+	// Segment patterns for hex digits 0-F
+	// Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
+	static const uint8_t tm1639_digit_patterns[16] = {
+		0x3F, 0x06, 0x5B, 0x4F, // 0, 1, 2, 3
+		0x66, 0x6D, 0x7D, 0x07, // 4, 5, 6, 7
+		0x7F, 0x6F, 0x77, 0x7C, // 8, 9, A, b
+		0x39, 0x5E, 0x79, 0x71 // C, d, E, F
+	};
+
+	uint8_t result;
+	if (!config)
+	{
+		result = TM1639_ERR_INVALID_PARAM;
 	}
 
-	if (digit > 15) {
-		digit = 0; // Default to 0 if out of range
+	if ((digits == NULL) ||
+	    (dot_position > (uint8_t)7) ||
+	    (length < (uint8_t)8)) // Ensure length is at least 8
+	{
+		// Ensure digit array is valid and has 8 elements
+		result = TM1639_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		for (uint8_t i = (uint8_t)0; i < (uint8_t)8; i++)
+		{
+			// Set each digit segment
+			bool dp = (i == dot_position); // Set decimal point only for specified position
+			result = tm1639_set_segment(config, i, tm1639_digit_patterns[digits[i]], dp);
+		}
+		/* Update the display */
+		result = tm1639_update(config);
 	}
 
-	// Set the segments using the pattern for this digit
-	return tm1639_set_segment(config, position, tm1639_digit_patterns[digit], dp);
+	return result;
 }
 
 /**

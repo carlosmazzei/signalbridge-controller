@@ -28,13 +28,13 @@
 
 // Error codes
 #define TM1639_OK                  0     // Operation successful
-#define TM1639_ERR_SPI_INIT       -1     // SPI initialization error
-#define TM1639_ERR_GPIO_INIT      -2     // GPIO initialization error
-#define TM1639_ERR_SPI_WRITE      -3     // SPI write error
-#define TM1639_ERR_INVALID_PARAM  -4     // Invalid parameter
-#define TM1639_ERR_ADDRESS_RANGE  -5     // Address out of range
-#define TM1639_ERR_MUTEX          -6     // Mutex error
-#define TM1639_ERR_MUTEX_TIMEOUT  -7     // Mutex acquisition timeout
+#define TM1639_ERR_SPI_INIT        1     // SPI initialization error
+#define TM1639_ERR_GPIO_INIT       2     // GPIO initialization error
+#define TM1639_ERR_SPI_WRITE       3     // SPI write error
+#define TM1639_ERR_INVALID_PARAM   4     // Invalid parameter
+#define TM1639_ERR_ADDRESS_RANGE   5     // Address out of range
+#define TM1639_ERR_MUTEX           6     // Mutex error
+#define TM1639_ERR_MUTEX_TIMEOUT   7     // Mutex acquisition timeout
 
 // Structure for pressed key information
 typedef struct tm1639_key_t {
@@ -43,7 +43,7 @@ typedef struct tm1639_key_t {
 } tm1639_key_t;
 
 // External definition of digit patterns
-extern const uint8_t tm1639_digit_patterns[16];
+//extern const uint8_t tm1639_digit_patterns[16];
 
 /**
  * @brief Initialize the TM1639 driver
@@ -175,15 +175,15 @@ int8_t tm1639_clear(output_driver_t *config);
 int8_t tm1639_update(output_driver_t *config);
 
 /**
- * @brief Set segments for a specific position (for 7-segment displays)
+ * @brief Set segments for display (for 7-segment displays)
  *
  * @param config Pointer to TM1639 configuration structure
- * @param position Digit position (0-7)
- * @param segments Segment pattern (bits represent segments a-g)
- * @param dp Decimal point state (true/false)
+ * @param digits Payload of digits to set (0-15)
+ * @param length Length of the digits array (should be 8)
+ * @param dot_position Decimal point state (true/false)
  * @return int Error code, 0 if successful
  */
-int8_t tm1639_set_segment(output_driver_t *config, uint8_t position, uint8_t segments, bool dp);
+uint8_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
 
 /**
  * @brief Set an entire row in matrix mode

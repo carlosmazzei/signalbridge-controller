@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "cobs.h"
 
 /** @brief COBS encode data to buffer
  *
@@ -25,13 +26,16 @@
 size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 {
 	uint8_t *encode = buffer; // Encoded byte pointer
-	uint8_t *codep = encode++; // Output code pointer
+	uint8_t *codep = encode;
+	encode++; // Output code pointer
 	uint8_t code = 1; // Code value
 
 	for (const uint8_t *byte = (const uint8_t *)data; length--; ++byte)
 	{
-		if (*byte) // Byte not zero, write it
+		if (*byte != 0) // Byte not zero, write it
+		{
 			*encode++ = *byte, ++code;
+		}
 
 		if (!*byte || code == 0xff) // Input is zero or block completed, restart
 		{

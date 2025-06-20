@@ -1,5 +1,5 @@
-#ifndef _OUTPUTS_H_
-#define _OUTPUTS_H_
+#ifndef OUTPUTS_H
+#define OUTPUTS_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -28,18 +28,24 @@
 #define MUX_C_PIN 14
 #define MUX_ENABLE 32
 
-/* Constants */
+/**
+ * Constants
+ */
 #define MAX_SPI_INTERFACES 8
 #define NUM_GPIO 30
 
-/* Device type definitions */
+/**
+ * Device type definitions
+ */
 #define DEVICE_NONE           0
 #define DEVICE_GENERIC_LED    1
 #define DEVICE_GENERIC_DIGIT  2
 #define DEVICE_TM1639_LED     3
 #define DEVICE_TM1639_DIGIT   4
 
-/* Device configuration (one byte per interface). Use position as controller ID. */
+/**
+ * Device configuration (one byte per interface). Use position as controller ID.
+ */
 #define DEVICE_CONFIG { \
 		DEVICE_TM1639_DIGIT, /* Device 0 */ \
 		DEVICE_TM1639_DIGIT, /* Device 1 */ \
@@ -50,14 +56,21 @@
 		DEVICE_NONE, /* Device 6 */ \
 		DEVICE_NONE /* Device 7 */ \
 }
+
+/**
+ * Error codes
+ */
+#define OUTPUT_OK                  0     // Operation successful
+#define OUTPUT_ERR_INIT            1     // Initialization error
+#define OUTPUT_ERR_DISPLAY_OUT     2     // Display out error
+
 /** --- Statistics Structures --- */
 
 /**
  * @enum out_statistics_counter_enum_t
  * @brief Enumerates different error types in the output system.
  */
-typedef enum out_statistics_counter_enum_t
-{
+typedef enum {
 	OUT_CONTROLLER_ID_ERROR,
 	OUT_DRIVER_INIT_ERROR,
 	OUT_NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
@@ -67,11 +80,12 @@ typedef enum out_statistics_counter_enum_t
  * @struct out_statistics_counters_t
  * @brief Holds counters for different error types of the output.
  */
-typedef struct out_statistics_counters_t
-{
+typedef struct out_statistics_counters_t {
 	uint32_t counters[OUT_NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
 	bool error_state;                  /**< Flag indicating critical error state */
 } out_statistics_counters_t;
+
+extern out_statistics_counters_t out_statistics_counters;
 
 /* --- Driver Structures --- */
 
@@ -79,14 +93,17 @@ typedef struct out_statistics_counters_t
  * @struct output_driver_t
  * @brief Holds the configuration for an output device.
  */
-typedef struct output_driver_t {
+struct output_driver_t;
+typedef struct output_driver_t output_driver_t;
+
+struct output_driver_t {
 	/* Chip ID (0-7) */
 	uint8_t chip_id;
 
 	/* Function pointer for chip selection (true = select/stb low, false = deselect/stb high) */
 	void (*select_interface)(uint8_t chip_id, bool select);
-	void (*set_digits)(uint8_t *digits, uint8_t len);
-	void (*set_leds)(uint8_t *leds, uint8_t len);
+	void (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
+	// void (*set_leds)(uint8_t *leds, uint8_t len);
 
 	/* SPI instance */
 	spi_inst_t *spi;
@@ -99,7 +116,7 @@ typedef struct output_driver_t {
 	bool buffer_modified;    // Flag indicating if the prep buffer has changed
 	uint8_t brightness;      // Brightness level (0-7)
 	bool display_on;         // Display on/off
-} output_driver_t;
+};
 
 /**
  * @struct output_drivers_t
@@ -108,6 +125,8 @@ typedef struct output_driver_t {
 typedef struct output_drivers_t {
 	output_driver_t *driver_handles[MAX_SPI_INTERFACES];
 } output_drivers_t;
+
+extern output_drivers_t output_drivers;
 
 /**
  * Function Prototypes
@@ -120,7 +139,7 @@ typedef struct output_drivers_t {
  *
  * @return True if successful.
  */
-int led_out(const uint8_t *payload, uint8_t length);
+uint8_t led_out(const uint8_t *payload, uint8_t length);
 
 /** @brief Initialize the outputs.
  *
@@ -131,7 +150,7 @@ int led_out(const uint8_t *payload, uint8_t length);
  * @todo Implement the I2C initialization.
  *
  */
-bool output_init(void);
+uint8_t output_init(void);
 
 /** @brief Send data to display controllers
  *
@@ -140,27 +159,12 @@ bool output_init(void);
  *
  * @return Bytes written
  */
-int display_out(const uint8_t *payload, uint8_t length);
+uint8_t display_out(const uint8_t *payload, uint8_t length);
 
 /** @brief Set PWM duty cycle
  *
  * @param duty The duty cycle to set.
  */
 void set_pwm_duty(uint8_t duty);
-
-/**
- * @brief Select the interace chip through multiplexer
- *
- * @param chip_select Chip select number (0-7)
- * @param select True to select (STB low), false to deselect (STB high)
- */
-static void select_interface(uint8_t chip_select, bool select);
-
-/**
- * @brief Initialize the multiplexer for chip select control
- *
- * @return int Error code, 0 if successful
- */
-static int8_t init_mux(void);
 
 #endif
