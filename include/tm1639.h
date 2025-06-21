@@ -59,7 +59,7 @@ typedef struct tm1639_key_t {
  * @return Pointer to the initialized TM1639 configuration structure, or NULL if allocation failed
  */
 output_driver_t* tm1639_init(uint8_t chip_id,
-                             void (*select_interface)(uint8_t chip_id, bool select),
+                             uint8_t (*select_interface)(uint8_t chip_id, bool select),
                              spi_inst_t *spi,
                              uint8_t dio_pin,
                              uint8_t clk_pin);

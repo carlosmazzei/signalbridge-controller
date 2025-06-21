@@ -20,16 +20,6 @@
 #include "tm1639.h"
 #include "outputs.h"
 
-/**
- * Maximum size of the array that holds the LED states.
- */
-#define MAX_LED_STATE_SIZE 8
-
-/**
- * LED states.
- */
-uint8_t led_states[MAX_LED_STATE_SIZE];
-
 /* Global variables */
 static const uint8_t device_config_map[MAX_SPI_INTERFACES] = DEVICE_CONFIG;
 static SemaphoreHandle_t spi_mutex = NULL;
@@ -45,6 +35,8 @@ out_statistics_counters_t out_statistics_counters;
  */
 static uint8_t init_mux(void)
 {
+	uint8_t result = TM1639_OK;
+
 	// Initialize multiplexer pins
 	gpio_init(MUX_ENABLE);
 	gpio_init(MUX_A_PIN);
@@ -52,12 +44,12 @@ static uint8_t init_mux(void)
 	gpio_init(MUX_C_PIN);
 
 	// Check for errors in GPIO initialization
-	if (gpio_get_function(MUX_A_PIN) != GPIO_FUNC_SIO ||
-	    gpio_get_function(MUX_B_PIN) != GPIO_FUNC_SIO ||
-	    gpio_get_function(MUX_C_PIN) != GPIO_FUNC_SIO ||
-	    gpio_get_function(MUX_ENABLE) != GPIO_FUNC_SIO)
+	if ((gpio_get_function(MUX_A_PIN) != GPIO_FUNC_SIO) ||
+	    (gpio_get_function(MUX_B_PIN) != GPIO_FUNC_SIO) ||
+	    (gpio_get_function(MUX_C_PIN) != GPIO_FUNC_SIO) ||
+	    (gpio_get_function(MUX_ENABLE) != GPIO_FUNC_SIO))
 	{
-		return TM1639_ERR_GPIO_INIT;
+		result = TM1639_ERR_GPIO_INIT;
 	}
 
 	gpio_set_dir(MUX_A_PIN, GPIO_OUT);
@@ -71,7 +63,7 @@ static uint8_t init_mux(void)
 	gpio_put(MUX_B_PIN, 1);
 	gpio_put(MUX_C_PIN, 1);
 
-	return TM1639_OK;
+	return result;
 }
 
 /**
@@ -79,20 +71,24 @@ static uint8_t init_mux(void)
  *
  * @param chip_select Chip select number (0-7)
  * @param select True to select (STB low), false to deselect (STB high)
+ * @return uint8_t Result code, OUTPUT_OK if successful, otherwise an error code
  */
-static void select_interface(uint8_t chip_select, bool select)
+static uint8_t select_interface(uint8_t chip_select, bool select)
 {
-	if (chip_select >= MAX_SPI_INTERFACES)
+	uint8_t result = OUTPUT_OK;
+
+	// Check if chip_select is within valid range
+	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
-		return;
+		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 
 	if (select)
 	{
 		// Convert chip number to individual bits for multiplexer control
-		gpio_put(MUX_A_PIN, (chip_select & 0x01));             // LSB
-		gpio_put(MUX_B_PIN, (chip_select & 0x02) >> 1);        // middle bit
-		gpio_put(MUX_C_PIN, (chip_select & 0x04) >> 2);        // MSB
+		gpio_put(MUX_A_PIN, (chip_select & (uint8_t)0x01));       // LSB
+		gpio_put(MUX_B_PIN, (chip_select & (uint8_t)0x02) >> 1);  // middle bit
+		gpio_put(MUX_C_PIN, (chip_select & (uint8_t)0x04) >> 2);  // MSB
 
 		gpio_put(MUX_ENABLE, 1);
 	}
@@ -104,6 +100,8 @@ static void select_interface(uint8_t chip_select, bool select)
 
 	// Small delay to ensure stable signal
 	sleep_us(1);
+
+	return result;
 }
 
 /**
@@ -114,44 +112,51 @@ static void select_interface(uint8_t chip_select, bool select)
  * For generic devices, it can be extended to initialize a generic driver if needed.
  * If a device type is not supported, it skips initialization for that interface.
  */
-static void init_driver(void)
+static uint8_t init_driver(void)
 {
+	uint8_t result = OUTPUT_OK;
 	// Check the config map and initialize the drivers
-	for (uint8_t i = 0; i < MAX_SPI_INTERFACES; i++)
+	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
 		output_drivers.driver_handles[i] = NULL;
 
-		if (DEVICE_TM1639_DIGIT == device_config_map[i] ||
-		    DEVICE_TM1639_LED == device_config_map[i])
+		if (((uint8_t)DEVICE_TM1639_DIGIT == device_config_map[i]) ||
+		    ((uint8_t)DEVICE_TM1639_LED == device_config_map[i]))
 		{
 			// Initialize TM1639 driver
 			output_drivers.driver_handles[i] = tm1639_init(i,
-			                                               select_interface,
+			                                               &select_interface,
 			                                               spi0,
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
 			if (!output_drivers.driver_handles[i])
 			{
-				// @todo: Handle error
+				result = OUTPUT_ERR_INIT;
+				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
 				continue;
 			}
 		}
-		else if (DEVICE_GENERIC_DIGIT == device_config_map[i] ||
-		         DEVICE_GENERIC_LED == device_config_map[i])
+		else if (((uint8_t)DEVICE_GENERIC_DIGIT == device_config_map[i]) ||
+		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
 			// Initialize generic driver (if needed)
 			/* @todo: initialize generic devices with generic drivers */
 		}
 		else
 		{
-			// Unsupported device type, handle error if needed
+			result = OUTPUT_ERR_INIT;
+			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
 			continue;
 		}
 	}
+
+	return result;
 }
 
 uint8_t output_init(void)
 {
+	uint8_t result = OUTPUT_OK;
+
 	// Enable Pico default LED pin (GPIO 25)
 	gpio_init(PICO_DEFAULT_LED_PIN);
 	gpio_set_dir(PICO_DEFAULT_LED_PIN, 1);
@@ -164,16 +169,16 @@ uint8_t output_init(void)
 		// Error returning mutex
 		if (!spi_mutex)
 		{
-			return OUTPUT_ERR_INIT;
+			result = OUTPUT_ERR_INIT;
 		}
 	}
 
 	// Initialize LED outputs (using TM1639)
-	uint8_t result = init_mux();
-	if (result != (uint8_t)TM1639_OK)
+	uint8_t result_mux = init_mux();
+	if (result_mux != (uint8_t)TM1639_OK)
 	{
 		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-		return OUTPUT_ERR_INIT;
+		result = OUTPUT_ERR_INIT;
 	}
 
 	spi_init(spi0, SPI_FREQUENCY);
@@ -188,7 +193,7 @@ uint8_t output_init(void)
 	if ((gpio_get_function(PICO_DEFAULT_SPI_SCK_PIN) != GPIO_FUNC_SPI) ||
 	    (gpio_get_function(PICO_DEFAULT_SPI_TX_PIN) != GPIO_FUNC_SPI))
 	{
-		return OUTPUT_ERR_INIT;
+		result =  OUTPUT_ERR_INIT;
 	}
 
 	// Configure half-duplex (we'll handle direction changes when reading keys)
@@ -204,9 +209,14 @@ uint8_t output_init(void)
 	pwm_config_set_clkdiv(&config, 10.f);
 	pwm_init(slice_num, &config, true);
 
-	init_driver();
+	uint8_t result_init = init_driver();
+	if (result_init != (uint8_t)OUTPUT_OK)
+	{
+		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+		result = OUTPUT_ERR_INIT;
+	}
 
-	return OUTPUT_OK;
+	return result;
 }
 
 uint8_t display_out(const uint8_t *payload, uint8_t length)
@@ -216,28 +226,31 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 	 * 4 bytes using BCD for each digit in the lower and upper nibble
 	 * Last byte as dot position
 	 */
+	uint8_t result = OUTPUT_OK;
 
-	/* Check if controller_id is of type digit */
+	/* Load controller id (first byte of the payload) */
 	uint8_t controller_id = payload[0];
-	if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[controller_id]) &&
-	    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[controller_id]))
-	{
-		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-		return OUTPUT_ERR_DISPLAY_OUT;
-	}
 
 	/* Convert controller_id to physical CS (0-based indexing) */
 	uint8_t physical_cs = controller_id - (uint8_t)1;
 
+	if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+	    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]))
+	{
+		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+		result = OUTPUT_ERR_DISPLAY_OUT;
+	}
+
 	/* Take SPI mutex */
 	if (pdTRUE != xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
 	{
-		return OUTPUT_ERR_DISPLAY_OUT;
+		result = OUTPUT_ERR_SEMAPHORE;
 	}
 
 	/* Process BCD data if we have enough bytes */
 	/* Need 4 bytes for 8 digits (2 digits per byte) and 1 for the dot position */
-	if (length >= (uint8_t)6)
+	if ((length >= (uint8_t)6) &&
+	    ((uint8_t)OUTPUT_OK == result))
 	{
 		/* Convert packed BCD payload to digits array for display */
 		uint8_t digits[8];
@@ -250,66 +263,95 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 		digits[6] = (payload[4] >> (uint8_t)4) & (uint8_t)0x0F;
 		digits[7] = payload[4] & (uint8_t)0x0F;
 
-		/* Check if this is a TM1639 digit display device */
-		if (DEVICE_TM1639_DIGIT == device_config_map[physical_cs] ||
-		    DEVICE_GENERIC_DIGIT == device_config_map[physical_cs])
+		/* Send digits to the corresponding driver */
+		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
+		if ((handle != NULL) && (handle->set_digits))
 		{
-			/* Display the digits using TM1639 library */
-			output_driver_t *handle = output_drivers.driver_handles[physical_cs];
-			if ((handle != NULL) && (handle->set_digits))
-			{
-				handle->set_digits(handle, digits, sizeof(digits), payload[5]);
-			}
+			handle->set_digits(handle, digits, sizeof(digits), payload[5]);
 		}
-
-		/* Release SPI mutex */
-		xSemaphoreGive(spi_mutex);
-
-		return OUTPUT_OK;
 	}
 	else
 	{
 		/* Disable chip select and release mutex before returning error */
-		select_interface(physical_cs, false);
-		xSemaphoreGive(spi_mutex);
-		return OUTPUT_ERR_DISPLAY_OUT;
+		if ((uint8_t)OUTPUT_OK != select_interface(physical_cs, false))
+		{
+			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+		}
 	}
+
+	/* Release SPI mutex */
+	if (pdFALSE == xSemaphoreGive(spi_mutex))
+	{
+		result = OUTPUT_ERR_SEMAPHORE;
+	}
+
+	return result;
 }
 
 uint8_t led_out(const uint8_t *payload, uint8_t length)
 {
-	/* Check if controller ID is valid (1-based indexing in the protocol) */
-	uint8_t controller_id = payload[0];
-	if (DEVICE_GENERIC_LED != device_config_map[controller_id] &&
-	    (DEVICE_TM1639_LED != device_config_map[controller_id]))
+	/**
+	 * The expected payload is controller id for the first byte,
+	 * next byte is the index of the LED state to set,
+	 * next byte is the LED state (0-255) for the specified row/column
+	 */
+	uint8_t result = OUTPUT_OK;
+
+	/* Check if payload length is valid */
+	if (length < (uint8_t)3)
 	{
-		return -1;
+		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 
-	/* Get physical CS directly from lookup table (adjust for 0-based indexing) */
-	uint8_t index = payload[1];
-	uint8_t ledstate = payload[2];
-	uint8_t physical_cs = controller_id - 1;
+	/* Check if controller ID is valid (1-based indexing in the protocol) */
+	uint8_t controller_id = payload[0];
 
-	/* Take SPI mutex */
-	if (pdTRUE != xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
-		return -1;
+	/* Convert controller_id to physical CS (0-based indexing) */
+	uint8_t physical_cs = controller_id - (uint8_t)1;
 
-
-	/* Select the chip */
-	select_interface(physical_cs, true);
-
-	/* Set the LED states for the specified row/column */
-	/* Check if this is a TM1639 digit display device */
-	if (DEVICE_TM1639_LED == device_config_map[physical_cs] ||
-	    DEVICE_GENERIC_LED == device_config_map[physical_cs])
+	if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
+	    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]))
 	{
-		// Send to TM1639 driver all the LED states
+		result = OUTPUT_ERR_INVALID_PARAM;
+	}
+
+	if ((uint8_t)OUTPUT_OK == result)
+	{
+		/* Get physical CS directly from lookup table (adjust for 0-based indexing) */
+		uint8_t index = payload[1];
+		uint8_t ledstate = payload[2];
+
+		/* Take SPI mutex */
+		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+		{
+			/* Set the LED states for the specified row/column */
+			/* Check if this is a TM1639 digit display device */
+			if (((uint8_t)DEVICE_TM1639_LED == device_config_map[physical_cs]) ||
+			    ((uint8_t)DEVICE_GENERIC_LED == device_config_map[physical_cs]))
+			{
+				/* Display the digits using TM1639 library */
+				output_driver_t *handle = output_drivers.driver_handles[physical_cs];
+				if ((handle != NULL) && (handle->set_digits))
+				{
+					handle->set_leds(handle, index, ledstate);
+				}
+			}
+		}
+		else
+		{
+			result = OUTPUT_ERR_SEMAPHORE;
+		}
+
 	}
 
 	/* Release SPI mutex */
-	xSemaphoreGive(spi_mutex);
-	return 0;
+	if(pdTRUE != xSemaphoreGive(spi_mutex))
+	{
+		result = OUTPUT_ERR_SEMAPHORE;
+	}
+
+	return result;
 }
 
 void set_pwm_duty(uint8_t duty)

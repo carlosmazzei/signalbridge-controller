@@ -23,7 +23,7 @@
  * @brief Initialize the TM1639 driver
  */
 output_driver_t* tm1639_init(uint8_t chip_id,
-                             void (*select_interface)(uint8_t chip_id, bool select),
+                             uint8_t (*select_interface)(uint8_t chip_id, bool select),
                              spi_inst_t *spi,
                              uint8_t dio_pin,
                              uint8_t clk_pin)

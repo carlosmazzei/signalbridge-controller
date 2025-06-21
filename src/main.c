@@ -19,7 +19,7 @@
 #include <ctype.h>
 #include <stdint.h>
 
-/* FreeRTOS include files */
+// FreeRTOS include files
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "task.h"
