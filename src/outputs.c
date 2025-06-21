@@ -20,17 +20,40 @@
 #include "tm1639.h"
 #include "outputs.h"
 
-/* Global variables */
+/**
+ * @brief Device configuration map for all SPI interfaces.
+ *
+ * This array holds the device type for each SPI interface, as defined by DEVICE_CONFIG.
+ * Each entry corresponds to a controller ID (0-based).
+ */
 static const uint8_t device_config_map[MAX_SPI_INTERFACES] = DEVICE_CONFIG;
+
+/**
+ * @brief Mutex for synchronizing access to SPI operations.
+ *
+ * This semaphore ensures that only one task accesses the SPI bus at a time.
+ */
 static SemaphoreHandle_t spi_mutex = NULL;
-output_drivers_t output_drivers; // Global variable to hold output drivers
+
+/**
+ * @brief Structure holding all output driver handles.
+ *
+ * This global variable stores pointers to the initialized output drivers for each interface.
+ */
+output_drivers_t output_drivers;
+
+/**
+ * @brief Output statistics counters.
+ *
+ * This global variable holds counters for various output-related errors and states.
+ */
 out_statistics_counters_t out_statistics_counters;
 
 /* Function declarations */
 
 /**
  * @brief Initialize the multiplexer for chip select control
- *
+ * This function initializes the GPIO pins used for the multiplexer
  * @return int Error code, 0 if successful
  */
 static uint8_t init_mux(void)
@@ -68,6 +91,7 @@ static uint8_t init_mux(void)
 
 /**
  * @brief Select the interace chip through multiplexer
+ *  This function selects the specified chip by setting the multiplexer pins
  *
  * @param chip_select Chip select number (0-7)
  * @param select True to select (STB low), false to deselect (STB high)
@@ -219,67 +243,98 @@ uint8_t output_init(void)
 	return result;
 }
 
+/**
+ * @brief Sends a BCD-encoded digit payload to the appropriate output driver.
+ *
+ * The expected payload format is:
+ * - Byte 0: Controller ID (1-based)
+ * - Bytes 1-4: Packed BCD digits (2 digits per byte, lower and upper nibble)
+ * - Byte 5: Dot position
+ *
+ * @param[in] payload Pointer to the payload buffer.
+ * @param[in] length  Length of the payload buffer (should be at least 6).
+ * @return OUTPUT_OK on success, or an error code on failure.
+ */
 uint8_t display_out(const uint8_t *payload, uint8_t length)
 {
-	/**
-	 * The expected payload is controller id for the first byte
-	 * 4 bytes using BCD for each digit in the lower and upper nibble
-	 * Last byte as dot position
-	 */
 	uint8_t result = OUTPUT_OK;
+	uint8_t physical_cs;
 
-	/* Load controller id (first byte of the payload) */
-	uint8_t controller_id = payload[0];
-
-	/* Convert controller_id to physical CS (0-based indexing) */
-	uint8_t physical_cs = controller_id - (uint8_t)1;
-
-	if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
-	    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]))
+	/**
+	 * @par Parameter validation
+	 * Checks for:
+	 * - Null pointer
+	 * - Minimum payload length
+	 * - Valid controller ID (1-based, must be within range)
+	 */
+	if ((NULL == payload) ||
+	    (length < (uint8_t)6) ||
+	    ((uint8_t)0 == payload[0]) ||
+	    (payload[0] > (uint8_t)MAX_SPI_INTERFACES))
 	{
 		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-		result = OUTPUT_ERR_DISPLAY_OUT;
+		result = OUTPUT_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		physical_cs = payload[0] - (uint8_t)1;
+
+		/**
+		 * @par Device type validation
+		 * Checks if the device type is supported for display output.
+		 */
+		if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]))
+		{
+			out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
 	}
 
-	/* Take SPI mutex */
-	if (pdTRUE != xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+	/**
+	 * @par Mutex acquisition
+	 * Tries to take the SPI mutex if parameters are valid.
+	 */
+	if (((uint8_t)OUTPUT_OK == result) &&
+	    (pdTRUE != xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
 	{
 		result = OUTPUT_ERR_SEMAPHORE;
 	}
 
-	/* Process BCD data if we have enough bytes */
-	/* Need 4 bytes for 8 digits (2 digits per byte) and 1 for the dot position */
-	if ((length >= (uint8_t)6) &&
-	    ((uint8_t)OUTPUT_OK == result))
+	/**
+	 * @par BCD processing and driver call
+	 * Processes BCD data and sends it to the driver if all checks passed.
+	 */
+	if (((uint8_t)OUTPUT_OK == result) && (length >= (uint8_t)6))
 	{
-		/* Convert packed BCD payload to digits array for display */
 		uint8_t digits[8];
-		digits[0] = (payload[1] >> (uint8_t)4) & (uint8_t)0x0F;
-		digits[1] = payload[1] & (uint8_t)0x0F;
-		digits[2] = (payload[2] >> (uint8_t)4) & (uint8_t)0x0F;
-		digits[3] = payload[2] & (uint8_t)0x0F;
-		digits[4] = (payload[3] >> (uint8_t)4) & (uint8_t)0x0F;
-		digits[5] = payload[3] & (uint8_t)0x0F;
-		digits[6] = (payload[4] >> (uint8_t)4) & (uint8_t)0x0F;
-		digits[7] = payload[4] & (uint8_t)0x0F;
+		digits[0] = (payload[1] >> 4U) & 0x0FU;
+		digits[1] = payload[1] & 0x0FU;
+		digits[2] = (payload[2] >> 4U) & 0x0FU;
+		digits[3] = payload[2] & 0x0FU;
+		digits[4] = (payload[3] >> 4U) & 0x0FU;
+		digits[5] = payload[3] & 0x0FU;
+		digits[6] = (payload[4] >> 4U) & 0x0FU;
+		digits[7] = payload[4] & 0x0FU;
 
-		/* Send digits to the corresponding driver */
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
 		{
 			handle->set_digits(handle, digits, sizeof(digits), payload[5]);
 		}
-	}
-	else
-	{
-		/* Disable chip select and release mutex before returning error */
-		if ((uint8_t)OUTPUT_OK != select_interface(physical_cs, false))
+		else
 		{
+			/* If the driver handle is invalid, try to deselect the chip and set error */
+			(void)select_interface(physical_cs, false);
 			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+			result = OUTPUT_ERR_DISPLAY_OUT;
 		}
 	}
 
-	/* Release SPI mutex */
+	/**
+	 * @par Mutex release
+	 * Releases the SPI mutex (if it was taken).
+	 */
 	if (pdFALSE == xSemaphoreGive(spi_mutex))
 	{
 		result = OUTPUT_ERR_SEMAPHORE;
@@ -288,65 +343,81 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 	return result;
 }
 
+
 uint8_t led_out(const uint8_t *payload, uint8_t length)
 {
-	/**
-	 * The expected payload is controller id for the first byte,
-	 * next byte is the index of the LED state to set,
-	 * next byte is the LED state (0-255) for the specified row/column
-	 */
 	uint8_t result = OUTPUT_OK;
+	uint8_t physical_cs = 0U;
 
-	/* Check if payload length is valid */
-	if (length < (uint8_t)3)
+	/**
+	 * @par Parameter validation
+	 * Checks for:
+	 * - Null pointer
+	 * - Minimum payload length
+	 * - Valid controller ID (1-based, must be within range)
+	 */
+	if ((NULL == payload) ||
+	    ((uint8_t)3 > length) ||
+	    (0U == payload[0]) ||
+	    ((uint8_t)MAX_SPI_INTERFACES < payload[0]))
 	{
 		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
 		result = OUTPUT_ERR_INVALID_PARAM;
 	}
-
-	/* Check if controller ID is valid (1-based indexing in the protocol) */
-	uint8_t controller_id = payload[0];
-
-	/* Convert controller_id to physical CS (0-based indexing) */
-	uint8_t physical_cs = controller_id - (uint8_t)1;
-
-	if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
-	    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]))
+	else
 	{
-		result = OUTPUT_ERR_INVALID_PARAM;
+		physical_cs = payload[0] - 1U;
+
+		/**
+		 * @par Device type validation
+		 * Checks if the device type is supported for LED output.
+		 */
+		if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]))
+		{
+			out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
 	}
 
-	if ((uint8_t)OUTPUT_OK == result)
+	/**
+	 * @par Mutex acquisition
+	 * Tries to take the SPI mutex if parameters are valid.
+	 */
+	if (OUTPUT_OK == result)
 	{
-		/* Get physical CS directly from lookup table (adjust for 0-based indexing) */
-		uint8_t index = payload[1];
-		uint8_t ledstate = payload[2];
-
-		/* Take SPI mutex */
 		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
 		{
-			/* Set the LED states for the specified row/column */
-			/* Check if this is a TM1639 digit display device */
-			if (((uint8_t)DEVICE_TM1639_LED == device_config_map[physical_cs]) ||
-			    ((uint8_t)DEVICE_GENERIC_LED == device_config_map[physical_cs]))
+			/**
+			 * @par LED processing and driver call
+			 * Processes LED data and sends it to the driver if all checks passed.
+			 */
+			uint8_t index = payload[1];
+			uint8_t ledstate = payload[2];
+
+			output_driver_t *handle = output_drivers.driver_handles[physical_cs];
+			if ((NULL != handle) && (NULL != handle->set_leds))
 			{
-				/* Display the digits using TM1639 library */
-				output_driver_t *handle = output_drivers.driver_handles[physical_cs];
-				if ((handle != NULL) && (handle->set_digits))
-				{
-					handle->set_leds(handle, index, ledstate);
-				}
+				handle->set_leds(handle, index, ledstate);
+			}
+			else
+			{
+				(void)select_interface(physical_cs, false);
+				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				result = OUTPUT_ERR_DISPLAY_OUT;
 			}
 		}
 		else
 		{
 			result = OUTPUT_ERR_SEMAPHORE;
 		}
-
 	}
 
-	/* Release SPI mutex */
-	if(pdTRUE != xSemaphoreGive(spi_mutex))
+	/**
+	 * @par Mutex release
+	 * Releases the SPI mutex (if it was taken).
+	 */
+	if (pdTRUE != xSemaphoreGive(spi_mutex))
 	{
 		result = OUTPUT_ERR_SEMAPHORE;
 	}

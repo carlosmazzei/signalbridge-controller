@@ -16,15 +16,33 @@
  */
 #define PWM_PIN 28
 
-/** @def MUX_A_PIN, MUX_B_PIN, MUX_C_PIN, MUX_ENABLE
- * @brief Multiplexer control pins.
- * These pins are used to select the SPI interface for communication with the devices.
- * MUX_A_PIN, MUX_B_PIN, and MUX_C_PIN are used to select the chip,
+/** @defgroup mux_pins Multiplexer Pins
+ *  @brief Macros for multiplexer control pins.
+ *  @{
+ */
+
+/** @def MUX_A_PIN
+ * @brief Multiplexer control pin A.
  */
 #define MUX_A_PIN 11
+
+/** @def MUX_B_PIN
+ * @brief Multiplexer control pin B.
+ */
 #define MUX_B_PIN 12
+
+/** @def MUX_C_PIN
+ * @brief Multiplexer control pin C.
+ */
 #define MUX_C_PIN 14
+
+/** @def MUX_ENABLE
+ * @brief Multiplexer enable pin.
+ * This pin is used to enable the multiplexer for chip selection.
+ */
 #define MUX_ENABLE 32
+
+/** @} */ // end of mux_pins
 
 /** @def MAX_SPI_INTERFACES
  * @brief Maximum number of SPI interfaces supported.
@@ -163,7 +181,7 @@ struct output_driver_t {
 	/* Function pointer for chip selection (true = select/stb low, false = deselect/stb high) */
 	uint8_t (*select_interface)(uint8_t chip_id, bool select);
 	void (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
-	void (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t len);
+	void (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
 
 	/* SPI instance */
 	spi_inst_t *spi;
@@ -191,12 +209,17 @@ extern output_drivers_t output_drivers;
  * Function Prototypes
  */
 
-/** @brief Output the state of the LEDs to the SPI bus.
+/**
+ * @brief Sends LED state information to the appropriate output driver.
  *
- * @param payload The data to send.
- * @param length The length of the data to send.
+ * The expected payload format is:
+ * - Byte 0: Controller ID (1-based)
+ * - Byte 1: LED index
+ * - Byte 2: LED state (0-255)
  *
- * @return Error code.
+ * @param[in] payload Pointer to the payload buffer.
+ * @param[in] length  Length of the payload buffer (should be at least 3).
+ * @return OUTPUT_OK on success, or an error code on failure.
  */
 uint8_t led_out(const uint8_t *payload, uint8_t length);
 
@@ -210,12 +233,17 @@ uint8_t led_out(const uint8_t *payload, uint8_t length);
  */
 uint8_t output_init(void);
 
-/** @brief Send data to display controllers
+/**
+ * @brief Sends a BCD-encoded digit payload to the appropriate output driver.
  *
- * @param payload The data to send.
- * @param length The length of the data to send.
+ * The expected payload format is:
+ * - Byte 0: Controller ID (1-based)
+ * - Bytes 1-4: Packed BCD digits (2 digits per byte, lower and upper nibble)
+ * - Byte 5: Dot position
  *
- * @return Bytes written
+ * @param[in] payload Pointer to the payload buffer.
+ * @param[in] length  Length of the payload buffer (should be at least 6).
+ * @return OUTPUT_OK on success, or an error code on failure.
  */
 uint8_t display_out(const uint8_t *payload, uint8_t length);
 
