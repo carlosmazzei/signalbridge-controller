@@ -93,8 +93,8 @@ static uint8_t init_mux(void)
  * @brief Select the interace chip through multiplexer
  *  This function selects the specified chip by setting the multiplexer pins
  *
- * @param chip_select Chip select number (0-7)
- * @param select True to select (STB low), false to deselect (STB high)
+ * @param[in] chip_select Chip select number (0-7)
+ * @param[in] select True to select (STB low), false to deselect (STB high)
  * @return uint8_t Result code, OUTPUT_OK if successful, otherwise an error code
  */
 static uint8_t select_interface(uint8_t chip_select, bool select)
@@ -308,14 +308,14 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 	if (((uint8_t)OUTPUT_OK == result) && (length >= (uint8_t)6))
 	{
 		uint8_t digits[8];
-		digits[0] = (payload[1] >> 4U) & 0x0FU;
-		digits[1] = payload[1] & 0x0FU;
-		digits[2] = (payload[2] >> 4U) & 0x0FU;
-		digits[3] = payload[2] & 0x0FU;
-		digits[4] = (payload[3] >> 4U) & 0x0FU;
-		digits[5] = payload[3] & 0x0FU;
-		digits[6] = (payload[4] >> 4U) & 0x0FU;
-		digits[7] = payload[4] & 0x0FU;
+		digits[0] = (payload[1] >> (uint8_t)4) & (uint8_t)0x0F;
+		digits[1] = payload[1] & (uint8_t)0x0F;
+		digits[2] = (payload[2] >> (uint8_t)4) & (uint8_t)0x0F;
+		digits[3] = payload[2] & (uint8_t)0x0F;
+		digits[4] = (payload[3] >> (uint8_t)4) & (uint8_t)0x0F;
+		digits[5] = payload[3] & (uint8_t)0x0F;
+		digits[6] = (payload[4] >> (uint8_t)4) & (uint8_t)0x0F;
+		digits[7] = payload[4] & (uint8_t)0x0F;
 
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
@@ -347,7 +347,7 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 uint8_t led_out(const uint8_t *payload, uint8_t length)
 {
 	uint8_t result = OUTPUT_OK;
-	uint8_t physical_cs = 0U;
+	uint8_t physical_cs;
 
 	/**
 	 * @par Parameter validation
@@ -366,7 +366,7 @@ uint8_t led_out(const uint8_t *payload, uint8_t length)
 	}
 	else
 	{
-		physical_cs = payload[0] - 1U;
+		physical_cs = payload[0] - (uint8_t)1;
 
 		/**
 		 * @par Device type validation

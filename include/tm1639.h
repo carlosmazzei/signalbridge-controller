@@ -26,15 +26,26 @@
 #define TM1639_CMD_DISPLAY_ON      0x88  // Display on
 #define TM1639_CMD_ADDR_BASE       0xC0  // Base address command
 
+#define TM1639_MAX_DISPLAY_REGISTERS    (16U)
+#define TM1639_DIGIT_COUNT              (8U)    /* Number of digits supported */
+#define TM1639_DISPLAY_BUFFER_SIZE      (16U)   /* Total display buffer size */
+#define TM1639_DECIMAL_POINT_MASK       (0x80U) /* Mask for decimal point bit */
+#define TM1639_NO_DECIMAL_POINT         (0xFFU) /* Value indicating no decimal point */
+#define TM1639_BCD_MASK                 (0x0FU) /* Mask for BCD digit */
+#define TM1639_BCD_MAX_VALUE            (9U)     /* Maximum valid BCD digit */
+#define TM1639_ERR_INVALID_BCD          (5U)    /* Error code for invalid BCD */
+
 // Error codes
-#define TM1639_OK                  0     // Operation successful
-#define TM1639_ERR_SPI_INIT        1     // SPI initialization error
-#define TM1639_ERR_GPIO_INIT       2     // GPIO initialization error
-#define TM1639_ERR_SPI_WRITE       3     // SPI write error
-#define TM1639_ERR_INVALID_PARAM   4     // Invalid parameter
-#define TM1639_ERR_ADDRESS_RANGE   5     // Address out of range
-#define TM1639_ERR_MUTEX           6     // Mutex error
-#define TM1639_ERR_MUTEX_TIMEOUT   7     // Mutex acquisition timeout
+typedef enum tm1639_result_t {
+	TM1639_OK = 0,
+	TM1639_ERR_SPI_INIT = 1,
+	TM1639_ERR_GPIO_INIT = 2,
+	TM1639_ERR_SPI_WRITE = 3,
+	TM1639_ERR_INVALID_PARAM = 4,
+	TM1639_ERR_ADDRESS_RANGE = 5,
+	TM1639_ERR_MUTEX_TIMEOUT = 6,
+	TM1639_ERR_INVALID_CHAR = 7
+} tm1639_result_t;
 
 // Structure for pressed key information
 typedef struct tm1639_key_t {
@@ -42,21 +53,18 @@ typedef struct tm1639_key_t {
 	uint8_t k; // Key input line (0-1)
 } tm1639_key_t;
 
-// External definition of digit patterns
-//extern const uint8_t tm1639_digit_patterns[16];
-
 /**
- * @brief Initialize the TM1639 driver
+ * @brief Initialize the TM1639 driver.
  *
- * This function allocates and initializes a new TM1639 configuration structure.
- * Each device can have its own configuration including buffers.
+ * Allocates and initializes a TM1639 output driver structure.
+ * Checks all parameters and hardware resources before returning a valid pointer.
  *
- * @param chip_id Identifier for the specific TM1639 chip
- * @param select_interface Function to handle chip selection
- * @param spi SPI instance to use
- * @param dio_pin Data I/O pin
- * @param clk_pin Clock pin
- * @return Pointer to the initialized TM1639 configuration structure, or NULL if allocation failed
+ * @param[in] chip_id           Controller ID (0-based).
+ * @param[in] select_interface  Function pointer for chip selection.
+ * @param[in] spi               SPI instance pointer.
+ * @param[in] dio_pin           DIO GPIO pin number.
+ * @param[in] clk_pin           CLK GPIO pin number.
+ * @return Pointer to initialized output_driver_t structure, or NULL on error.
  */
 output_driver_t* tm1639_init(uint8_t chip_id,
                              uint8_t (*select_interface)(uint8_t chip_id, bool select),
@@ -65,87 +73,107 @@ output_driver_t* tm1639_init(uint8_t chip_id,
                              uint8_t clk_pin);
 
 /**
- * @brief Send a command to the TM1639
+ * @brief Send a command to the TM1639.
  *
- * @param config Pointer to TM1639 configuration structure
- * @param cmd Command byte to send
- * @return int Error code, 0 if successful
+ * This function sends a single command byte to the TM1639 device using the configured SPI hardware.
+ *
+ * @param[in] config Pointer to the TM1639 output driver configuration structure.
+ * @param[in] cmd    Command byte to be sent to the TM1639.
+ *
+ * @return TM1639_OK on success, or TM1639_ERR_INVALID_PARAM if parameters are invalid.
  */
-int8_t tm1639_send_command(output_driver_t *config, uint8_t cmd);
+tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd);
 
 /**
  * @brief Set the display memory address (0x00-0x0F)
  *
- * @param config Pointer to TM1639 configuration structure
- * @param addr Address to set (0-15)
- * @return int Error code, 0 if successful
+ * @param[in] config Pointer to TM1639 configuration structure
+ * @param[in] addr Address to set (0-15)
+ * @return tm1639_resul_t Result code, 0 if successful
  */
-int8_t tm1639_set_address(output_driver_t *config, uint8_t addr);
-
-/**
- * @brief Set the data command mode
- *
- * @param config Pointer to TM1639 configuration structure
- * @param cmd Data command byte
- * @return int Error code, 0 if successful
- */
-int8_t tm1639_set_data_command(output_driver_t *config, uint8_t cmd);
+tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr);
 
 /**
  * @brief Write data to a specific address
  *
- * @param config Pointer to TM1639 configuration structure
- * @param addr Address to write to (0-15)
- * @param data Data byte to write
- * @return int Error code, 0 if successful
+ * This function writes a single byte of data to a specific address in the TM1639 display memory.
+ * It validates all parameters according to MISRA and SonarQube recommendations.
+ *
+ * @param[in, out]  config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]       addr   Address to write to (valid range: 0x00 to 0x0F).
+ * @param[in]       data   Data byte to write.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         TM1639_ERR_ADDRESS_RANGE if addr is out of range,
+ *         or error code from tm1639_write_byte.
  */
-int8_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data);
+tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data);
 
 /**
- * @brief Write multiple bytes starting at the given address
+ * @brief Write multiple bytes starting at the given address.
  *
- * @param config Pointer to TM1639 configuration structure
- * @param addr Starting address (0-15)
- * @param data_bytes Pointer to data bytes to write
- * @param length Number of bytes to write
- * @return int Error code, 0 if successful
+ * This function writes multiple bytes to the TM1639 display memory, starting at the specified address.
+ * All parameters are validated according to MISRA and SonarQube recommendations.
+ * The function uses only one return statement.
+ *
+ * @param[in,out] config      Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]     addr        Start address to write to (valid range: 0x00 to 0x0F).
+ * @param[in]     data_bytes  Pointer to the array of bytes to write. Must not be NULL.
+ * @param[in]     length      Number of bytes to write. Must be > 0 and (addr + length) <= 16.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if any parameter is invalid,
+ *         TM1639_ERR_ADDRESS_RANGE if address range is invalid,
+ *         or error code from tm1639_write_byte.
  */
-int8_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length);
+tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length);
 
 /**
- * @brief Read the key scan data
+ * @brief Read key states.
  *
- * @param config Pointer to TM1639 configuration structure
- * @param key_data Pointer to 2-byte array to store key data
- * @return int Error code, 0 if successful
+ * This function reads the key scan data from the TM1639 device and fills the provided
+ * keys array with the detected key states. All parameters are validated according to
+ * MISRA and SonarQube recommendations. Only one return point is used.
+ *
+ * @param[in]  config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[out] keys   Pointer to the array where detected key states will be stored. Must not be NULL.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if any parameter is invalid,
+ *         or error code from tm1639_read_keys.
  */
-int8_t tm1639_read_keys(output_driver_t *config, uint8_t *key_data);
+tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys);
 
 /**
- * @brief Read key states and return number of pressed keys
+ * @brief Set the display brightness level (0-7).
  *
- * @param config Pointer to TM1639 configuration structure
- * @param keys Array to store pressed key information (at least 8 elements)
- * @return int Number of pressed keys detected, or negative error code
+ * This function sets the brightness level of the TM1639 display. The brightness value
+ * is clamped to the range 0 to 7. The function updates the driver configuration and
+ * sends the appropriate command to the TM1639 device.
+ *
+ * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         or error code from tm1639_send_command.
  */
-int8_t tm1639_get_key_states(output_driver_t *config, tm1639_key_t *keys);
+tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
 
 /**
- * @brief Set the display brightness level (0-7)
+ * @brief Turn the display on.
  *
- * @param config Pointer to TM1639 configuration structure
- * @param level Brightness level (0-7)
- * @return int Error code, 0 if successful
- */
-int8_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
-
-/**
- * @brief Turn the display on
+ * This function turns the TM1639 display on by setting the display_on flag in the driver
+ * configuration and sending the display ON command with the current brightness level.
  *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
+ * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         or error code from tm1639_send_command.
  */
-int8_t tm1639_display_on(output_driver_t *config);
+tm1639_result_t tm1639_display_on(output_driver_t *config);
 
 /**
  * @brief Turn the display off
@@ -153,7 +181,7 @@ int8_t tm1639_display_on(output_driver_t *config);
  * @param config Pointer to TM1639 configuration structure
  * @return int Error code, 0 if successful
  */
-int8_t tm1639_display_off(output_driver_t *config);
+tm1639_result_t tm1639_display_off(output_driver_t *config);
 
 /**
  * @brief Clear the display (set all segments off)
@@ -161,18 +189,7 @@ int8_t tm1639_display_off(output_driver_t *config);
  * @param config Pointer to TM1639 configuration structure
  * @return int Error code, 0 if successful
  */
-int8_t tm1639_clear(output_driver_t *config);
-
-/**
- * @brief Update the display with the current preparation buffer contents
- *
- * This function updates the display with the contents of the prep buffer
- * and swaps the active and prep buffers. Only updates if buffer_modified is true.
- *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
- */
-int8_t tm1639_update(output_driver_t *config);
+tm1639_result_t tm1639_clear(output_driver_t *config);
 
 /**
  * @brief Set segments for display (for 7-segment displays)
@@ -183,7 +200,7 @@ int8_t tm1639_update(output_driver_t *config);
  * @param dot_position Decimal point state (true/false)
  * @return int Error code, 0 if successful
  */
-uint8_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
+tm1639_result_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
 
 /**
  * @brief Set an entire row in matrix mode
@@ -196,40 +213,28 @@ uint8_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits, const 
 int8_t tm1639_set_matrix_row(output_driver_t *config, uint8_t row, uint8_t data);
 
 /**
- * @brief Display a hexadecimal digit (0-F) at the specified position
- *
- * @param config Pointer to TM1639 configuration structure
- * @param position Digit position (0-7)
- * @param digit Digit to display (0-15)
- * @param dp Decimal point state (true/false)
- * @return int Error code, 0 if successful
- */
-int8_t tm1639_set_digit(output_driver_t *config, uint8_t position, uint8_t digit, bool dp);
-
-/**
  * @brief Deinitialize the TM1639 driver and release resources
  *
  * @param config Pointer to TM1639 configuration structure
  * @return int Error code, 0 if successful
  */
-int8_t tm1639_deinit(output_driver_t *config);
+tm1639_result_t tm1639_deinit(output_driver_t *config);
 
 /**
- * @brief Updates a specific position in the preparation buffer without immediately displaying
+ * @brief Update a specific byte in the preparation buffer.
  *
- * @param config Pointer to TM1639 configuration structure
- * @param addr Address to modify (0-15)
- * @param data New data
- * @return int Error code, 0 if successful
- */
-int8_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
-
-/**
- * @brief Immediately display the preparation buffer without waiting for update
+ * This function updates the value at a specific address in the TM1639 preparation buffer.
+ * The preparation buffer is used to stage data before it is sent to the display.
+ * All input parameters are validated according to MISRA and SonarQube recommendations.
  *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
+ * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]     addr   Address to update (valid range: 0x00 to 0x0F).
+ * @param[in]     data   Byte value to write to the preparation buffer.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         TM1639_ERR_ADDRESS_RANGE if addr is out of range.
  */
-int8_t tm1639_flush(output_driver_t *config);
+tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
 
  #endif /* TM1639_H */

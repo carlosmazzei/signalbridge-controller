@@ -122,7 +122,7 @@
  * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
-typedef enum statistics_counter_enum_t {
+typedef enum {
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
