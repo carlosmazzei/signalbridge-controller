@@ -13,6 +13,7 @@
 #include "data_event.h"
 #include "task_props.h"
 #include "hardware/watchdog.h"
+#include "commands.h"
 
 /**
  * Input configuration.

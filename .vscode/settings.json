@@ -87,7 +87,7 @@
     "c-cpp-flylint.run": "onSave",
     "c-cpp-flylint.debug": true,
     "c-cpp-flylint.cppcheck.extraArgs": [
-        "-ilib",
+        "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions.txt",
         "--force",
         "--max-configs=80",
         "--addon=${workspaceFolder}/misra.json",

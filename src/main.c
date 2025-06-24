@@ -35,7 +35,7 @@
 
 /* Project modules */
 #include "cobs.h"
-#include "stdA320.h"
+#include "commands.h"
 #include "outputs.h"
 #include "inputs.h"
 #include "data_event.h"
@@ -93,7 +93,7 @@
 /**
  * @brief Panel ID for this device.
  */
-#define PANEL_ID 0x01
+#define BOARD_ID 0x01U
 
 /**
  * @brief Task priorities.
@@ -324,6 +324,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 	cdc_rts = rts;
 }
 
+/* cppcheck-suppress[misra-c2012-8.4] ; Required by FreeRTOS DEVIATION(D3) */
 uint32_t ulPortGetRunTime( void )
 {
 	return time_us_32();
@@ -341,7 +342,8 @@ static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
 
 static void uart_event_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
+	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 
 	for (;;)
@@ -372,7 +374,8 @@ static void uart_event_task(void *pvParameters)
 
 static void cdc_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
+	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
 		/* TinyUSB device tasks */
@@ -396,54 +399,67 @@ static void cdc_task(void *pvParameters)
 static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
 {
 	uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
+	bool error = false;
+
+	/* Check for NULL pointer */
+	if (NULL == send_data)
+	{
+		statistics_counters.counters[QUEUE_SEND_ERROR]++;
+		error = true;
+	}
 
 	/* Check for buffer overflow risk */
-	if (length > (DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE))
+	if ((false == error) && (length > (DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE)))
 	{
 		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
-		return;
+		error = true;
 	}
 
-	/* Compose header */
-	uint16_t panel_id = id;
-	panel_id <<= 5;
-	uart_outbound_buffer[0] = (panel_id >> 8);
-	uart_outbound_buffer[1] = (panel_id & 0xE0U) | (command & 0x1FU);
-	uart_outbound_buffer[2] = length;
-
-	(void)memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length); // flawfinder: ignore
-
-	/* Calculate and store checksum */
-	uint8_t checksum = calculate_checksum(uart_outbound_buffer, (uint8_t)(length + HEADER_SIZE));
-	uart_outbound_buffer[HEADER_SIZE + length] = checksum;
-
-	uint8_t encode_buffer[MAX_ENCODED_BUFFER_SIZE];
-	size_t num_encoded = cobs_encode(uart_outbound_buffer, length + HEADER_SIZE + CHECKSUM_SIZE, encode_buffer);
-
-	/* Check for buffer overflow after encoding */
-	if ((num_encoded + 1U) >= MAX_ENCODED_BUFFER_SIZE)
+	if (false == error)
 	{
-		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
-		return;
-	}
+		/* Compose header */
+		uint16_t panel_id = id;
+		panel_id <<= 5;
+		uart_outbound_buffer[0] = (panel_id >> 8);
+		uart_outbound_buffer[1] = (panel_id & 0xE0U) | (command & 0x1FU);
+		uart_outbound_buffer[2] = length;
 
-	/* Append marker */
-	encode_buffer[num_encoded] = PACKET_MARKER;
+		(void)memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length); // flawfinder: ignore
 
-	cdc_packet_t packet;
-	packet.length = (uint8_t)num_encoded + 1U;
-	(void)memcpy(packet.data, encode_buffer, packet.length);
+		/* Calculate and store checksum */
+		uint8_t checksum = calculate_checksum(uart_outbound_buffer, (uint8_t)(length + HEADER_SIZE));
+		uart_outbound_buffer[HEADER_SIZE + length] = checksum;
 
-	/* Enqueue data to be sent via USB CDC */
-	if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(1)) != pdTRUE)
-	{
-		statistics_counters.counters[CDC_QUEUE_SEND_ERROR]++;
+		uint8_t encode_buffer[MAX_ENCODED_BUFFER_SIZE];
+		size_t num_encoded = cobs_encode(uart_outbound_buffer, length + HEADER_SIZE + CHECKSUM_SIZE, encode_buffer);
+
+		/* Check for buffer overflow after encoding */
+		if ((num_encoded + 1U) >= MAX_ENCODED_BUFFER_SIZE)
+		{
+			statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
+		}
+		else
+		{
+			/* Append marker */
+			encode_buffer[num_encoded] = PACKET_MARKER;
+
+			cdc_packet_t packet;
+			packet.length = (uint8_t)num_encoded + 1U;
+			(void)memcpy(packet.data, encode_buffer, packet.length); // flawfinder: ignore
+
+			/* Enqueue data to be sent via USB CDC */
+			if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(1)) != pdTRUE)
+			{
+				statistics_counters.counters[CDC_QUEUE_SEND_ERROR]++;
+			}
+		}
 	}
 }
 
 static void cdc_write_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
+	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	task_props_t *task_prop = (task_props_t *)pvParameters;
 	cdc_packet_t packet;
 	for (;;)
 	{
@@ -495,7 +511,7 @@ static inline void send_status(uint8_t index)
 		data[4] = statistics_counters.counters[index] & 0xFFU;
 	}
 
-	send_data(PANEL_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
+	send_data(BOARD_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
 }
 
 static void send_heap_status(uint8_t index)
@@ -506,7 +522,7 @@ static void send_heap_status(uint8_t index)
 	if (index > (uint8_t)NUM_TASKS)
 	{
 		data[0] = 0xFF;
-		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, 1);
+		send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, 1);
 		return;
 	}
 
@@ -538,7 +554,7 @@ static void send_heap_status(uint8_t index)
 		data[11] = (value >> 8U) & 0xFFU;
 		data[12] = value & 0xFFU;
 
-		send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+		send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 		return;
 	}
 
@@ -566,7 +582,7 @@ static void send_heap_status(uint8_t index)
 	data[11] = (value >> 8U) & 0xFFU;
 	data[12] = value & 0xFFU;
 
-	send_data(PANEL_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+	send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 }
 
 static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
@@ -580,8 +596,8 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 	/* Decode ID, command, and length */
 	uint16_t rxID = (uint16_t)(rx_buffer[0] << 3);
-	rxID |= ((rx_buffer[1] & 0xE0) >> 5);
-	uint8_t cmd = (uint8_t)(rx_buffer[1] & 0x1F);
+	rxID |= ((rx_buffer[1] & 0xE0U) >> 5);
+	uint8_t cmd = (uint8_t)(rx_buffer[1] & 0x1FU);
 	uint8_t len = rx_buffer[2];
 
 	if (length != (len + HEADER_SIZE + CHECKSUM_SIZE))
@@ -597,7 +613,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 	}
 
 	/* Check if the id matches the exepcted panel */
-	if (rxID != PANEL_ID)
+	if (rxID != BOARD_ID)
 	{
 		statistics_counters.counters[UNKNOWN_CMD_ERROR]++;
 		return;
@@ -605,7 +621,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 	/* Copy payload data */
 	uint8_t decoded_data[DATA_BUFFER_SIZE] = {0};
-	memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len); // flawfinder: ignore
+	(void)memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len);
 
 	/* Verify checksum */
 	uint8_t calculated_checksum = calculate_checksum(rx_buffer, (uint8_t)(len + HEADER_SIZE));
@@ -661,7 +677,8 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 static void decode_reception_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
+	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t receive_buffer_index = 0;
 
@@ -679,7 +696,7 @@ static void decode_reception_task(void *pvParameters)
 
 		if (PACKET_MARKER == data)
 		{
-			if (0 == receive_buffer_index)
+			if (0U == receive_buffer_index)
 			{
 				/* Packet marker received but no data in buffer */
 				statistics_counters.counters[COBS_DECODE_ERROR]++;
@@ -692,7 +709,7 @@ static void decode_reception_task(void *pvParameters)
 
 			receive_buffer_index = 0;
 
-			if (num_decoded > 0)
+			if (num_decoded > 0U)
 			{
 				process_inbound_data(decode_buffer, num_decoded);
 			}
@@ -701,7 +718,7 @@ static void decode_reception_task(void *pvParameters)
 				statistics_counters.counters[COBS_DECODE_ERROR]++;
 			}
 		}
-		else if (receive_buffer_index < MAX_ENCODED_BUFFER_SIZE - 1)
+		else if (receive_buffer_index < MAX_ENCODED_BUFFER_SIZE - 1U)
 		{
 			receive_buffer[receive_buffer_index++] = data;
 		}
@@ -715,13 +732,19 @@ static void decode_reception_task(void *pvParameters)
 
 static void process_outbound_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters; // cppcheck-suppress cstyleCast
+	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
 		data_events_t data_event;
-		if (xQueueReceive(data_event_queue, (void *)&data_event, portMAX_DELAY))
+		BaseType_t result = xQueueReceive(data_event_queue, (void *)&data_event, portMAX_DELAY);
+		if (pdPASS == result)
 		{
-			send_data(PANEL_ID, data_event.command, data_event.data, data_event.data_length);
+			send_data(BOARD_ID, data_event.command, data_event.data, data_event.data_length);
+		}
+		else if (errQUEUE_EMPTY == result)
+		{
+			/* code */
 		}
 		else
 		{

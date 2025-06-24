@@ -5,7 +5,7 @@ set(HEADER_FILES
     hooks.h
     inputs.h
     outputs.h
-    stdA320.h
+    commands.h
     task_props.h
     tm1639.h
     tusb_config.h

@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#ifndef TUSB_CONFIG_H
+#define TUSB_CONFIG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,7 +50,7 @@ extern "C" {
 
 // defined by board.mk
 #ifndef CFG_TUSB_MCU
-#error CFG_TUSB_MCU must be defined
+#define CFG_TUSB_MCU          OPT_MCU_RP2040
 #endif
 
 #ifndef CFG_TUSB_OS

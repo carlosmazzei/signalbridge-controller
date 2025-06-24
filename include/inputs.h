@@ -1,5 +1,5 @@
-#ifndef _KEYPAD_H_
-#define _KEYPAD_H_
+#ifndef KEYPAD_H
+#define KEYPAD_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -10,7 +10,6 @@
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
-#include "stdA320.h"
 
 /**
  * Keypad definitions
