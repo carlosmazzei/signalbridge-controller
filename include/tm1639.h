@@ -35,7 +35,11 @@
 #define TM1639_BCD_MAX_VALUE            (9U)     /* Maximum valid BCD digit */
 #define TM1639_ERR_INVALID_BCD          (5U)    /* Error code for invalid BCD */
 
-// Error codes
+/**
+ * @brief TM1639 Result Codes
+ * This enum defines the possible result codes returned by TM1639 functions.
+ * Each code indicates the success or type of error encountered during operations.
+ */
 typedef enum tm1639_result_t {
 	TM1639_OK = 0,
 	TM1639_ERR_SPI_INIT = 1,
@@ -47,7 +51,13 @@ typedef enum tm1639_result_t {
 	TM1639_ERR_INVALID_CHAR = 7
 } tm1639_result_t;
 
-// Structure for pressed key information
+/**
+ * @brief TM1639 Key Structure
+ * This structure represents a key state in the TM1639 key scanning system.
+ * It contains the key scan line and the key input line.
+ * The key scan line indicates which of the 4 scan lines is being read,
+ * and the key input line indicates which of the 2 key inputs is being read.
+ */
 typedef struct tm1639_key_t {
 	uint8_t ks; // Key scan line (1-4)
 	uint8_t k; // Key input line (0-1)
@@ -186,8 +196,14 @@ tm1639_result_t tm1639_display_off(output_driver_t *config);
 /**
  * @brief Clear the display (set all segments off)
  *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
+ * This function clears the TM1639 display by setting all segment memory to zero.
+ * It also clears the driver's active and preparation buffers and resets the modified flag.
+ *
+ * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         or error code from tm1639_write_byte.
  */
 tm1639_result_t tm1639_clear(output_driver_t *config);
 

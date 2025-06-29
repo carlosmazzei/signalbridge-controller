@@ -54,11 +54,11 @@ out_statistics_counters_t out_statistics_counters;
 /**
  * @brief Initialize the multiplexer for chip select control
  * This function initializes the GPIO pins used for the multiplexer
- * @return int Error code, 0 if successful
+ * @return output_result_t Error code, 0 if successful
  */
-static uint8_t init_mux(void)
+static output_result_t init_mux(void)
 {
-	uint8_t result = TM1639_OK;
+	tm1639_result_t result = TM1639_OK;
 
 	// Initialize multiplexer pins
 	gpio_init(MUX_ENABLE);
@@ -86,7 +86,18 @@ static uint8_t init_mux(void)
 	gpio_put(MUX_B_PIN, 1);
 	gpio_put(MUX_C_PIN, 1);
 
-	return result;
+	output_result_t output_result  = OUTPUT_OK;
+	if (result != TM1639_OK)
+	{
+		out_statistics_counters.counters[OUT_INIT_ERROR]++;
+		output_result = OUTPUT_ERR_INIT;
+	}
+	else
+	{
+		output_result = OUTPUT_OK;
+	}
+
+	return output_result;
 }
 
 /**
@@ -95,16 +106,17 @@ static uint8_t init_mux(void)
  *
  * @param[in] chip_select Chip select number (0-7)
  * @param[in] select True to select (STB low), false to deselect (STB high)
- * @return uint8_t Result code, OUTPUT_OK if successful, otherwise an error code
+ * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
  */
-static uint8_t select_interface(uint8_t chip_select, bool select)
+static output_result_t select_interface(uint8_t chip_select, bool select)
 {
-	uint8_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 
 	// Check if chip_select is within valid range
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
 		result = OUTPUT_ERR_INVALID_PARAM;
+		out_statistics_counters.counters[OUT_INVALID_PARAM_ERROR]++;
 	}
 
 	if (select)
@@ -135,10 +147,13 @@ static uint8_t select_interface(uint8_t chip_select, bool select)
  * For TM1639 devices, it initializes the TM1639 driver with the appropriate parameters.
  * For generic devices, it can be extended to initialize a generic driver if needed.
  * If a device type is not supported, it skips initialization for that interface.
+ * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
+ * @note This function assumes that the device_config_map is correctly defined and matches the expected device types.
+ *
  */
-static uint8_t init_driver(void)
+static output_result_t init_driver(void)
 {
-	uint8_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
@@ -177,9 +192,9 @@ static uint8_t init_driver(void)
 	return result;
 }
 
-uint8_t output_init(void)
+output_result_t output_init(void)
 {
-	uint8_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 
 	// Enable Pico default LED pin (GPIO 25)
 	gpio_init(PICO_DEFAULT_LED_PIN);
@@ -197,9 +212,9 @@ uint8_t output_init(void)
 		}
 	}
 
-	// Initialize LED outputs (using TM1639)
-	uint8_t result_mux = init_mux();
-	if (result_mux != (uint8_t)TM1639_OK)
+	// Initialize multiplexer
+	output_result_t result_mux = init_mux();
+	if (result_mux != OUTPUT_OK)
 	{
 		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
 		result = OUTPUT_ERR_INIT;
@@ -233,8 +248,8 @@ uint8_t output_init(void)
 	pwm_config_set_clkdiv(&config, 10.f);
 	pwm_init(slice_num, &config, true);
 
-	uint8_t result_init = init_driver();
-	if (result_init != (uint8_t)OUTPUT_OK)
+	output_result_t result_init = init_driver();
+	if (result_init != OUTPUT_OK)
 	{
 		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
 		result = OUTPUT_ERR_INIT;
@@ -255,9 +270,9 @@ uint8_t output_init(void)
  * @param[in] length  Length of the payload buffer (should be at least 6).
  * @return OUTPUT_OK on success, or an error code on failure.
  */
-uint8_t display_out(const uint8_t *payload, uint8_t length)
+output_result_t display_out(const uint8_t *payload, uint8_t length)
 {
-	uint8_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
 
 	/**
@@ -295,7 +310,7 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 	 * @par Mutex acquisition
 	 * Tries to take the SPI mutex if parameters are valid.
 	 */
-	if (((uint8_t)OUTPUT_OK == result) &&
+	if ((OUTPUT_OK == result) &&
 	    (pdTRUE != xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
 	{
 		result = OUTPUT_ERR_SEMAPHORE;
@@ -305,7 +320,7 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 	 * @par BCD processing and driver call
 	 * Processes BCD data and sends it to the driver if all checks passed.
 	 */
-	if (((uint8_t)OUTPUT_OK == result) && (length >= (uint8_t)6))
+	if ((OUTPUT_OK == result) && (length >= (uint8_t)6))
 	{
 		uint8_t digits[8];
 		digits[0] = (payload[1] >> (uint8_t)4) & (uint8_t)0x0F;
@@ -344,9 +359,9 @@ uint8_t display_out(const uint8_t *payload, uint8_t length)
 }
 
 
-uint8_t led_out(const uint8_t *payload, uint8_t length)
+output_result_t led_out(const uint8_t *payload, uint8_t length)
 {
-	uint8_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
 
 	/**

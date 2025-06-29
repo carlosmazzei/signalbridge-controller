@@ -3,14 +3,7 @@
     "cmake.preferredGenerators": [
         "Unix Makefiles"
     ],
-    "cmake.defaultVariants": {
-        "buildType": {
-            "default": "debug",
-            "description": "The build type"
-        }
-    },
     "cmake.configureArgs": [
-        "-DCMAKE_BUILD_TYPE=Debug",
         "-DCMAKE_C_COMPILER=/usr/bin/arm-none-eabi-gcc",
         "-DPICO_BOARD=pico",
         "-DPICO_PLATFORM=rp2040",

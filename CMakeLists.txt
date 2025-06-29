@@ -25,6 +25,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -DCFG_TUSB_DEBUG=0 -O3")
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(docs)

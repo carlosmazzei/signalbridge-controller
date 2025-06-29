@@ -517,162 +517,172 @@ static inline void send_status(uint8_t index)
 static void send_heap_status(uint8_t index)
 {
 	uint8_t data[13] = {0};
+	bool done = false;
 
 	/* Invalid index, return not recognized */
 	if (index > (uint8_t)NUM_TASKS)
 	{
 		data[0] = 0xFF;
 		send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, 1);
-		return;
+		done = true;
 	}
 
-	uint32_t value = 0;
-
-	/* Valid, but equal to NUM_TASKS, return idle task stats */
-	if (index == (uint8_t)NUM_TASKS)
+	if (!done)
 	{
-		data[0] = index;
+		uint32_t value = 0;
+		/* Valid, but equal to NUM_TASKS, return idle task stats */
+		if (index == (uint8_t)NUM_TASKS)
+		{
+			data[0] = index;
 
-		/* Absolute time */
-		value = ulTaskGetIdleRunTimeCounter();
-		data[1] = (value >> 24U) & 0xFFU;
-		data[2] = (value >> 16U) & 0xFFU;
-		data[3] = (value >> 8U) & 0xFFU;
-		data[4] = value & 0xFFU;
+			/* Absolute time */
+			value = ulTaskGetIdleRunTimeCounter();
+			data[1] = (value >> 24U) & 0xFFU;
+			data[2] = (value >> 16U) & 0xFFU;
+			data[3] = (value >> 8U) & 0xFFU;
+			data[4] = value & 0xFFU;
 
-		/* Percent time */
-		value = ulTaskGetIdleRunTimePercent();
-		data[5] = (value >> 24U) & 0xFFU;
-		data[6] = (value >> 16U) & 0xFFU;
-		data[7] = (value >> 8) & 0xFFU;
-		data[8] = value & 0xFFU;
+			/* Percent time */
+			value = ulTaskGetIdleRunTimePercent();
+			data[5] = (value >> 24U) & 0xFFU;
+			data[6] = (value >> 16U) & 0xFFU;
+			data[7] = (value >> 8) & 0xFFU;
+			data[8] = value & 0xFFU;
 
-		/* Minimum Ever Free Heap Size */
-		value = xPortGetMinimumEverFreeHeapSize();
-		data[9] = (value >> 24U) & 0xFFU;
-		data[10] = (value >> 16U) & 0xFFU;
-		data[11] = (value >> 8U) & 0xFFU;
-		data[12] = value & 0xFFU;
+			/* Minimum Ever Free Heap Size */
+			value = xPortGetMinimumEverFreeHeapSize();
+			data[9] = (value >> 24U) & 0xFFU;
+			data[10] = (value >> 16U) & 0xFFU;
+			data[11] = (value >> 8U) & 0xFFU;
+			data[12] = value & 0xFFU;
 
-		send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
-		return;
+			send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+		}
+		else
+		{
+			/* Valid indexes */
+			data[0] = index;
+
+			/* Absolute time */
+			value = ulTaskGetRunTimeCounter(task_props[index].task_handle);
+			data[1] = (value >> 24U) & 0xFFU;
+			data[2] = (value >> 16U) & 0xFFU;
+			data[3] = (value >> 8U) & 0xFFU;
+			data[4] = value & 0xFFU;
+
+			/* Percentage time */
+			value = ulTaskGetRunTimePercent(task_props[index].task_handle);
+			data[5] = (value >> 24U) & 0xFFU;
+			data[6] = (value >> 16U) & 0xFFU;
+			data[7] = (value >> 8U) & 0xFFU;
+			data[8] = value & 0xFFU;
+
+			/* High watermark */
+			value = task_props[index].high_watermark;
+			data[9] = (value >> 24U) & 0xFFU;
+			data[10] = (value >> 16U) & 0xFFU;
+			data[11] = (value >> 8U) & 0xFFU;
+			data[12] = value & 0xFFU;
+
+			send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+		}
 	}
-
-	/* Valid indexes */
-	data[0] = index;
-
-	/* Absolute time */
-	value = ulTaskGetRunTimeCounter(task_props[index].task_handle);
-	data[1] = (value >> 24U) & 0xFFU;
-	data[2] = (value >> 16U) & 0xFFU;
-	data[3] = (value >> 8U) & 0xFFU;
-	data[4] = value & 0xFFU;
-
-	/* Percentage time */
-	value = ulTaskGetRunTimePercent(task_props[index].task_handle);
-	data[5] = (value >> 24U) & 0xFFU;
-	data[6] = (value >> 16U) & 0xFFU;
-	data[7] = (value >> 8U) & 0xFFU;
-	data[8] = value & 0xFFU;
-
-	/* High watermark */
-	value = task_props[index].high_watermark;
-	data[9] = (value >> 24U) & 0xFFU;
-	data[10] = (value >> 16U) & 0xFFU;
-	data[11] = (value >> 8U) & 0xFFU;
-	data[12] = value & 0xFFU;
-
-	send_data(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 }
 
 static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 {
+	bool done = false;
+
 	if (length < (HEADER_SIZE + CHECKSUM_SIZE))
 	{
-		/* Not enough data to include header + checksum */
 		statistics_counters.counters[MSG_MALFORMED_ERROR]++;
-		return;
+		done = true;
 	}
 
-	/* Decode ID, command, and length */
-	uint16_t rxID = (uint16_t)(rx_buffer[0] << 3);
-	rxID |= ((rx_buffer[1] & 0xE0U) >> 5);
-	uint8_t cmd = (uint8_t)(rx_buffer[1] & 0x1FU);
-	uint8_t len = rx_buffer[2];
-
-	if (length != (len + HEADER_SIZE + CHECKSUM_SIZE))
+	uint16_t rxID = 0U;
+	uint8_t cmd = 0U;
+	uint8_t len = 0U;
+	if (!done)
 	{
-		statistics_counters.counters[MSG_MALFORMED_ERROR]++;
-		return;
+		/* Decode ID, command, and length */
+		rxID = (uint16_t)(rx_buffer[0] << 3);
+		rxID |= ((rx_buffer[1] & 0xE0U) >> 5);
+		cmd = (uint8_t)(rx_buffer[1] & 0x1FU);
+		len = rx_buffer[2];
+
+		if (length != (len + HEADER_SIZE + CHECKSUM_SIZE))
+		{
+			statistics_counters.counters[MSG_MALFORMED_ERROR]++;
+			done = true;
+		}
 	}
 
-	if (DATA_BUFFER_SIZE < len)
+	if ((!done) && (DATA_BUFFER_SIZE < len))
 	{
 		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
-		return;
+		done = true;
 	}
 
-	/* Check if the id matches the exepcted panel */
-	if (rxID != BOARD_ID)
+	if ((!done) && (rxID != BOARD_ID))
 	{
 		statistics_counters.counters[UNKNOWN_CMD_ERROR]++;
-		return;
+		done = true;
 	}
 
-	/* Copy payload data */
 	uint8_t decoded_data[DATA_BUFFER_SIZE] = {0};
-	(void)memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len);
-
-	/* Verify checksum */
-	uint8_t calculated_checksum = calculate_checksum(rx_buffer, (uint8_t)(len + HEADER_SIZE));
-	uint8_t received_checksum = rx_buffer[len + HEADER_SIZE];
-
-	if (calculated_checksum != received_checksum)
+	if (!done)
 	{
-		statistics_counters.counters[CHECKSUM_ERROR]++;
-		return;
-	}
+		(void)memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len); // flawfinder: ignore
+		uint8_t calculated_checksum = calculate_checksum(rx_buffer, (uint8_t)(len + HEADER_SIZE));
+		uint8_t received_checksum = rx_buffer[len + HEADER_SIZE];
 
-	switch (cmd)
-	{
-	case PC_LEDOUT_CMD:
-	{
-		if (led_out(decoded_data, len) != len)
+		if (calculated_checksum != received_checksum)
 		{
-			statistics_counters.counters[LED_OUT_ERROR]++;
+			statistics_counters.counters[CHECKSUM_ERROR]++;
+			done = true;
 		}
 	}
-	break;
 
-	case PC_PWM_CMD:
-		set_pwm_duty(decoded_data[0]);
-		break;
-
-	case PC_DPYCTL_CMD:
+	if (!done)
 	{
-		if (display_out(decoded_data, len) != len)
+		switch (cmd)
 		{
-			statistics_counters.counters[DISPLAY_OUT_ERROR]++;
+		case PC_LEDOUT_CMD:
+			if (led_out(decoded_data, len) != len)
+			{
+				statistics_counters.counters[LED_OUT_ERROR]++;
+			}
+			break;
+
+		case PC_PWM_CMD:
+			set_pwm_duty(decoded_data[0]);
+			break;
+
+		case PC_DPYCTL_CMD:
+			if (display_out(decoded_data, len) != len)
+			{
+				statistics_counters.counters[DISPLAY_OUT_ERROR]++;
+			}
+			break;
+
+		case PC_ECHO_CMD:
+			send_data(rxID, cmd, decoded_data, len);
+			break;
+
+		case PC_ERROR_STATUS_CMD:
+			send_status(decoded_data[0]);
+			break;
+
+		case PC_TASK_STATUS_CMD:
+			send_heap_status(decoded_data[0]);
+			break;
+
+		default:
+			statistics_counters.counters[UNKNOWN_CMD_ERROR]++;
+			break;
 		}
 	}
-	break;
-
-	case PC_ECHO_CMD:
-		send_data(rxID, cmd, decoded_data, len);
-		break;
-
-	case PC_ERROR_STATUS_CMD:
-		send_status(decoded_data[0]);
-		break;
-
-	case PC_TASK_STATUS_CMD:
-		send_heap_status(decoded_data[0]);
-		break;
-
-	default:
-		statistics_counters.counters[UNKNOWN_CMD_ERROR]++;
-		break;
-	}
+	/* Single point of return */
 }
 
 static void decode_reception_task(void *pvParameters)
@@ -704,7 +714,7 @@ static void decode_reception_task(void *pvParameters)
 				continue;
 			}
 
-			uint8_t decode_buffer[receive_buffer_index];
+			uint8_t decode_buffer[MAX_ENCODED_BUFFER_SIZE];
 			size_t num_decoded = cobs_decode(receive_buffer, receive_buffer_index, decode_buffer);
 
 			receive_buffer_index = 0;
@@ -720,7 +730,8 @@ static void decode_reception_task(void *pvParameters)
 		}
 		else if (receive_buffer_index < MAX_ENCODED_BUFFER_SIZE - 1U)
 		{
-			receive_buffer[receive_buffer_index++] = data;
+			receive_buffer[receive_buffer_index] = data;
+			receive_buffer_index++;
 		}
 		else
 		{

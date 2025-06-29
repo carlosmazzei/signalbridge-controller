@@ -666,15 +666,6 @@ tm1639_result_t tm1639_display_off(output_driver_t *config)
 /**
  * @brief Clear the display (set all segments off)
  *
- * This function clears the TM1639 display by setting all segment memory to zero.
- * It also clears the driver's active and preparation buffers and resets the modified flag.
- * All parameters are validated according to MISRA and SonarQube recommendations.
- *
- * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- *
- * @return TM1639_OK on success,
- *         TM1639_ERR_INVALID_PARAM if config is NULL,
- *         or error code from tm1639_write_byte.
  */
 tm1639_result_t tm1639_clear(output_driver_t *config)
 {

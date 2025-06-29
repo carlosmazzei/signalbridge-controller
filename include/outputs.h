@@ -115,35 +115,20 @@
 		DEVICE_NONE /* Device 7 */ \
 }
 
-/** @def OUTPUT_OK
- * @brief Operation successful.
- * This constant indicates that the output operation was successful and no errors occurred.
+/** @enum output_result_t
+ * @brief Output Result Codes
+ * This enum defines the possible result codes returned by output functions.
+ * Each code indicates the success or type of error encountered during operations.
+ * @note These codes are used to indicate the status of output operations such as initialization and display updates.
+ * @ingroup outputs
  */
-#define OUTPUT_OK                  0     // Operation successful
-
-/** @def OUTPUT_ERR_INIT
- * @brief Initialization error.
- * This error occurs when the output system fails to initialize properly.
- */
-#define OUTPUT_ERR_INIT            1     // Initialization error
-
-/** @def OUTPUT_ERR_DISPLAY_OUT
- * @brief Display out error.
- * This error occurs when there is an issue with sending data to the display.
- */
-#define OUTPUT_ERR_DISPLAY_OUT     2     // Display out error
-
-/** @def OUTPUT_ERR_INVALID_PARAM
- * @brief Invalid parameter error.
- * This error occurs when an invalid parameter is passed to a function.
- */
-#define OUTPUT_ERR_INVALID_PARAM   3     // Invalid parameter
-
-/** @def OUTPUT_ERR_SEMAPHORE
- * @brief Semaphore error.
- * This error occurs when there is an issue with acquiring or releasing a semaphore.
- */
-#define OUTPUT_ERR_SEMAPHORE       4     // Semaphore error
+typedef enum output_result_t {
+	OUTPUT_OK = 0,
+	OUTPUT_ERR_INIT = 1,
+	OUTPUT_ERR_DISPLAY_OUT = 2,
+	OUTPUT_ERR_INVALID_PARAM = 3,
+	OUTPUT_ERR_SEMAPHORE = 4,
+} output_result_t;
 
 /** --- Statistics Structures --- */
 
@@ -152,7 +137,9 @@
  */
 typedef enum {
 	OUT_CONTROLLER_ID_ERROR,
+	OUT_INIT_ERROR,
 	OUT_DRIVER_INIT_ERROR,
+	OUT_INVALID_PARAM_ERROR,
 	OUT_NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
 } out_statistics_counter_enum_t;
 
