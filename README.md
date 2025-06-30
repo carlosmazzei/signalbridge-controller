@@ -30,7 +30,8 @@ The main objective of this project is to create a low-latency interface (with re
   - [Task Architecture](#task-architecture)
   - [Key Files](#key-files)
   - [Error Handling](#error-handling)
-- [9. Contribution](#9-contribution)
+- [9. Coding Guidelines](#9-coding-guidelines)
+- [10. Contribution](#10-contribution)
 
 ## 1. Getting Started
 
@@ -259,7 +260,23 @@ typedef struct error_counters_t {
 
 Critical errors cause the system to enter a blinking LED error state.
 
-## 9. Contribution
+## 9. Coding Guidelines
+
+This project follows MISRA C:2012 guidelines for safety and reliability. Where deviations are necessary, they are documented in the code using the following deviation codes:
+
+- **D1:** Essential for functionality, no alternative
+- **D2:** Infeasible to implement alternative
+- **D3:** Clarity/maintenance benefit outweighs risk
+- **D4:** Performance critical code
+- **D5:** Third-party library interface requirement
+
+All code is automatically formatted using [Uncrustify](https://github.com/uncrustify/uncrustify) with the configuration file `uncrustify.cfg` provided in the repository root. To format all source files, use the provided VS Code task or run Uncrustify manualy:
+
+```bash
+uncrustify -c uncrustify.cfg --replace --no-backup <file>
+```
+
+## 10. Contribution
 
 Contributions are welcome! Please follow these steps:
 

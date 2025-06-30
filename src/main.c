@@ -123,7 +123,7 @@
  * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
-typedef enum statistics_counter_enum_t {
+typedef enum statistics_counter_enum_t { // cppcheck-suppress[misra-c2012-2.4] ; DEVIATION(D3)
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
@@ -769,17 +769,22 @@ static void process_outbound_task(void *pvParameters)
 
 static inline bool setup_hardware(void)
 {
+	bool success = true;
 	/* Initialize standard I/O (UART, etc.) */
 	stdio_init_all();
 
 	/* Initialize outputs (LED, PWM, etc.) */
-	output_init();
+	output_result_t result = output_init();
+	if (result != OUTPUT_OK)
+	{
+		success = false;
+	}
 
 	/* Create data event queue */
 	data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t));
 	if (NULL == data_event_queue)
 	{
-		return false;
+		success = false;
 	}
 
 	/* Inputs configuration (keypad, ADC, etc.) */
@@ -795,7 +800,13 @@ static inline bool setup_hardware(void)
 		/* Enable encoder on row 8 (last row) */
 		.encoder_mask          = { [7] = true }
 	};
-	input_init(&config);
+
+	input_result_t input_result = INPUT_OK;
+	input_result = input_init(&config);
+	if(input_result != INPUT_OK)
+	{
+		success = false;
+	}
 
 	/* Reset all error counters */
 	for (uint i = 0; i < NUM_STATISTICS_COUNTERS; i++)
@@ -813,7 +824,7 @@ static inline bool setup_hardware(void)
 	/* Watchdog 1s, pause on debug */
 	watchdog_enable(5000, true);
 
-	return true;
+	return success;
 }
 
 static inline void enter_error_state(void)

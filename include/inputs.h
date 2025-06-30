@@ -14,40 +14,40 @@
 /**
  * Keypad definitions
  */
-#define KEYPAD_ROWS 8
-#define KEYPAD_COLUMNS 8
+#define KEYPAD_ROWS 8U
+#define KEYPAD_COLUMNS 8U
 
-#define KEYPAD_MAX_COLS 8
-#define KEYPAD_MAX_ROWS 8
+#define KEYPAD_MAX_COLS 8U
+#define KEYPAD_MAX_ROWS 8U
 
 #define KEYPAD_STABILITY_BITS 3
-#define KEYPAD_STABILITY_MASK ((1 << KEYPAD_STABILITY_BITS) - 1)
+#define KEYPAD_STABILITY_MASK ((1U << KEYPAD_STABILITY_BITS) - 1U)
 
-#define KEYPAD_COL_MUX_A 8
-#define KEYPAD_COL_MUX_B 9
-#define KEYPAD_COL_MUX_C 10
-#define KEYPAD_COL_MUX_CS 11
+#define KEYPAD_COL_MUX_A 8U
+#define KEYPAD_COL_MUX_B 9UL
+#define KEYPAD_COL_MUX_C 10UL
+#define KEYPAD_COL_MUX_CS 11UL
 
-#define KEYPAD_ROW_INPUT 0
-#define KEYPAD_ROW_MUX_A 1
-#define KEYPAD_ROW_MUX_B 2
-#define KEYPAD_ROW_MUX_C 3
-#define KEYPAD_ROW_MUX_CS 6
+#define KEYPAD_ROW_INPUT 0U
+#define KEYPAD_ROW_MUX_A 1U
+#define KEYPAD_ROW_MUX_B 2U
+#define KEYPAD_ROW_MUX_C 3U
+#define KEYPAD_ROW_MUX_CS 6U
 
-#define KEY_PRESSED_MASK 0x03  // 011: two consecutive actives
-#define KEY_RELEASED_MASK 0x04 // 100: two consecutive inactives
-#define KEY_PRESSED 1
-#define KEY_RELEASED 0
+#define KEY_PRESSED_MASK 0x03U  // 011: two consecutive actives
+#define KEY_RELEASED_MASK 0x04U // 100: two consecutive inactives
+#define KEY_PRESSED 1U
+#define KEY_RELEASED 0U
 
 /**
  * ADC definitions
  */
 
-#define ADC0_MUX_CS 7
-#define ADC1_MUX_CS 21
-#define ADC_MUX_A 14
-#define ADC_MUX_B 15
-#define ADC_MUX_C 22
+#define ADC0_MUX_CS 7U
+#define ADC1_MUX_CS 21U
+#define ADC_MUX_A 14U
+#define ADC_MUX_B 15U
+#define ADC_MUX_C 22U
 
 #define ADC_CHANNELS 16
 #define ADC_NUM_TAPS 4
@@ -56,7 +56,7 @@
  * Encoder definitions
  */
 
-#define MAX_NUM_ENCODERS 8
+#define MAX_NUM_ENCODERS 8U
 
 /**
  * Structure to hold the inputs configuration.
@@ -73,6 +73,15 @@ typedef struct input_config_t
 	bool encoder_mask[MAX_NUM_ENCODERS]; // Encoder mask to enable/disable
 	uint16_t encoder_settling_time_ms; // Time to wait for encoder to settle
 } input_config_t;
+
+extern input_config_t input_config;
+
+typedef enum input_result_t {
+	INPUT_OK = 0,      // Input operation successful
+	INPUT_ERROR = 1,       // Input operation failed
+	INPUT_INVALID_CONFIG = 2, // Invalid configuration provided
+	INPUT_QUEUE_FULL = 3,  // Input event queue is full
+} input_result_t;
 
 /**
  * Structure to hold the ADC states.
@@ -94,10 +103,19 @@ typedef struct encoder_states_t
 	int8_t count_encoder;
 } encoder_states_t;
 
+extern uint8_t keypad_state[KEYPAD_MAX_COLS * KEYPAD_MAX_ROWS]; // State of the keypad
+
 /**
  *  Function prototypes
  */
-bool input_init(const input_config_t *config);
+
+/** @brief Initialize the keypad.
+ *
+ * @param config Pointer to the keypad configuration.
+ * @return true if the keypad was successfully initialized.
+ */
+input_result_t input_init(const input_config_t *config);
+
 void keypad_task(void *pvParameters);
 void keypad_set_columns(uint8_t columns);
 void keypad_set_rows(uint8_t rows);
@@ -106,8 +124,8 @@ static inline void keypad_cs_columns(bool select);
 void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state);
 void adc_read_task(void *pvParameters);
 void adc_mux_select(bool bank, uint8_t channel, bool select);
-void adc_generate_event(uint8_t channel, uint16_t value);
-uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *adc_states);
+
+
 void encoder_read_task(void *pvParameters);
 void encoder_generate_event(uint8_t rotary, uint16_t dir);
 
