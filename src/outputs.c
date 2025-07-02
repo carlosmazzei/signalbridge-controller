@@ -1,12 +1,16 @@
 /**
  * @file outputs.c
- * @brief Functions to output Leds, PWM and other
- * @author Carlos Mazzei
+ * @brief Implementation of output control functions: LEDs, PWM, and 7-segment displays.
+ * @author
+ *   - Carlos Mazzei
+ * @date 2020-2025
  *
- * This file contains the functions to output Leds, PWM and 7 segment displays
+ * This file contains functions responsible for initializing and controlling output devices,
+ * including LEDs, PWM, and 7-segment displays, using specific drivers (e.g., TM1639) and
+ * SPI multiplexing. It also manages error statistics and synchronization for SPI bus access.
  *
- * @copyright (c) 2020-2024 Carlos Mazzei
- * All rights reserved.
+ * @copyright
+ * (c) 2020-2025 Carlos Mazzei. All rights reserved.
  */
 
 #include "hardware/spi.h"
@@ -54,6 +58,7 @@ out_statistics_counters_t out_statistics_counters;
 /**
  * @brief Initialize the multiplexer for chip select control
  * This function initializes the GPIO pins used for the multiplexer
+ *
  * @return output_result_t Error code, 0 if successful
  */
 static output_result_t init_mux(void)
@@ -147,6 +152,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
  * For TM1639 devices, it initializes the TM1639 driver with the appropriate parameters.
  * For generic devices, it can be extended to initialize a generic driver if needed.
  * If a device type is not supported, it skips initialization for that interface.
+ * 
  * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
  * @note This function assumes that the device_config_map is correctly defined and matches the expected device types.
  *

@@ -20,6 +20,68 @@
  #include "tm1639.h"
 
 /**
+ * @brief Set the display brightness level (0-7).
+ *
+ * This function sets the brightness level of the TM1639 display. The brightness value
+ * is clamped to the range 0 to 7. The function updates the driver configuration and
+ * sends the appropriate command to the TM1639 device.
+ *
+ * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         or error code from tm1639_send_command.
+ */
+static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
+{
+	tm1639_result_t result = TM1639_OK;
+	if (NULL == config)
+	{
+		result = TM1639_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
+		config->brightness = set_level;
+
+		// Display control command with brightness level
+		uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_OFF | level;         // DISPLAY_ON | level
+		result = tm1639_send_command(config, cmd);
+	}
+
+	return result;
+}
+
+/**
+ * @brief Turn the display on.
+ *
+ * This function turns the TM1639 display on by setting the display_on flag in the driver
+ * configuration and sending the display ON command with the current brightness level.
+ *
+ * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         or error code from tm1639_send_command.
+ */
+tm1639_result_t tm1639_display_on(output_driver_t *config)
+{
+	tm1639_result_t result = TM1639_OK;
+	if (NULL == config)
+	{
+		result = TM1639_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		config->display_on = true;
+		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON | config->brightness); // DISPLAY_ON | brightness
+	}
+
+	return result;
+}
+
+/**
  * @brief Initialize the TM1639 output driver.
  * This function allocates and initializes a TM1639 output driver structure.
  */
@@ -598,48 +660,6 @@ tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_
 				}
 			}
 		}
-	}
-
-	return result;
-}
-
-/**
- * @brief Set the display brightness level (0-7)
- */
-tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
-		config->brightness = set_level;
-
-		// Display control command with brightness level
-		uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_OFF | level;         // DISPLAY_ON | level
-		result = tm1639_send_command(config, cmd);
-	}
-
-	return result;
-}
-
-/**
- * @brief Turn the display on
- */
-tm1639_result_t tm1639_display_on(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		config->display_on = true;
-		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON | config->brightness); // DISPLAY_ON | brightness
 	}
 
 	return result;

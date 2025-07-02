@@ -1,12 +1,15 @@
 /**
  * @file inputs.c
- * @brief Implementation of keyboard and rotary inputs
- * @author Carlos Mazzei
+ * @brief Implementation of keypad, ADC, and rotary encoder input handling for the A320 Pico Controller (FreeRTOS).
+ * @author 
+ *   - Carlos Mazzei
+ * @date 2020-2025
  *
- * This file contains the input functions to read the keyboard and rotary
+ * This file implements the input subsystem, including keypad scanning, ADC reading/filtering,
+ * and rotary encoder handling. It generates events for each input type and sends them to the event queue.
  *
- * @copyright (c) 2020-2024 Carlos Mazzei
- * All rights reserved.
+ *  @copyright 
+ *   (c) 2020-2025 Carlos Mazzei. All rights reserved.
  */
 
 #include "inputs.h"
@@ -16,12 +19,12 @@
 #include "commands.h"
 
 /**
- * Input configuration.
+ * @brief Global input configuration instance.
  */
 input_config_t input_config;
 
 /**
- * States of each row
+ * @brief State array for each key in the keypad matrix.
  */
 uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 
@@ -92,11 +95,24 @@ input_result_t input_init(const input_config_t *config)
 	return result;
 }
 
-/** @brief Keypad task to update and populate key events
- *
- * @param pvParameters Pointer to the keypad task parameters.
- *
+/**
+ * @brief Control the chip select (CS) for the keypad row multiplexer.
+ * @param[in] select true to enable (active low), false to disable.
  */
+static inline void keypad_cs_rows(bool select)
+{
+	gpio_put(KEYPAD_ROW_MUX_CS, !select); // Active low pin
+}
+
+/**
+ * @brief Control the chip select (CS) for the keypad column multiplexer.
+ * @param[in] select true to enable (active low), false to disable.
+ */
+static inline void keypad_cs_columns(bool select)
+{
+	gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
+}
+
 void keypad_task(void *pvParameters)
 {
 	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
@@ -147,80 +163,41 @@ void keypad_task(void *pvParameters)
 	}
 }
 
-/** @brief Set the columns of the keypad.
- *
- * @param columns Columns to set.
- */
 void keypad_set_columns(uint8_t columns)
 {
+	// Set the columns of the keypad (multiplexer control)
 	gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
 	gpio_put(KEYPAD_COL_MUX_B, (columns & 0x02U) != 0U);
 	gpio_put(KEYPAD_COL_MUX_C, (columns & 0x04U) != 0U);
 }
 
-/** @brief Set the rows of the keypad.
- *
- * @param rows Rows to set.
- */
 void keypad_set_rows(uint8_t rows)
 {
+	// Set the rows of the keypad (multiplexer control)
 	gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
 	gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
 	gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
 }
 
-/** @brief Select the row mux chip
- *
- * @param select Level to set the rows CS pin
- *
- */
-static inline void keypad_cs_rows(bool select)
-{
-	gpio_put(KEYPAD_ROW_MUX_CS, !select); // Active low pin
-}
-
-/** @brief Select the row mux chip
- *
- * @param select Level to set the columns CS pin
- */
-static inline void keypad_cs_columns(bool select)
-{
-	gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
-}
-
-/** @brief Generate a key event.
- *
- * @param row number
- * @param column number
- * @param state of the key
- *
- */
 void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 {
 	if (NULL != input_config.input_event_queue)
 	{
 		data_events_t key_event;
 		key_event.command = PC_KEY_CMD;
-		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU; // Add key state to the event.
+		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU;
 		key_event.data[0] |= state;
 		key_event.data_length = 1;
 		xQueueSend(input_config.input_event_queue, &key_event, portMAX_DELAY);
 	}
 }
 
-/** @brief Generate an ADC event.
- *
- * @param[in] channel Channel read
- * @param[in] value Value read
- * @details This function generates an ADC event and sends it to the input event queue.
- *          The event contains the channel number and the value read from the ADC.
- * @note The function checks if the input event queue is not NULL before sending the event.
- *       If the queue is NULL, the function does nothing.
- * @note The event data is structured as follows:
- *       - data[0]: Channel number (0-15)
- *       - data[1]: High byte of the ADC value
- *       - data[2]: Low byte of the ADC value
- *       - data_length: 3 (indicating the number of bytes in the data array
+/**
+ * @brief Generate and send an ADC event to the input event queue.
+ * @param channel ADC channel number.
+ * @param value Filtered ADC value.
+ * @details The event contains the channel and the 16-bit value split into two bytes.
+ *          The event is only sent if the input event queue is not NULL.
  */
 static void adc_generate_event(uint8_t channel, uint16_t value)
 {
@@ -236,24 +213,14 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
 	}
 }
 
-/** @brief Calculate moving average of the last samples of ad
- *
- * @param[in] channel Channel read
- * @param[in] new_sample New sample
- * @param[in,out] samples Array of samples
- * @param[in,out] adc_states ADC states
- *
- * @details This function calculates the moving average of the last samples
- *          of the ADC channel. It updates the sample array and the sum of values
- *          for the specified channel. The moving average is calculated by removing
- *          the oldest sample from the sum, adding the new sample, and then dividing
- *          the sum by the number of samples (ADC_NUM_TAPS).
- * @note The function uses a circular buffer approach to store the samples,
- *       where the `samples_index` keeps track of the current index in the sample array.
- *       When the index reaches the maximum number of samples (ADC_NUM_TAPS), it wraps
- *       around to the beginning of the array.
- * @return The moving average of the last samples for the specified channel.
- * @retval uint16_t The moving average value for the specified channel.
+/**
+ * @brief Calculate the moving average for an ADC channel.
+ * @param[in] channel ADC channel index.
+ * @param[in] new_sample New ADC sample value.
+ * @param[in,out] samples Pointer to the sample buffer for the channel.
+ * @param[in,out] adc_states Pointer to the ADC states structure.
+ * @return The moving average value for the specified channel.
+ * @details Implements a circular buffer for moving average filtering.
  */
 static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *adc_states)
 {
@@ -273,10 +240,6 @@ static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16
 	return (uint16_t)(adc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
 }
 
-/** @brief Read the ADC value.
- *
- * @param pvParameters Parameters passed to the task
- */
 void adc_read_task(void *pvParameters)
 {
 	adc_states_t adc_states;
@@ -335,14 +298,9 @@ void adc_read_task(void *pvParameters)
 	}
 }
 
-/** @brief Select the ADC input.
- *
- * @param bank Level to set the adc mux CS pin
- * @param channel Channel to select
- * @param select Select which ADC bank to use
- */
 void adc_mux_select(bool bank, uint8_t channel, bool select)
 {
+	// Select the ADC channel via multiplexer
 	if (bank)
 	{
 		gpio_put(ADC0_MUX_CS, !select);
@@ -357,10 +315,6 @@ void adc_mux_select(bool bank, uint8_t channel, bool select)
 	gpio_put(ADC_MUX_C, (channel & 0x04U) != 0U);
 }
 
-/** @brief Read the encoder value.
- *
- * @param pvParameters Parameters passed to the task
- */
 void encoder_read_task(void *pvParameters)
 {
 	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
@@ -414,7 +368,7 @@ void encoder_read_task(void *pvParameters)
 				if (4 == encoder_state[encoder_base].count_encoder)
 				{
 					encoder_generate_event(encoder_base, 1);
-				}                                                  // then the index for enc_states
+				}                                  // then the index for enc_states
 				else if (encoder_state[0].count_encoder == -4)
 				{
 					encoder_generate_event(encoder_base, 0);
@@ -433,21 +387,13 @@ void encoder_read_task(void *pvParameters)
 	}
 }
 
-/** @brief Generate an encoder event.
- *
- * @param rotary Rotary number
- * @param direction Direction
- */
 void encoder_generate_event(uint8_t rotary, uint16_t direction)
 {
 	if (NULL != input_config.input_event_queue)
 	{
 		data_events_t encoder_event;
-
-		/* Initialize encoder_event data */
 		encoder_event.data[0] = 0;
 		encoder_event.data[1] = 0;
-
 		encoder_event.command = PC_ROTARY_CMD;
 		encoder_event.data[0] |= rotary << 4;
 		encoder_event.data[1] |= direction;
@@ -456,9 +402,9 @@ void encoder_generate_event(uint8_t rotary, uint16_t direction)
 	}
 }
 
-/** @brief Set the encoder mask.
- *
- * @param mask Mask to enable/disable encoders
+/**
+ * @brief Set the encoder mask to enable or disable encoders.
+ * @param mask Bitmask to enable/disable encoders.
  */
 static void encoder_set_mask(uint8_t mask)
 {

@@ -3,7 +3,7 @@
  * @brief Main application for the A320 Pico Controller with FreeRTOS
  * @author
  *   - Carlos Mazzei <carlos.mazzei@gmail.com>
- * @date 2020-2024
+ * @date 2020-2025
  *
  * This file contains the core FreeRTOS tasks and initialization code
  * for the A320 Pico Controller project. It configures USB CDC, handles
@@ -11,7 +11,7 @@
  * resources such as keypads, encoders, and ADCs.
  *
  * @copyright
- *   (c) 2020-2024 Carlos Mazzei - All rights reserved.
+ *   (c) 2020-2025 Carlos Mazzei - All rights reserved.
  */
 
 #include <stdlib.h>
