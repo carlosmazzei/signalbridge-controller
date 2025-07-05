@@ -1,5 +1,5 @@
-#ifndef _HOOKS_H_
-#define _HOOKS_H_
+#ifndef HOOKS_H
+#define HOOKS_H
 
 #include "FreeRTOS.h"
 #include "queue.h"
@@ -9,7 +9,7 @@
 static size_t free_heap_size;
 
 /* Prototypes for the standard FreeRTOS callback/hook functions implemented
-within this file. */
+ * within this file. */
 void vApplicationMallocFailedHook( void );
 void vApplicationIdleHook( void );
 void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName );

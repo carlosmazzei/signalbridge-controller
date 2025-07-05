@@ -1,5 +1,5 @@
-#ifndef _KEYPAD_H_
-#define _KEYPAD_H_
+#ifndef KEYPAD_H
+#define KEYPAD_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -10,106 +10,192 @@
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
-#include "stdA320.h"
 
 /**
- * Keypad definitions
+ * @defgroup KEYPAD Keypad definitions
+ * @{
  */
-#define KEYPAD_ROWS 8
-#define KEYPAD_COLUMNS 8
-
-#define KEYPAD_MAX_COLS 8
-#define KEYPAD_MAX_ROWS 8
-
+/** @brief Number of keypad rows. */
+#define KEYPAD_ROWS 8U
+/** @brief Number of keypad columns. */
+#define KEYPAD_COLUMNS 8U
+/** @brief Maximum number of keypad columns. */
+#define KEYPAD_MAX_COLS 8U
+/** @brief Maximum number of keypad rows. */
+#define KEYPAD_MAX_ROWS 8U
+/** @brief Number of stability bits for debounce. */
 #define KEYPAD_STABILITY_BITS 3
-#define KEYPAD_STABILITY_MASK ((1 << KEYPAD_STABILITY_BITS) - 1)
-
-#define KEYPAD_COL_MUX_A 8
-#define KEYPAD_COL_MUX_B 9
-#define KEYPAD_COL_MUX_C 10
-#define KEYPAD_COL_MUX_CS 11
-
-#define KEYPAD_ROW_INPUT 0
-#define KEYPAD_ROW_MUX_A 1
-#define KEYPAD_ROW_MUX_B 2
-#define KEYPAD_ROW_MUX_C 3
-#define KEYPAD_ROW_MUX_CS 6
-
-#define KEY_PRESSED_MASK 0x03  // 011: two consecutive actives
-#define KEY_RELEASED_MASK 0x04 // 100: two consecutive inactives
-#define KEY_PRESSED 1
-#define KEY_RELEASED 0
+/** @brief Bitmask for keypad stability. */
+#define KEYPAD_STABILITY_MASK ((1U << KEYPAD_STABILITY_BITS) - 1U)
+/** @brief GPIO pin for keypad column multiplexer A. */
+#define KEYPAD_COL_MUX_A 8U
+/** @brief GPIO pin for keypad column multiplexer B. */
+#define KEYPAD_COL_MUX_B 9UL
+/** @brief GPIO pin for keypad column multiplexer C. */
+#define KEYPAD_COL_MUX_C 10UL
+/** @brief GPIO pin for keypad column multiplexer chip select. */
+#define KEYPAD_COL_MUX_CS 11UL
+/** @brief GPIO pin for keypad row input. */
+#define KEYPAD_ROW_INPUT 0U
+/** @brief GPIO pin for keypad row multiplexer A. */
+#define KEYPAD_ROW_MUX_A 1U
+/** @brief GPIO pin for keypad row multiplexer B. */
+#define KEYPAD_ROW_MUX_B 2U
+/** @brief GPIO pin for keypad row multiplexer C. */
+#define KEYPAD_ROW_MUX_C 3U
+/** @brief GPIO pin for keypad row multiplexer chip select. */
+#define KEYPAD_ROW_MUX_CS 6U
+/** @brief Bitmask for key pressed state (two consecutives actives). */
+#define KEY_PRESSED_MASK 0x03U
+/** @brief Bitmask for key released state (two consecutives inactives). */
+#define KEY_RELEASED_MASK 0x04U
+/** @brief Key pressed state. */
+#define KEY_PRESSED 1U
+/** @brief Key released state. */
+#define KEY_RELEASED 0U
+/** @} */
 
 /**
- * ADC definitions
+ * @defgroup ADC ADC definitions
+ * @{
  */
-
-#define ADC0_MUX_CS 7
-#define ADC1_MUX_CS 21
-#define ADC_MUX_A 14
-#define ADC_MUX_B 15
-#define ADC_MUX_C 22
-
+#define ADC0_MUX_CS 7U
+#define ADC1_MUX_CS 21U
+#define ADC_MUX_A 14U
+#define ADC_MUX_B 15U
+#define ADC_MUX_C 22U
 #define ADC_CHANNELS 16
 #define ADC_NUM_TAPS 4
+/** @} */
 
 /**
- * Encoder definitions
+ * @defgroup ENCODER Encoder definitions
+ * @{
  */
-
-#define MAX_NUM_ENCODERS 8
+#define MAX_NUM_ENCODERS 8U
+/** @} */
 
 /**
- * Structure to hold the inputs configuration.
+ * @brief Input configuration structure (keypad, ADC, encoder).
  */
 typedef struct input_config_t
 {
-	uint8_t rows;                    // Number of rows
-	uint8_t columns;                 // Number of columns
-	uint16_t key_settling_time_ms;   // Time to wait for key to settle
-	uint8_t adc_banks;               // Number of banks of mux connected to the ADCs
-	uint8_t adc_channels;            // ADC Channels per bank
-	uint16_t adc_settling_time_ms;   // Time to wait for ADC to settle
-	QueueHandle_t input_event_queue; // Queue to send input events to
-	bool encoder_mask[MAX_NUM_ENCODERS]; // Encoder mask to enable/disable
-	uint16_t encoder_settling_time_ms; // Time to wait for encoder to settle
+	uint8_t rows;                /**< Number of keypad rows */
+	uint8_t columns;             /**< Number of keypad columns */
+	uint16_t key_settling_time_ms; /**< Key settling time in milliseconds */
+	uint8_t adc_banks;           /**< Number of MUX banks connected to ADCs */
+	uint8_t adc_channels;        /**< ADC channels per bank */
+	uint16_t adc_settling_time_ms; /**< ADC settling time in milliseconds */
+	QueueHandle_t input_event_queue; /**< Queue for sending input events */
+	bool encoder_mask[MAX_NUM_ENCODERS]; /**< Mask to enable/disable encoders */
+	uint16_t encoder_settling_time_ms; /**< Encoder settling time in milliseconds */
 } input_config_t;
 
 /**
- * Structure to hold the ADC states.
+ * @brief Global input configuration instance.
+ */
+extern input_config_t input_config;
+
+/**
+ * @brief Possible results for input functions.
+ */
+typedef enum input_result_t {
+	INPUT_OK = 0,        /**< Operation successful */
+	INPUT_ERROR = 1,     /**< Operation failed */
+	INPUT_INVALID_CONFIG = 2,/**< Invalid configuration */
+	INPUT_QUEUE_FULL = 3 /**< Input event queue is full */
+} input_result_t;
+
+/**
+ * @brief Structure to hold ADC states (filters, samples, indices).
  */
 typedef struct adc_states_t
 {
-	uint16_t adc_previous_value[ADC_CHANNELS];         // 16 x 16 = 256
-	uint32_t adc_sum_values[ADC_CHANNELS];             // 16 x 16 = 256
-	uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS]; // 16 x 16 x 4 = 1024
-	uint16_t samples_index[ADC_CHANNELS];              // 16 x 16 = 256
+	uint16_t adc_previous_value[ADC_CHANNELS];     /**< Last filtered value for each channel */
+	uint32_t adc_sum_values[ADC_CHANNELS];         /**< Sum of values for moving average */
+	uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS]; /**< Recent samples for each channel */
+	uint16_t samples_index[ADC_CHANNELS];          /**< Circular index for samples */
 } adc_states_t;
 
 /**
- * Structure to hold the encoder states.
+ * @brief Structure to hold rotary encoder states.
  */
 typedef struct encoder_states_t
 {
-	uint8_t old_encoder;
-	int8_t count_encoder;
+	uint8_t old_encoder; /**< Previous encoder state (for transition detection) */
+	int8_t count_encoder; /**< Encoder step counter */
 } encoder_states_t;
 
 /**
- *  Function prototypes
+ * @brief Current state of each key in the keypad matrix.
+ *
+ * The size is KEYPAD_MAX_COLS * KEYPAD_MAX_ROWS.
  */
-bool input_init(const input_config_t *config);
+extern uint8_t keypad_state[KEYPAD_MAX_COLS * KEYPAD_MAX_ROWS];
+
+/**
+ * @brief Initialize the input system (keypad, ADC, encoder).
+ *
+ * @param[in] config Pointer to the input configuration structure.
+ * @return INPUT_OK if initialized successfully, INPUT_INVALID_CONFIG if parameters are invalid.
+ */
+input_result_t input_init(const input_config_t *config);
+
+/**
+ * @brief Keypad task to update and populate key events
+ * @param[in,out] pvParameters Pointer to the keypad task parameters.
+ */
 void keypad_task(void *pvParameters);
-void keypad_set_columns(uint8_t columns);
+
+/**
+ * @brief Set the rows of the keypad.
+ * @param[in] rows Rows to set.
+ */
 void keypad_set_rows(uint8_t rows);
-static inline void keypad_cs_rows(bool select);
-static inline void keypad_cs_columns(bool select);
+
+/**
+ * @brief Set the columns of the keypad.
+ * @param[in] columns Columns to set.
+ */
+void keypad_set_columns(uint8_t columns);
+
+/**
+ * @brief Generate and send a key event to the input event queue.
+ * @param[in] row Key row.
+ * @param[in] column Key column.
+ * @param[in] state Key state (KEY_PRESSED or KEY_RELEASED).
+ * @details The event is only sent if the input event queue is not NULL.
+ */
 void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state);
+
+/**
+ * @brief FreeRTOS task for reading ADC channels, filtering, and generating events.
+ *
+ * @param[in] pvParameters Pointer to task parameters (task_props_t*).
+ */
 void adc_read_task(void *pvParameters);
+
+/**
+ * @brief Select the ADC input.
+ * @param[in] bank Level to set the adc mux CS pin
+ * @param[in] channel Channel to select
+ * @param[in] select Select which ADC bank to use
+ */
 void adc_mux_select(bool bank, uint8_t channel, bool select);
-void adc_generate_event(uint8_t channel, uint16_t value);
-uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *adc_states);
+
+/**
+ * @brief FreeRTOS task for reading rotary encoders and generating events.
+ *
+ * @param[in] pvParameters Pointer to task parameters (task_props_t*).
+ */
 void encoder_read_task(void *pvParameters);
+
+/**
+ * @brief Generate and send a rotary encoder event to the event queue.
+ *
+ * @param[in] rotary Encoder number.
+ * @param[in] dir Rotation direction (1 for clockwise, 0 for counterclockwise).
+ */
 void encoder_generate_event(uint8_t rotary, uint16_t dir);
 
 #endif

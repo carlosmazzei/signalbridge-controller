@@ -1,0 +1,94 @@
+{
+    "cmake.configureOnOpen": true,
+    "cmake.preferredGenerators": [
+        "Unix Makefiles"
+    ],
+    "cmake.configureArgs": [
+        "-DCMAKE_C_COMPILER=/usr/bin/arm-none-eabi-gcc",
+        "-DPICO_BOARD=pico",
+        "-DPICO_PLATFORM=rp2040",
+        "-DPICO_COMPILER=pico_arm_cortex_m0plus_gcc",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DPICO_SDK_PATH=${env:PICO_SDK_PATH}",
+        "-DPICO_TOOLCHAIN_PATH=${env:PICO_TOOLCHAIN_PATH}"
+    ],
+    "cmake.buildArgs": [
+        "-j4"
+    ],
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.installPrefix": "${workspaceFolder}/install",
+    "cmake.exportCompileCommandsFile": true,
+    "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "sonarlint.analysisExcludesStandalone": "**/lib/**",
+    "sonarlint.ls.javaHome": "/usr/lib/jvm/java-17-openjdk-amd64",
+    "sonarlint.rules": {
+        "c": {
+            "misra-c2012-*": "on"
+        }
+    },
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+    "editor.defaultFormatter": "zachflower.uncrustify",
+    "editor.formatOnSave": true,
+    "[c]": {
+        "editor.defaultFormatter": "zachflower.uncrustify",
+        "editor.formatOnSave": true
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "zachflower.uncrustify",
+        "editor.formatOnSave": true
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "git.ignoreLimitWarning": true,
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+    "doxdocgen.file.fileTemplate": "@file {name}",
+    "doxdocgen.file.copyrightTag": [
+        "@copyright Copyright (c) {year}"
+    ],
+    "doxdocgen.generic.authorTag": "@author Carlos Mazzei",
+    "doxdocgen.generic.dateTemplate": "{date}",
+    "doxdocgen.generic.generateSmartText": true,
+    "doxdocgen.generic.briefTemplate": "@brief {text}",
+    "doxdocgen.generic.paramTemplate": "@param {param} {text}",
+    "doxdocgen.generic.returnTemplate": "@return {type} {text}",
+    "uncrustify.configPath.linux": "${workspaceFolder}/uncrustify.cfg",
+    "uncrustify.configPath.osx": "${workspaceFolder}/uncrustify.cfg",
+    "uncrustify.configPath.windows": "${workspaceFolder}/uncrustify.cfg",
+    "files.associations": {
+        "*.h": "c",
+        "*.c": "c",
+        "*.hpp": "cpp",
+        "*.cpp": "cpp",
+        "*.cmake": "cmake",
+        "CMakeLists.txt": "cmake",
+        "*.uf2": "binary",
+        "*.pio": "ini",
+        "*.cfg": "ini"
+    },
+    "search.exclude": {
+        "**/lib": true
+    },
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "c-cpp-flylint.lizard.enable": false,
+    "c-cpp-flylint.flexelint.enable": false,
+    "c-cpp-flylint.clang.enable": false,
+    "c-cpp-flylint.run": "onSave",
+    "c-cpp-flylint.debug": true,
+    "c-cpp-flylint.cppcheck.extraArgs": [
+        "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions.txt",
+        "--force",
+        "--max-configs=80",
+        "--addon=${workspaceFolder}/misra.json",
+        "--cppcheck-build-dir=${workspaceFolder}/.cppcheck",
+        "-Dbi_decl(x)=",
+    ],
+    "c-cpp-flylint.cppcheck.includePaths": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/src",
+    ]
+}

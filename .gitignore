@@ -1,6 +1,6 @@
 .idea
-.vscode
 .cache
+.cppcheck
 _deps
 cmake-*
 build

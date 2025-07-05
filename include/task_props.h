@@ -1,5 +1,5 @@
-#ifndef _TASK_PROPS_H_
-#define _TASK_PROPS_H_
+#ifndef TASK_PROPS_H
+#define TASK_PROPS_H
 
 #include <stdint.h>
 #include "task.h"

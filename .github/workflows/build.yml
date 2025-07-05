@@ -1,74 +1,187 @@
 name: "Build"
-
 on:
   push:
+    paths-ignore:
+      - '.devcontainer/**'
   release:
     types: [published]
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   PICO_PLATFORM: rp2040
   PICO_BOARD: pico
+  # Use relative paths from project root
+  PICO_SDK_PATH: ./lib/pico-sdk
+  FREERTOS_KERNEL_PATH: ./lib/FreeRTOS-Kernel
+  PICO_TOOLCHAIN_PATH: /usr/bin
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
+      options: --user=root
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
     steps:
-      # Clean workspace before starting
-      - name: Clean workspace
-        run: |
-          echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"
-          mkdir -p "${{ github.workspace }}"
-
-      # Checkout the repository
+      # Checkout the repository with submodules
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
-      # Setup submodules
-      - name: Setup submodules
-        run: |
-          echo "Setting up submodules"
-          git submodule update --init --recursive
+      # Verify toolchain installation
+      - name: Verify installed toolchain version
+        run: arm-none-eabi-gcc --version
 
-      # Install build tools
-      - name: Install build tools
+      # Comprehensive debugging of paths and directory structure
+      - name: Debug - Show directory structure and paths
         run: |
-          echo "Installing building tools"
-          sudo apt update
-          sudo apt install -y cmake doxygen python3 build-essential gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
-          
-      # Create build environment
+          echo "==================== DEBUGGING PATHS ===================="
+          echo "Current working directory: $(pwd)"
+          echo ""
+          echo "=== Environment Variables ==="
+          echo "BUILD_TYPE: $BUILD_TYPE"
+          echo "PICO_PLATFORM: $PICO_PLATFORM"
+          echo "PICO_BOARD: $PICO_BOARD"
+          echo "PICO_SDK_PATH: $PICO_SDK_PATH"
+          echo "FREERTOS_KERNEL_PATH: $FREERTOS_KERNEL_PATH"
+          echo "PICO_TOOLCHAIN_PATH: $PICO_TOOLCHAIN_PATH"
+          echo ""
+          echo "=== Root Directory Contents ==="
+          ls -la
+          echo ""
+          echo "=== Lib Directory ==="
+          if [ -d "lib" ]; then
+            ls -la lib/
+          else
+            echo "❌ lib directory does not exist"
+          fi
+          echo ""
+          echo "=== Verifying SDK and FreeRTOS paths ==="
+          if [ -d "$PICO_SDK_PATH" ]; then
+            echo "✅ PICO_SDK_PATH exists: $PICO_SDK_PATH"
+            echo "Contents:"
+            ls -la "$PICO_SDK_PATH" | head -5
+          else
+            echo "❌ PICO_SDK_PATH does not exist: $PICO_SDK_PATH"
+          fi
+          echo ""
+          if [ -d "$FREERTOS_KERNEL_PATH" ]; then
+            echo "✅ FREERTOS_KERNEL_PATH exists: $FREERTOS_KERNEL_PATH"
+            echo "Contents:"
+            ls -la "$FREERTOS_KERNEL_PATH" | head -5
+          else
+            echo "❌ FREERTOS_KERNEL_PATH does not exist: $FREERTOS_KERNEL_PATH"
+          fi
+          echo ""
+          echo "=== CMake files in project ==="
+          find . -name "*.cmake" -type f 2>/dev/null | head -10
+          echo ""
+          echo "=== Looking for FreeRTOS import files ==="
+          find . -name "*FreeRTOS*" -name "*.cmake" -type f 2>/dev/null
+          echo ""
+          echo "=== CMakeLists.txt files ==="
+          find . -name "CMakeLists.txt" -type f 2>/dev/null
+          echo "=========================================================="
+
+      # Create build directory
       - name: Create Build Environment
-        # Some projects don't allow in-source building, so create a separate build directory
-        # We'll use this as our working directory for all subsequent commands
-        run: cmake -E make_directory ${{github.workspace}}/build
-    
-      # Set up the environment variables for the build
+        run: |
+          echo "Creating build directory..."
+          mkdir -p build
+          echo "Build directory created."
+
+      # Debug build directory
+      - name: Debug - Show build directory status
+        run: |
+          echo "=== Build Directory Status ==="
+          ls -la
+          echo "=== Build Directory Contents ==="
+          ls -la build/
+          echo "=== Current working directory ==="
+          pwd
+
+      # Configure CMake with detailed output
       - name: Configure CMake
-        # Use a bash shell so we can use the same syntax for environment variable
-        # access regardless of the host operating system
         shell: bash
-        working-directory: ${{github.workspace}}/build
-        # Note the current convention is to use the -S and -B options here to specify source
-        # and build directories, but this is only available with CMake 3.13 and higher.
-        # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-        run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
-    
+        run: |
+          echo "==================== CMAKE CONFIGURATION ===================="
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo ""
+          echo "Lib directory:"
+          ls -la lib/
+          echo ""
+          echo "=== Paths relative to project root ==="
+          echo "PICO_SDK_PATH: ${{ env.PICO_SDK_PATH }}"
+          echo "FREERTOS_KERNEL_PATH: ${{ env.FREERTOS_KERNEL_PATH }}"
+          echo ""
+          echo "=== Verifying paths exist ==="
+          if [ -d "${{ env.PICO_SDK_PATH }}" ]; then
+            echo "✅ PICO_SDK_PATH exists: ${{ env.PICO_SDK_PATH }}"
+          else
+            echo "❌ PICO_SDK_PATH does not exist: ${{ env.PICO_SDK_PATH }}"
+          fi
+          if [ -d "${{ env.FREERTOS_KERNEL_PATH }}" ]; then
+            echo "✅ FREERTOS_KERNEL_PATH exists: ${{ env.FREERTOS_KERNEL_PATH }}"
+          else
+            echo "❌ FREERTOS_KERNEL_PATH does not exist: ${{ env.FREERTOS_KERNEL_PATH }}"
+          fi
+          echo ""
+          echo "=== Running CMake from project root ==="
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+            -DPICO_SDK_PATH=${{ env.PICO_SDK_PATH }} \
+            -DFREERTOS_KERNEL_PATH=${{ env.FREERTOS_KERNEL_PATH }} \
+            -DPICO_TOOLCHAIN_PATH=${{ env.PICO_TOOLCHAIN_PATH }} \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            --debug-output
+          echo "=========================================================="
+
       # Build the project
       - name: Build
-        working-directory: ${{github.workspace}}/build
+        working-directory: build
         shell: bash
-        # Execute the build.  You can specify a specific target with "--target <NAME>"
-        run: cmake --build . --config $BUILD_TYPE --target all --parallel $(nproc)
+        run: |
+          echo "==================== BUILDING PROJECT ===================="
+          echo "Starting build process..."
+          cmake --build . --config $BUILD_TYPE --verbose
+          echo ""
+          echo "=== Build completed - checking outputs ==="
+          find . -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
+          echo "=========================================================="
 
-      # Archive doxygen documentation
+      # Archive documentation if it exists
       - name: Archive Doxygen Documentation
         run: |
-          echo "Archiving Doxygen documentation"  
-          tar -czf ${{github.workspace}}/build/src/doc.tar.gz -C ${{github.workspace}}/build/docs/ doc_doxygen
+          echo "==================== DOCUMENTATION ===================="
+          if [ -d "build/docs/doc_doxygen" ]; then
+            echo "✅ Doxygen documentation found"
+            echo "Creating documentation archive..."
+            tar -czf build/src/doc.tar.gz -C build/docs/ doc_doxygen
+            echo "Documentation archived successfully"
+          else
+            echo "ℹ️  Doxygen documentation not found, skipping archive"
+            echo "Available directories in build:"
+            find build -type d -name "*doc*" 2>/dev/null || echo "No documentation directories found"
+          fi
+          echo "=========================================================="
+
+      # Debug artifacts before upload
+      - name: Debug - Show artifacts
+        run: |
+          echo "==================== ARTIFACTS ===================="
+          echo "=== Looking for build artifacts ==="
+          find build -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
+          echo ""
+          echo "=== Build directory structure ==="
+          find build -type f | head -20
+          echo "=========================================================="
 
       # Store build artifacts
       - name: Store Build Artifacts
@@ -81,26 +194,37 @@ jobs:
             build/src/doc.tar.gz
           retention-days: 10
 
+  # Release job (only runs on releases)
   release:
     name: Release
     runs-on: ubuntu-latest
+    needs: build
     if: github.event_name == 'release' && github.event.action == 'published'
     
     steps:
-    # Download artifacts from previous build
-    - name: Download Build Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: pico-build
-        path: artifacts
-    
-    # Upload to release
-    - name: Upload Release Assets
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          artifacts/*.uf2
-          artifacts/*.elf
-          artifacts/doc.tar.gz
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Download artifacts from build job
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pico-build
+          path: artifacts
+
+      # Debug downloaded artifacts
+      - name: Debug - Show downloaded artifacts
+        run: |
+          echo "=== Downloaded artifacts ==="
+          find artifacts -type f
+          ls -la artifacts/
+
+      # Upload to GitHub release
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.uf2
+            artifacts/**/*.elf
+            artifacts/**/*.bin
+            artifacts/**/*.hex
+            artifacts/doc.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
