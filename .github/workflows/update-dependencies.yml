@@ -42,7 +42,7 @@ jobs:
 
       - name: Verify update script exists
         run: |
-          if [[ ! -f update-dependencies.sh ]]; then
+          if [[ ! -f .devcontainer/update-dependencies.sh ]]; then
             echo "::error::update-dependencies.sh script not found in repository root"
             exit 1
           fi
@@ -73,10 +73,10 @@ jobs:
       - name: Make script executable and run
         run: |
           echo "Making update script executable..."
-          chmod +x ./update-dependencies.sh
+          chmod +x .devcontainer/update-dependencies.sh
           
           echo "Running dependency update script without backup..."
-          if ! NO_BACKUP=true ./update-dependencies.sh; then
+          if ! NO_BACKUP=true .devcontainer/update-dependencies.sh; then
             echo "::error::Dependency update script failed"
             exit 1
           fi
@@ -205,7 +205,7 @@ jobs:
           cat .devcontainer/dependencies.json 2>/dev/null || echo "Could not read .devcontainer/dependencies.json"
           
           echo "Update script content:"
-          cat update-dependencies.sh 2>/dev/null || echo "Could not read update-dependencies.sh"
+          cat .devcontainer/update-dependencies.sh 2>/dev/null || echo "Could not read update-dependencies.sh"
           
           echo "Recent git log:"
           git log --oneline -5 2>/dev/null || echo "Could not show git log"
