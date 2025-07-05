@@ -10,6 +10,9 @@ jobs:
   updates:
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # Required to push branches and create commits
+      pull-requests: write   # Required to create pull requests
     container:
       image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
       options: --user=root
