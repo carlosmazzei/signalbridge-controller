@@ -13,6 +13,7 @@ jobs:
     permissions:
       contents: write         # Required to push branches and create commits
       pull-requests: write    # Required to create pull requests
+      issues: write           # Required to create issues for failed updates
       packages: read          # Required to read packages from the GitHub Container Registry
       statuses: read
     container:
