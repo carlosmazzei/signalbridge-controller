@@ -6,6 +6,11 @@ on:
     - cron: "0 0 * * 0"
   workflow_dispatch:
 
+permissions:
+  contents: write        # Required to push branches and create commits
+  pull-requests: write   # Required to create pull requests
+  metadata: read         # Keep existing metadata read access
+
 jobs:
   updates:
     timeout-minutes: 10
@@ -73,10 +78,10 @@ jobs:
       - name: Make script executable and run
         run: |
           if ! command -v jq >/dev/null 2>&1; then
-              echo "jq not found. Installing..."
-              apt-get update && apt-get install -y jq
-            else
-              echo "jq is already installed."
+            echo "jq not found. Installing..."
+            apt-get update && apt-get install -y jq
+          else
+            echo "jq is already installed."
           fi
           echo "Making update script executable..."
           chmod +x .devcontainer/update-dependencies.sh
