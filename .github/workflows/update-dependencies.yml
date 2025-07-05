@@ -9,7 +9,6 @@ on:
 permissions:
   contents: write        # Required to push branches and create commits
   pull-requests: write   # Required to create pull requests
-  metadata: read         # Keep existing metadata read access
 
 jobs:
   updates:
