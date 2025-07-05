@@ -6,10 +6,6 @@ on:
     - cron: "0 0 * * 0"
   workflow_dispatch:
 
-permissions:
-  contents: write        # Required to push branches and create commits
-  pull-requests: write   # Required to create pull requests
-
 jobs:
   updates:
     timeout-minutes: 10
