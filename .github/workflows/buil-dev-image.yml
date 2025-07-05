@@ -39,7 +39,7 @@ jobs:
           echo "tag_sha=${IMAGE_NAME}:${{ github.sha }}" >> $GITHUB_OUTPUT # Tag com o SHA do commit
 
       - name: Build and push Debian 12 DevContainer image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .devcontainer 
           file: .devcontainer/Dockerfile 
