@@ -14,7 +14,7 @@
     "openjdk-17-jre-headless": "17.0.15+6-1~deb12u1",
     "openssh-client": "1:9.2p1-2+deb12u6",
     "python3": "3.11.2-1+b1",
-    "sudo": "1.9.13p3-1+deb12u1",
-    "uncrustify": "",
-    "jq": ""
+    "sudo": "1.9.13p3-1+deb12u2",
+    "uncrustify": "0.72.0+dfsg1-2",
+    "jq": "1.6-2.1"
 }
