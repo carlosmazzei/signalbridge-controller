@@ -357,7 +357,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 	cdc_rts = rts;
 }
 
-/* cppcheck-suppress[misra-c2012-8.4] ; Required by FreeRTOS DEVIATION(D3) */
+/* cppcheck-suppress[misra-c2012-8.4] ; Required by FreeRTOS DEVIATION(D5) */
 uint32_t ulPortGetRunTime( void )
 {
 	return time_us_32();
