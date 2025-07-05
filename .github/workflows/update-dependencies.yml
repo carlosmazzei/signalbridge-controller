@@ -72,6 +72,12 @@ jobs:
 
       - name: Make script executable and run
         run: |
+          if ! command -v jq >/dev/null 2>&1; then
+              echo "jq not found. Installing..."
+              apt-get update && apt-get install -y jq
+            else
+              echo "jq is already installed."
+          fi
           echo "Making update script executable..."
           chmod +x .devcontainer/update-dependencies.sh
           
