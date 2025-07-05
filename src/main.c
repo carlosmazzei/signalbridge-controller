@@ -1,14 +1,47 @@
 /**
  * @file main.c
- * @brief Main application for the A320 Pico Controller with FreeRTOS
+ * @brief Main application for the A320 Pico Controller with FreeRTOS.
  * @author
- *   - Carlos Mazzei <carlos.mazzei@gmail.com>
+ *   Carlos Mazzei <carlos.mazzei@gmail.com>
  * @date 2020-2025
  *
- * This file contains the core FreeRTOS tasks and initialization code
- * for the A320 Pico Controller project. It configures USB CDC, handles
- * inbound/outbound data using COBS encoding, and manages hardware
- * resources such as keypads, encoders, and ADCs.
+ * @mainpage A320 Pico Controller Firmware
+ *
+ * ## Overview
+ * This project implements the main firmware for the A320 Pico Controller, based on FreeRTOS and designed for the Raspberry Pi Pico.
+ *
+ * ### Main Features
+ * - USB CDC communication with the host (TinyUSB)
+ * - COBS encoding/decoding for robust data transmission
+ * - FreeRTOS task and event queue management
+ * - Hardware control: keypad, encoders, ADCs, LEDs, PWM
+ * - System error and statistics monitoring
+ * - Watchdog support and critical fault handling
+ *
+ * ### Code Structure
+ * - Hardware and peripheral initialization
+ * - FreeRTOS task creation and management
+ * - Queue handling for inter-task communication
+ * - Host command processing
+ * - Event and status reporting to the host
+ *
+ * ### License
+ * (c) 2020-2025 Carlos Mazzei - All rights reserved.
+ *
+ * @section dependencies Dependencies
+ * - FreeRTOS
+ * - Raspberry Pi Pico SDK
+ * - TinyUSB
+ * - COBS (Consistent Overhead Byte Stuffing)
+ *
+ * @section contact Contact
+ * For questions or contributions, contact: carlos.mazzei@gmail.com
+ *
+ * @section references References
+ * - [FreeRTOS](https://www.freertos.org/)
+ * - [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk)
+ * - [TinyUSB](https://github.com/hathach/tinyusb)
+ * - [COBS](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing)
  *
  * @copyright
  *   (c) 2020-2025 Carlos Mazzei - All rights reserved.
