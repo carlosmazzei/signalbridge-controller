@@ -1,4 +1,7 @@
-# Raspberry Pi Pico FreeRTOS SMP Controller
+<p align="center">
+<img src="assets/logo-pimatrix-dark.png#gh-dark-mode-only" alt="PiMatrix" width="200">
+<img src="assets/logo-pimatrix-light.png#gh-light-mode-only" alt="PiMatrix" width="200">
+</p>
 
 ![build](https://github.com/carlosmazzei/a320-pico-controller-freertos/actions/workflows/build.yml/badge.svg)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
@@ -6,7 +9,7 @@
 
 This controller uses the Raspberry Pi Pico and the SMP (Symmetric Multi Processor) version of FreeRTOS to enable robust multitasking functionality for embedded applications. The main objective is to create a low-latency interface (with response times in dozens of milliseconds) for home simulator applications, interfacing with LEDs, 7-segment displays, ADC converters, key inputs, and rotary encoders.
 
-## 🚀 Quick Start Guide - Choose Your Setup Method
+## 🚀 Quick Start
 
 ### Option 1: DevContainer (🎯 RECOMMENDED - One-Click Setup)
 
@@ -73,7 +76,6 @@ brew install cmake doxygen python3 arm-none-eabi-gcc cppcheck uncrustify git nod
 
 </details>
 
----
 
 ## 🛠️ Development Environment Details
 
@@ -105,8 +107,6 @@ export PICO_TOOLCHAIN_PATH="/usr/bin"
 export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-arm64"
 ```
 
----
-
 ## ✨ Features (Current Implementation)
 
 ### Implemented Protocols and Interfaces
@@ -130,6 +130,8 @@ export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-arm64"
 - **PWM Control**: Hardware PWM for LED brightness control
 - **SPI Multiplexing**: Hardware multiplexer for efficient chip selection
 
+> More details of the Output System in [Output System Documentation](OUTPUT.md)
+
 ### Command Interface (Parser-Synchronized)
 **Status**: Verified against `src/main.c` implementation (30+ commands)
 
@@ -147,8 +149,6 @@ export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-arm64"
 - **Task Management**: 8 concurrent tasks with stack monitoring
 - **Watchdog**: Hardware watchdog with task-level monitoring
 - **Memory Management**: Dynamic allocation with heap monitoring
-
----
 
 ## 📘 Building the Project
 
@@ -184,8 +184,6 @@ make
 ```
 
 **Build Output**: `build/pi_controller.uf2`
-
----
 
 ## ⚙️ Configuration (Code-Synchronized)
 
@@ -226,8 +224,6 @@ make
 - **Stack Overflow Check**: Level 2
 - **Runtime Stats**: Enabled
 
----
-
 ## 🔧 Hardware Platform (Implementation-Specific)
 
 ### Supported Hardware (Code-Verified)
@@ -265,8 +261,6 @@ make
 - **PWM**: Hardware PWM slice for LED brightness control
 - **Watchdog**: Hardware watchdog timer (5s timeout)
 - **USB**: TinyUSB CDC for host communication
-
----
 
 ## 📚 API Reference (Code-Generated Documentation)
 
@@ -325,8 +319,6 @@ make
 - `adc_read_task()`: Reads ADC channels with moving average filtering  
 - `encoder_read_task()`: Processes rotary encoder inputs
 
----
-
 ## 📊 Memory and Performance (Measured Specifications)
 
 ### Memory Usage (Current Build)
@@ -343,8 +335,6 @@ make
 - **Task Scheduling**: 1ms tick resolution
 - **ADC Sampling**: Configurable, typically 100ms settling
 - **SPI Speed**: 500 kHz for reliable TM1639 communication
-
----
 
 ## 🧪 Code Quality and Standards
 
@@ -367,8 +357,6 @@ All code is automatically formatted using Uncrustify with the provided `uncrusti
 - **Cppcheck**: MISRA C:2012 rules with suppressions for external libraries
 - **SonarLint**: Real-time code quality analysis in VS Code
 - **Flawfinder**: Security vulnerability scanning
-
----
 
 ## 🔧 Troubleshooting (Current Issues and Solutions)
 
@@ -399,8 +387,6 @@ All code is automatically formatted using Uncrustify with the provided `uncrusti
 **USB Communication:**
 - **COBS decode errors**: Verify packet marker (0x00) and payload integrity
 - **Flow control issues**: Ensure DTR and RTS signals properly handled by host
-
----
 
 ## 🚀 Quick Commands Reference
 
@@ -438,8 +424,6 @@ minicom -D /dev/ttyACM0 -b 115200
 cppcheck --enable=all --std=c11 src/ include/
 ```
 
----
-
 ## 📄 Documentation Generation
 
 ### Doxygen Documentation
@@ -455,8 +439,6 @@ open docs/html/index.html
 ```
 
 **Included**: All public APIs, data structures, and usage examples from code comments.
-
----
 
 ## 🤝 Contributing
 
@@ -474,8 +456,6 @@ open docs/html/index.html
 4. Test on hardware
 5. Update documentation
 6. Submit pull request with detailed description
-
----
 
 ## 📋 README Maintenance
 
@@ -497,8 +477,6 @@ This README is synchronized with the actual codebase. To maintain accuracy:
 - [ ] **Version consistency**: Check version numbers across `CMakeLists.txt` and documentation
 - [ ] **Link verification**: Test all URLs and internal links
 
----
-
 ## 📞 Support and Resources
 
 ### Documentation Links
@@ -511,8 +489,6 @@ This README is synchronized with the actual codebase. To maintain accuracy:
 - **Issues**: Report bugs via GitHub Issues
 - **Discussions**: Use GitHub Discussions for questions
 - **Contributing**: See CONTRIBUTING.md for guidelines
-
----
 
 **Happy Coding! 🚀**
 
