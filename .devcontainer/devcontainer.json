@@ -1,5 +1,5 @@
 {
-    "name": "Raspberry Pi Pico FreeRTOS Development",
+    "name": "Signalbridge Controller",
     "build": {
         "dockerfile": "Dockerfile"
     }, 

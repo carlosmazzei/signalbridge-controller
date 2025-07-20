@@ -90,5 +90,6 @@
     "c-cpp-flylint.cppcheck.includePaths": [
         "${workspaceFolder}/include",
         "${workspaceFolder}/src",
-    ]
+    ],
+    "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc"
 }

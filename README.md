@@ -1,6 +1,6 @@
 <div align="center">
-<img src="assets/logo-pimatrix-dark.png#gh-dark-mode-only" alt="PiMatrix" width="150">
-<img src="assets/logo-pimatrix-light.png#gh-light-mode-only" alt="PiMatrix" width="150">
+<img src="assets/logo-pimatrix-dark.png#gh-dark-mode-only" alt="Signalbridge" width="150">
+<img src="assets/logo-pimatrix-light.png#gh-light-mode-only" alt="Signalbridge" width="150">
 </div>
 
 # Signalbridge
@@ -9,7 +9,16 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![DevContainer](https://img.shields.io/badge/DevContainer-Ready-green.svg)](https://code.visualstudio.com/docs/remote/containers)
 
-This controller uses the Raspberry Pi Pico and the SMP (Symmetric Multi Processor) version of FreeRTOS to enable robust multitasking functionality for embedded applications. The main objective is to create a low-latency interface (with response times in dozens of milliseconds) for home simulator applications, interfacing with LEDs, 7-segment displays, ADC converters, key inputs, and rotary encoders.
+This controller uses the Raspberry Pi Pico and the SMP (Symmetric Multi Processor) version of FreeRTOS to enable robust multitasking functionality for embedded applications. The main objective is to create a low-latency interface (with response times in dozens of milliseconds) for reliable applications, interfacing with LEDs, 7-segment displays, ADC converters, key inputs, and rotary encoders.
+
+> [!TIP]
+> This firmware is designed for the Raspberry Pi Pico.
+
+Related repos:
+
+- [Signalbridge breakout board](https://github.com/carlosmazzei/signalbridge-board)
+- [Signalbridge test suite](https://github.com/carlosmazzei/signalbridge-test-suite)
+- [Signalbridge firmware](https://github.com/carlosmazzei/signalbridge-controller) (This repo)
 
 ## 🚀 Quick Start
 

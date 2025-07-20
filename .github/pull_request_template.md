@@ -1,6 +1,6 @@
 <!-- If this pull request fixes an issue, add "Fixes #NNN" with the issue number. -->
 
-# **Explain how this PR changes pico-controller**
+# **Explain how this PR changes signalbridge controller**
 
 [Description of the PR changes]
 
