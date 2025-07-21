@@ -5,7 +5,7 @@
 
 # Signalbridge
 
-![build](https://github.com/carlosmazzei/a320-pico-controller-freertos/actions/workflows/build.yml/badge.svg)
+![build](https://github.com/carlosmazzei/signalbridge-controller/actions/workflows/build.yml/badge.svg)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![DevContainer](https://img.shields.io/badge/DevContainer-Ready-green.svg)](https://code.visualstudio.com/docs/remote/containers)
 
