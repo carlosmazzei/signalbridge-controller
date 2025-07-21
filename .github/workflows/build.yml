@@ -20,7 +20,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
+      image: ghcr.io/${{ github.repository }}/devcontainer-embedded-debian:latest
       options: --user=root
       credentials:
         username: ${{ github.actor }}

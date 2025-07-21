@@ -17,7 +17,7 @@ jobs:
       packages: read          # Required to read packages from the GitHub Container Registry
       statuses: read
     container:
-      image: ghcr.io/${{ github.repository }}/devcontainer-embedded:latest
+      image: ghcr.io/${{ github.repository }}/devcontainer-embedded-debian:latest
       options: --user=root
       credentials:
         username: ${{ github.actor }}
