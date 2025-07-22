@@ -1,26 +1,115 @@
-name: "Build"
+# .github/workflows/build-all.yml
+name: "Build All"
+
 on:
   push:
-    paths-ignore:
+    paths:
+      - 'src/**'
+      - 'include/**' 
+      - '.gitmodules'
+      - 'CMakeLists.txt'
+      - '*.cmake'
       - '.devcontainer/**'
   release:
     types: [published]
+  workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
   PICO_PLATFORM: rp2040
   PICO_BOARD: pico
-  # Use relative paths from project root
   PICO_SDK_PATH: ./lib/pico-sdk
   FREERTOS_KERNEL_PATH: ./lib/FreeRTOS-Kernel
   PICO_TOOLCHAIN_PATH: /usr/bin
 
 jobs:
-  build:
-    name: Build
+  detect-changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
+    outputs:
+      devcontainer-changed: ${{ steps.changes.outputs.devcontainer }}
+      firmware-changed: ${{ steps.changes.outputs.firmware }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            devcontainer:
+              - '.devcontainer/**'
+            firmware:
+              - 'src/**'
+              - 'include/**'
+              - '.gitmodules'
+              - 'CMakeLists.txt'
+              - '*.cmake'
+
+  build-devcontainer:
+    name: Build DevContainer
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.devcontainer-changed == 'true' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.image_tags.outputs.tag_sha }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Define tags
+        id: image_tags
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository }}/devcontainer-embedded-debian
+          echo "tag_latest=${IMAGE_NAME}:latest" >> $GITHUB_OUTPUT
+          echo "tag_debian12=${IMAGE_NAME}:debian-12" >> $GITHUB_OUTPUT
+          echo "tag_sha=${IMAGE_NAME}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push DevContainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image_tags.outputs.tag_latest }}
+            ${{ steps.image_tags.outputs.tag_debian12 }}
+            ${{ steps.image_tags.outputs.tag_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-devcontainer]
+    # Roda se firmware mudou OU se devcontainer mudou OU se é release OU workflow_dispatch
+    if: |
+      always() && 
+      (needs.detect-changes.outputs.firmware-changed == 'true' || 
+       needs.detect-changes.outputs.devcontainer-changed == 'true' || 
+       github.event_name == 'release' || 
+       github.event_name == 'workflow_dispatch') &&
+      (needs.build-devcontainer.result == 'success' || needs.build-devcontainer.result == 'skipped')
+    
     container:
-      image: ghcr.io/${{ github.repository }}/devcontainer-embedded-debian:latest
+      image: ${{ needs.build-devcontainer.outputs.image-tag || 'ghcr.io/${{ github.repository }}/devcontainer-embedded-debian:latest' }}
       options: --user=root
       credentials:
         username: ${{ github.actor }}
