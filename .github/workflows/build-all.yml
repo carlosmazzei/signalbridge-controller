@@ -99,7 +99,7 @@ jobs:
     name: Build Firmware
     runs-on: ubuntu-latest
     needs: [detect-changes, build-devcontainer]
-    # Roda se firmware mudou OU se devcontainer mudou OU se é release OU workflow_dispatch
+    # Runs if firmware changed OR if devcontainer changed OR if it's a release OR workflow_dispatch
     if: |
       always() && 
       (needs.detect-changes.outputs.firmware-changed == 'true' || 
