@@ -109,7 +109,7 @@ jobs:
       (needs.build-devcontainer.result == 'success' || needs.build-devcontainer.result == 'skipped')
     
     container:
-      image: ${{ needs.build-devcontainer.outputs.image-tag || 'ghcr.io/${{ github.repository }}/devcontainer-embedded-debian:latest' }}
+      image: ${{ needs.build-devcontainer.outputs.image-tag || format('ghcr.io/{0}/devcontainer-embedded-debian:latest', github.repository) }}
       options: --user=root
       credentials:
         username: ${{ github.actor }}
