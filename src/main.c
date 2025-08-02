@@ -807,6 +807,7 @@ static void process_outbound_task(void *pvParameters)
 static inline bool setup_hardware(void)
 {
 	bool success = true;
+
 	/* Initialize standard I/O (UART, etc.) */
 	stdio_init_all();
 
@@ -830,8 +831,7 @@ static inline bool setup_hardware(void)
 		.rows                  = 8,
 		.key_settling_time_ms  = 20,
 		.input_event_queue     = data_event_queue,
-		.adc_banks             = 2,
-		.adc_channels          = 8,
+		.adc_channels          = 16,
 		.adc_settling_time_ms  = 100,
 		.encoder_settling_time_ms = 10,
 		/* Enable encoder on row 8 (last row) */

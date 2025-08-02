@@ -91,5 +91,6 @@
         "${workspaceFolder}/include",
         "${workspaceFolder}/src",
     ],
-    "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc"
+    "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc",
+    "c-cpp-flylint.language": "c"
 }

@@ -20,28 +20,23 @@
  *  @brief Macros for multiplexer control pins.
  *  @{
  */
-
-/** @def MUX_A_PIN
+/** @def SPI_MUX_A_PIN
  * @brief Multiplexer control pin A.
  */
-#define MUX_A_PIN 11
-
-/** @def MUX_B_PIN
+#define SPI_MUX_A_PIN 10
+/** @def SPI_MUX_B_PIN
  * @brief Multiplexer control pin B.
  */
-#define MUX_B_PIN 12
-
-/** @def MUX_C_PIN
+#define SPI_MUX_B_PIN 14
+/** @def SPI_MUX_C_PIN
  * @brief Multiplexer control pin C.
  */
-#define MUX_C_PIN 14
-
-/** @def MUX_ENABLE
+#define SPI_MUX_C_PIN 15
+/** @def SPI_MUX_CS
  * @brief Multiplexer enable pin.
  * This pin is used to enable the multiplexer for chip selection.
  */
-#define MUX_ENABLE 32
-
+#define SPI_MUX_CS 32
 /** @} */ // end of mux_pins
 
 /** @def MAX_SPI_INTERFACES
@@ -208,7 +203,7 @@ extern output_drivers_t output_drivers;
  * @param[in] length  Length of the payload buffer (should be at least 3).
  * @return OUTPUT_OK on success, or an error code on failure.
  */
-uint8_t led_out(const uint8_t *payload, uint8_t length);
+output_result_t led_out(const uint8_t *payload, uint8_t length);
 
 /** @brief Initialize the outputs.
  *
@@ -218,7 +213,7 @@ uint8_t led_out(const uint8_t *payload, uint8_t length);
  * @note This function initializes the SPI bus, sets up the multiplexer for chip selection,
  *
  */
-uint8_t output_init(void);
+output_result_t output_init(void);
 
 /**
  * @brief Sends a BCD-encoded digit payload to the appropriate output driver.
@@ -232,7 +227,7 @@ uint8_t output_init(void);
  * @param[in] length  Length of the payload buffer (should be at least 6).
  * @return OUTPUT_OK on success, or an error code on failure.
  */
-uint8_t display_out(const uint8_t *payload, uint8_t length);
+output_result_t display_out(const uint8_t *payload, uint8_t length);
 
 /** @brief Set PWM duty cycle
  *
