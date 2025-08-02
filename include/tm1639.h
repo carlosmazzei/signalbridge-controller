@@ -36,19 +36,21 @@
 #define TM1639_ERR_INVALID_BCD          (5U)    /* Error code for invalid BCD */
 
 /**
- * @brief TM1639 Result Codes
- * This enum defines the possible result codes returned by TM1639 functions.
- * Each code indicates the success or type of error encountered during operations.
+ * @enum tm1639_result_t
+ * @brief Result codes for TM1639 driver functions.
+ *
+ * This enumeration defines the possible return values for TM1639 driver functions,
+ * indicating success or the type of error encountered during operations.
  */
 typedef enum tm1639_result_t {
-	TM1639_OK = 0,
-	TM1639_ERR_SPI_INIT = 1,
-	TM1639_ERR_GPIO_INIT = 2,
-	TM1639_ERR_SPI_WRITE = 3,
-	TM1639_ERR_INVALID_PARAM = 4,
-	TM1639_ERR_ADDRESS_RANGE = 5,
-	TM1639_ERR_MUTEX_TIMEOUT = 6,
-	TM1639_ERR_INVALID_CHAR = 7
+	TM1639_OK = 0,            /**< Operation completed successfully. */
+	TM1639_ERR_SPI_INIT = 1,  /**< SPI initialization error. */
+	TM1639_ERR_GPIO_INIT = 2, /**< GPIO initialization error. */
+	TM1639_ERR_SPI_WRITE = 3, /**< Error writing via SPI. */
+	TM1639_ERR_INVALID_PARAM = 4, /**< Invalid parameter provided to function. */
+	TM1639_ERR_ADDRESS_RANGE = 5, /**< Address out of allowed range. */
+	TM1639_ERR_MUTEX_TIMEOUT = 6, /**< Timeout while acquiring mutex. */
+	TM1639_ERR_INVALID_CHAR = 7 /**< Invalid character provided. */
 } tm1639_result_t;
 
 /**

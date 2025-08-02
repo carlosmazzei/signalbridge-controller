@@ -1,14 +1,14 @@
 /**
  * @file inputs.c
  * @brief Implementation of keypad, ADC, and rotary encoder input handling for the A320 Pico Controller (FreeRTOS).
- * @author 
+ * @author
  *   - Carlos Mazzei
  * @date 2020-2025
  *
  * This file implements the input subsystem, including keypad scanning, ADC reading/filtering,
  * and rotary encoder handling. It generates events for each input type and sends them to the event queue.
  *
- *  @copyright 
+ *  @copyright
  *   (c) 2020-2025 Carlos Mazzei. All rights reserved.
  */
 
@@ -34,7 +34,6 @@ input_result_t input_init(const input_config_t *config)
 
 	if ((config->columns > KEYPAD_MAX_COLS) ||
 	    (config->rows > KEYPAD_MAX_ROWS) ||
-	    (config->adc_banks > 2U) ||
 	    (config->adc_channels > 16U) ||
 	    (0U == config->key_settling_time_ms) ||
 	    (0U == config->adc_settling_time_ms) ||
@@ -46,7 +45,6 @@ input_result_t input_init(const input_config_t *config)
 	else
 	{
 		// Initialize ADC configuration
-		input_config.adc_banks = config->adc_banks;
 		input_config.adc_channels = config->adc_channels;
 		input_config.adc_settling_time_ms = config->adc_settling_time_ms;
 
@@ -73,23 +71,19 @@ input_result_t input_init(const input_config_t *config)
 		                      (1UL << KEYPAD_ROW_MUX_B) |
 		                      (1UL << KEYPAD_ROW_MUX_C) |
 		                      (1UL << KEYPAD_ROW_MUX_CS) |
-		                      (1UL << ADC0_MUX_CS) |
-		                      (1UL << ADC1_MUX_CS) |
+		                      (1UL << KEYPAD_ROW_INPUT) |
 		                      (1UL << ADC_MUX_A) |
 		                      (1UL << ADC_MUX_B) |
 		                      (1UL << ADC_MUX_C));
 
 		gpio_init_mask(gpio_mask);
 		gpio_set_dir_masked(gpio_mask, 0xFFU);
-
-		gpio_init(KEYPAD_ROW_INPUT);
 		gpio_set_dir(KEYPAD_ROW_INPUT, false);
+		gpio_put_masked(gpio_mask, 0x00U); // Set all pins to low
 
-		// ADC init
-		adc_init();
-		// Make sure GPIO is high-impedance, no pullups etc
-		adc_gpio_init(26);
-		adc_gpio_init(27);
+		adc_init(); // ADC init
+		adc_gpio_init(26); // Make sure GPIO is high-impedance, no pullups etc
+
 	}
 
 	return result;
@@ -262,57 +256,41 @@ void adc_read_task(void *pvParameters)
 
 	while (true)
 	{
-		for (uint8_t bank = 0; bank < input_config.adc_banks; bank++)
+		for (uint8_t chan = 0; chan < input_config.adc_channels; chan++)
 		{
-			uint8_t offset = bank * input_config.adc_channels; // Offset for the current ADC bank
+			// Select the ADC to read from
+			adc_mux_select(chan);
+			adc_select_input(0);
 
-			for (uint8_t chan = 0; chan < input_config.adc_channels; chan++)
+			// Settle the column
+			vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
+
+			uint16_t adc_raw = adc_read();
+			uint16_t filtered_value =
+				adc_moving_average(chan, adc_raw, adc_states.adc_sample_value[chan], &adc_states);
+
+			if (adc_states.adc_previous_value[chan] != filtered_value)
 			{
-				// Select the ADC to read from
-				adc_mux_select(bank, chan, true);
-				adc_select_input(bank);
-
-				// Calculate channel
-				uint8_t channel = offset + chan;
-
-				// Settle the column
-				vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
-
-				uint16_t adc_raw = adc_read();
-				uint16_t filtered_value =
-					adc_moving_average(channel, adc_raw, adc_states.adc_sample_value[channel], &adc_states);
-
-				if (adc_states.adc_previous_value[channel] != filtered_value)
-				{
-					adc_generate_event(channel, filtered_value);
-					adc_states.adc_previous_value[channel] = filtered_value;
-				}
+				adc_generate_event(chan, filtered_value);
+				adc_states.adc_previous_value[chan] = filtered_value;
 			}
-
-			// Deselect the CS pin of the ADC mux
-			adc_mux_select(bank, 0, false);
 		}
+
+		// Deselect the CS pin of the ADC mux
+		adc_mux_select(0);
 
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 }
 
-void adc_mux_select(bool bank, uint8_t channel, bool select)
+void adc_mux_select(uint8_t channel)
 {
 	// Select the ADC channel via multiplexer
-	if (bank)
-	{
-		gpio_put(ADC0_MUX_CS, !select);
-	}
-	else
-	{
-		gpio_put(ADC1_MUX_CS, !select);
-	}
-
 	gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
 	gpio_put(ADC_MUX_B, (channel & 0x02U) != 0U);
 	gpio_put(ADC_MUX_C, (channel & 0x04U) != 0U);
+	gpio_put(ADC_MUX_D, (channel & 0x08U) != 0U);
 }
 
 void encoder_read_task(void *pvParameters)

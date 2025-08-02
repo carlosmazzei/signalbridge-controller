@@ -15,43 +15,62 @@
  * @defgroup KEYPAD Keypad definitions
  * @{
  */
-/** @brief Number of keypad rows. */
+/** @def KEYPAD_ROWS
+ *  @brief Number of keypad rows. */
 #define KEYPAD_ROWS 8U
-/** @brief Number of keypad columns. */
+/** @def KEYPAD_COLUMNS
+ * @brief Number of keypad columns. */
 #define KEYPAD_COLUMNS 8U
-/** @brief Maximum number of keypad columns. */
+/** @def KEYPAD_MAX_COLS
+ * @brief Maximum number of keypad columns. */
 #define KEYPAD_MAX_COLS 8U
-/** @brief Maximum number of keypad rows. */
+/** @def KEYPAD_MAX_ROWS
+ * @brief Maximum number of keypad rows. */
 #define KEYPAD_MAX_ROWS 8U
-/** @brief Number of stability bits for debounce. */
+/** * @def KEYPAD_STABILITY_BITS
+ * @brief Number of stability bits for debounce. */
 #define KEYPAD_STABILITY_BITS 3
-/** @brief Bitmask for keypad stability. */
+/** @def KEYPAD_STABILITY_MASK
+ * @brief Bitmask for keypad stability. */
 #define KEYPAD_STABILITY_MASK ((1U << KEYPAD_STABILITY_BITS) - 1U)
-/** @brief GPIO pin for keypad column multiplexer A. */
-#define KEYPAD_COL_MUX_A 8U
-/** @brief GPIO pin for keypad column multiplexer B. */
-#define KEYPAD_COL_MUX_B 9UL
-/** @brief GPIO pin for keypad column multiplexer C. */
-#define KEYPAD_COL_MUX_C 10UL
-/** @brief GPIO pin for keypad column multiplexer chip select. */
-#define KEYPAD_COL_MUX_CS 11UL
-/** @brief GPIO pin for keypad row input. */
-#define KEYPAD_ROW_INPUT 0U
-/** @brief GPIO pin for keypad row multiplexer A. */
-#define KEYPAD_ROW_MUX_A 1U
-/** @brief GPIO pin for keypad row multiplexer B. */
-#define KEYPAD_ROW_MUX_B 2U
-/** @brief GPIO pin for keypad row multiplexer C. */
+/** @def KEYPAD_COL_MUX_A
+ * @brief GPIO pin for keypad column multiplexer A. */
+#define KEYPAD_COL_MUX_A 0U
+/** @def KEYPAD_COL_MUX_B
+ * @brief GPIO pin for keypad column multiplexer B. */
+#define KEYPAD_COL_MUX_B 1UL
+/** @def KEYPAD_COL_MUX_C
+ * @brief GPIO pin for keypad column multiplexer C. */
+#define KEYPAD_COL_MUX_C 2UL
+/** @def KEYPAD_COL_MUX_CS
+ * @brief GPIO pin for keypad column multiplexer chip select. */
+#define KEYPAD_COL_MUX_CS 17UL
+/** @def KEYPAD_ROW_INPUT
+ * @brief GPIO pin for keypad row input. */
+#define KEYPAD_ROW_INPUT 9U
+/** @def KEYPAD_ROW_MUX_A
+ * @brief GPIO pin for keypad row multiplexer A. */
+#define KEYPAD_ROW_MUX_A 6U
+/** @def KEYPAD_ROW_MUX_B
+ * @brief GPIO pin for keypad row multiplexer B. */
+#define KEYPAD_ROW_MUX_B 7U
+/** @def KEYPAD_ROW_MUX_C
+ * @brief GPIO pin for keypad row multiplexer C. */
 #define KEYPAD_ROW_MUX_C 3U
-/** @brief GPIO pin for keypad row multiplexer chip select. */
-#define KEYPAD_ROW_MUX_CS 6U
-/** @brief Bitmask for key pressed state (two consecutives actives). */
+/** @def KEYPAD_ROW_MUX_CS
+ * @brief GPIO pin for keypad row multiplexer chip select. */
+#define KEYPAD_ROW_MUX_CS 8U
+/** @def KEY_PRESSED_MASK
+ * @brief Bitmask for key pressed state (two consecutives actives). */
 #define KEY_PRESSED_MASK 0x03U
-/** @brief Bitmask for key released state (two consecutives inactives). */
+/** @def KEY_RELEASED_MASK
+ * @brief Bitmask for key released state (two consecutives inactives). */
 #define KEY_RELEASED_MASK 0x04U
-/** @brief Key pressed state. */
+/** @def  KEY_PRESSED
+ * @brief Key pressed state. */
 #define KEY_PRESSED 1U
-/** @brief Key released state. */
+/** @def KEY_RELEASED
+ * @brief Key released state. */
 #define KEY_RELEASED 0U
 /** @} */
 
@@ -59,18 +78,34 @@
  * @defgroup ADC ADC definitions
  * @{
  */
-#define ADC0_MUX_CS 7U
-#define ADC1_MUX_CS 21U
-#define ADC_MUX_A 14U
-#define ADC_MUX_B 15U
+/** @def ADC_MUX_A
+ * @brief GPIO pin for ADC multiplexer A. */
+#define ADC_MUX_A 20U
+/** @def ADC_MUX_B
+ * @brief GPIO pin for ADC multiplexer B. */
+#define ADC_MUX_B 21U
+/** @def ADC_MUX_C
+ * @brief GPIO pin for ADC multiplexer C. */
 #define ADC_MUX_C 22U
+/** @def ADC_MUX_D
+ * @brief GPIO pin for ADC multiplexer D. */
+#define ADC_MUX_D 11U
+/** @def ADC_CHANNELS
+ * @brief Maximum number of ADC channels. */
 #define ADC_CHANNELS 16
+/** @def ADC_NUM_TAPS
+ * @brief Number of taps for moving average filter.
+ * This defines how many samples are used for filtering ADC values.
+ */
 #define ADC_NUM_TAPS 4
 /** @} */
 
 /**
  * @defgroup ENCODER Encoder definitions
  * @{
+ */
+/** @def MAX_NUM_ENCODERS
+ * @brief Maximum number of rotary encoders supported.
  */
 #define MAX_NUM_ENCODERS 8U
 /** @} */
@@ -83,7 +118,6 @@ typedef struct input_config_t
 	uint8_t rows;                /**< Number of keypad rows */
 	uint8_t columns;             /**< Number of keypad columns */
 	uint16_t key_settling_time_ms; /**< Key settling time in milliseconds */
-	uint8_t adc_banks;           /**< Number of MUX banks connected to ADCs */
 	uint8_t adc_channels;        /**< ADC channels per bank */
 	uint16_t adc_settling_time_ms; /**< ADC settling time in milliseconds */
 	QueueHandle_t input_event_queue; /**< Queue for sending input events */
@@ -177,11 +211,9 @@ void adc_read_task(void *pvParameters);
 
 /**
  * @brief Select the ADC input.
- * @param[in] bank Level to set the adc mux CS pin
  * @param[in] channel Channel to select
- * @param[in] select Select which ADC bank to use
  */
-void adc_mux_select(bool bank, uint8_t channel, bool select);
+void adc_mux_select(uint8_t channel);
 
 /**
  * @brief FreeRTOS task for reading rotary encoders and generating events.

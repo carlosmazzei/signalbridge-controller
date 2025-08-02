@@ -66,30 +66,30 @@ static output_result_t init_mux(void)
 	tm1639_result_t result = TM1639_OK;
 
 	// Initialize multiplexer pins
-	gpio_init(MUX_ENABLE);
-	gpio_init(MUX_A_PIN);
-	gpio_init(MUX_B_PIN);
-	gpio_init(MUX_C_PIN);
+	gpio_init(SPI_MUX_CS);
+	gpio_init(SPI_MUX_A_PIN);
+	gpio_init(SPI_MUX_B_PIN);
+	gpio_init(SPI_MUX_C_PIN);
 
 	// Check for errors in GPIO initialization
-	if ((gpio_get_function(MUX_A_PIN) != GPIO_FUNC_SIO) ||
-	    (gpio_get_function(MUX_B_PIN) != GPIO_FUNC_SIO) ||
-	    (gpio_get_function(MUX_C_PIN) != GPIO_FUNC_SIO) ||
-	    (gpio_get_function(MUX_ENABLE) != GPIO_FUNC_SIO))
+	if ((gpio_get_function(SPI_MUX_A_PIN) != GPIO_FUNC_SIO) ||
+	    (gpio_get_function(SPI_MUX_B_PIN) != GPIO_FUNC_SIO) ||
+	    (gpio_get_function(SPI_MUX_C_PIN) != GPIO_FUNC_SIO) ||
+	    (gpio_get_function(SPI_MUX_CS) != GPIO_FUNC_SIO))
 	{
 		result = TM1639_ERR_GPIO_INIT;
 	}
 
-	gpio_set_dir(MUX_A_PIN, GPIO_OUT);
-	gpio_set_dir(MUX_B_PIN, GPIO_OUT);
-	gpio_set_dir(MUX_C_PIN, GPIO_OUT);
-	gpio_set_dir(MUX_ENABLE, GPIO_OUT);
+	gpio_set_dir(SPI_MUX_A_PIN, GPIO_OUT);
+	gpio_set_dir(SPI_MUX_B_PIN, GPIO_OUT);
+	gpio_set_dir(SPI_MUX_C_PIN, GPIO_OUT);
+	gpio_set_dir(SPI_MUX_CS, GPIO_OUT);
 
 	// Default state (all high, no chip selected)
-	gpio_put(MUX_ENABLE, 0);
-	gpio_put(MUX_A_PIN, 1);
-	gpio_put(MUX_B_PIN, 1);
-	gpio_put(MUX_C_PIN, 1);
+	gpio_put(SPI_MUX_CS, 0);
+	gpio_put(SPI_MUX_A_PIN, 1);
+	gpio_put(SPI_MUX_B_PIN, 1);
+	gpio_put(SPI_MUX_C_PIN, 1);
 
 	output_result_t output_result  = OUTPUT_OK;
 	if (result != TM1639_OK)
@@ -127,16 +127,16 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 	if (select)
 	{
 		// Convert chip number to individual bits for multiplexer control
-		gpio_put(MUX_A_PIN, (chip_select & (uint8_t)0x01));       // LSB
-		gpio_put(MUX_B_PIN, (chip_select & (uint8_t)0x02) >> 1);  // middle bit
-		gpio_put(MUX_C_PIN, (chip_select & (uint8_t)0x04) >> 2);  // MSB
+		gpio_put(SPI_MUX_A_PIN, (chip_select & (uint8_t)0x01));       // LSB
+		gpio_put(SPI_MUX_B_PIN, (chip_select & (uint8_t)0x02) >> 1);  // middle bit
+		gpio_put(SPI_MUX_C_PIN, (chip_select & (uint8_t)0x04) >> 2);  // MSB
 
-		gpio_put(MUX_ENABLE, 1);
+		gpio_put(SPI_MUX_CS, 1);
 	}
 	else
 	{
 		// Set multiplexer to no output (all selector pins high)
-		gpio_put(MUX_ENABLE, 0);
+		gpio_put(SPI_MUX_CS, 0);
 	}
 
 	// Small delay to ensure stable signal
@@ -152,7 +152,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
  * For TM1639 devices, it initializes the TM1639 driver with the appropriate parameters.
  * For generic devices, it can be extended to initialize a generic driver if needed.
  * If a device type is not supported, it skips initialization for that interface.
- * 
+ *
  * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
  * @note This function assumes that the device_config_map is correctly defined and matches the expected device types.
  *
@@ -185,7 +185,7 @@ static output_result_t init_driver(void)
 		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
 			// Initialize generic driver (if needed)
-			/* @todo: initialize generic devices with generic drivers */
+			/** @todo: initialize generic devices with generic drivers */
 		}
 		else
 		{
