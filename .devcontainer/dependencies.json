@@ -12,7 +12,7 @@
     "libstdc++-arm-none-eabi-newlib": "15:12.2.rel1-1+23",
     "nodejs": "18.19.0+dfsg-6~deb12u2",
     "openjdk-17-jre-headless": "17.0.15+6-1~deb12u1",
-    "openssh-client": "1:9.2p1-2+deb12u6",
+    "openssh-client": "1:9.2p1-2+deb12u7",
     "python3": "3.11.2-1+b1",
     "sudo": "1.9.13p3-1+deb12u2",
     "uncrustify": "0.72.0+dfsg1-2",
