@@ -109,6 +109,7 @@ static inline void keypad_cs_columns(bool select)
 
 void keypad_task(void *pvParameters)
 {
+	// cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
@@ -236,6 +237,8 @@ static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16
 void adc_read_task(void *pvParameters)
 {
 	adc_states_t adc_states;
+
+	// cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	// Initialize the ADC states
@@ -295,6 +298,7 @@ void encoder_read_task(void *pvParameters)
 	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 
+	// cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
