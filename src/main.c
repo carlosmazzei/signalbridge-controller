@@ -156,7 +156,7 @@
  * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
-typedef enum statistics_counter_enum_t { // cppcheck-suppress[misra-c2012-2.4] ; DEVIATION(D3)
+typedef enum statistics_counter_enum_t {
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
@@ -379,7 +379,7 @@ static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
 
 static void uart_event_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	/* cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 
@@ -411,7 +411,7 @@ static void uart_event_task(void *pvParameters)
 
 static void cdc_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	/* cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
@@ -495,7 +495,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 static void cdc_write_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	/* cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	cdc_packet_t packet;
 	for (;;)
@@ -685,7 +685,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		switch (cmd)
 		{
 		case PC_LEDOUT_CMD:
-			if (led_out(decoded_data, len) != len)
+			if (led_out(decoded_data, len) != OUTPUT_OK)
 			{
 				statistics_counters.counters[LED_OUT_ERROR]++;
 			}
@@ -696,7 +696,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 			break;
 
 		case PC_DPYCTL_CMD:
-			if (display_out(decoded_data, len) != len)
+			if (display_out(decoded_data, len) != OUTPUT_OK)
 			{
 				statistics_counters.counters[DISPLAY_OUT_ERROR]++;
 			}
@@ -724,7 +724,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 static void decode_reception_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	/* cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t receive_buffer_index = 0;

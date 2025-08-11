@@ -1,0 +1,36 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Signalbridge Controller",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/src/pi_controller.elf",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerArgs": "",
+            "stopAtConnect": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bListening on\\b\\s+(\\S+):(\\d+)"
+            },
+            "debugServerPath": "/usr/bin/openocd",
+            "debugServerArgs": "-f interface/picoprobe.cfg -f target/rp2040.cfg",
+            "serverLaunchTimeout": 10000,
+            "filterStderr": true,
+            "filterStdout": false,
+            "stopAtEntry": true
+        }
+    ]
+}

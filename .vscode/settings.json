@@ -22,7 +22,6 @@
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "sonarlint.analysisExcludesStandalone": "**/lib/**",
-    "sonarlint.ls.javaHome": "/usr/lib/jvm/java-17-openjdk-amd64",
     "sonarlint.rules": {
         "c": {
             "misra-c2012-*": "on"

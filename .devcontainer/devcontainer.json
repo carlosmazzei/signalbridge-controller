@@ -2,10 +2,10 @@
     "name": "Signalbridge Controller",
     "build": {
         "dockerfile": "Dockerfile"
-    }, 
+    },
     "postCreateCommand": [
         "bash",
-        "-c", 
+        "-c",
         "chmod +x .devcontainer/post-create.sh && .devcontainer/post-create.sh"
     ],
     "customizations": {
@@ -29,7 +29,7 @@
     "containerEnv": {
         "PICO_SDK_PATH": "${containerWorkspaceFolder}/lib/pico-sdk",
         "PICO_TOOLCHAIN_PATH": "/usr/bin",
-        "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-arm64"
+        "JAVA_HOME": "/usr/lib/jvm/java-21-openjdk-arm64"
     },
     "mounts": [
         "source=/dev,target=/dev,type=bind,consistency=cached"
