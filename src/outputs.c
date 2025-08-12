@@ -2,7 +2,7 @@
  * @file outputs.c
  * @brief Implementation of output control functions: LEDs, PWM, and 7-segment displays.
  * @author
- *   - Carlos Mazzei
+ *   Carlos Mazzei <carlos.mazzei@gmail.com>
  * @date 2020-2025
  *
  * This file contains functions responsible for initializing and controlling output devices,
@@ -198,6 +198,27 @@ static output_result_t init_driver(void)
 	return result;
 }
 
+/**
+ * @brief Initialize UART0 on GPIO 16 (TX) and GPIO 17 (RX).
+ * This function configures UART0 with the specified baud rate and assigns the TX/RX pins.
+ *
+ * @param[in] baudrate UART baud rate (e.g., 115200).
+ */
+static void uart0_init(uint32_t baudrate)
+{
+	// Initialize UART0 hardware
+	uart_init(uart0, baudrate);
+
+	// Set GPIO 16 as UART0 TX
+	gpio_set_function(12, GPIO_FUNC_UART);
+
+	// Set GPIO 17 as UART0 RX
+	gpio_set_function(13, GPIO_FUNC_UART);
+
+	// Optional: Enable FIFO
+	uart_set_fifo_enabled(uart0, true);
+}
+
 output_result_t output_init(void)
 {
 	output_result_t result = OUTPUT_OK;
@@ -226,8 +247,8 @@ output_result_t output_init(void)
 		result = OUTPUT_ERR_INIT;
 	}
 
+	// Initialize SPI
 	spi_init(spi0, SPI_FREQUENCY);
-	// Set SPI format (8 bits, CPOL=0, CPHA=0, LSB first)
 	spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_LSB_FIRST);
 
 	gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
@@ -241,11 +262,11 @@ output_result_t output_init(void)
 		result =  OUTPUT_ERR_INIT;
 	}
 
-	// Configure half-duplex (we'll handle direction changes when reading keys)
-	// No need to initialize MISO/RX pin in hardware SPI mode yet
-
 	// Make the SPI pins available to picotool
 	bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI)) // cppcheck-suppress unknownMacro
+
+	// Initialize UART0
+	uart0_init(115200);
 
 	// Configure PWM pin
 	gpio_set_function(PWM_PIN, GPIO_FUNC_PWM);
@@ -264,18 +285,6 @@ output_result_t output_init(void)
 	return result;
 }
 
-/**
- * @brief Sends a BCD-encoded digit payload to the appropriate output driver.
- *
- * The expected payload format is:
- * - Byte 0: Controller ID (1-based)
- * - Bytes 1-4: Packed BCD digits (2 digits per byte, lower and upper nibble)
- * - Byte 5: Dot position
- *
- * @param[in] payload Pointer to the payload buffer.
- * @param[in] length  Length of the payload buffer (should be at least 6).
- * @return OUTPUT_OK on success, or an error code on failure.
- */
 output_result_t display_out(const uint8_t *payload, uint8_t length)
 {
 	output_result_t result = OUTPUT_OK;
@@ -363,7 +372,6 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 
 	return result;
 }
-
 
 output_result_t led_out(const uint8_t *payload, uint8_t length)
 {

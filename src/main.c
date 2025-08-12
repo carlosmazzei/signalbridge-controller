@@ -58,15 +58,15 @@
 #include "queue.h"
 #include "task.h"
 
-/* Pico & hardware includes */
+// Pico & hardware includes
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 
-/* TinyUSB include */
+// TinyUSB include
 #include "bsp/board.h"
 #include "tusb.h"
 
-/* Project modules */
+// Project modules
 #include "cobs.h"
 #include "commands.h"
 #include "outputs.h"
@@ -74,7 +74,7 @@
 #include "data_event.h"
 #include "task_props.h"
 
-/* --- Macros ----------------------------------------------------------------*/
+// --- Macros ----------------------------------------------------------------
 
 /**
  * @brief Size of the cobs encoded reception queue.
@@ -150,13 +150,13 @@
 #define KEYPAD_STACK_SIZE          (5 * configMINIMAL_STACK_SIZE)
 #define ENCODER_READ_STACK_SIZE    (5 * configMINIMAL_STACK_SIZE)
 
-/* --- Enums and Structs -----------------------------------------------------*/
+// --- Enums and Structs -----------------------------------------------------
 
 /**
  * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
-typedef enum statistics_counter_enum_t { // cppcheck-suppress[misra-c2012-2.4] ; DEVIATION(D3)
+typedef enum statistics_counter_enum_t {
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
@@ -208,7 +208,7 @@ typedef struct cdc_packet_t {
 	uint8_t data[MAX_ENCODED_BUFFER_SIZE];
 } cdc_packet_t;
 
-/* --- Static Global Variables -----------------------------------------------*/
+// --- Static Global Variables -----------------------------------------------
 
 /**
  * @brief Queue to store COBS-encoded received data (one byte per queue entry).
@@ -249,7 +249,7 @@ static volatile bool cdc_rts = false;
  */
 static volatile bool cdc_dtr = false;
 
-/* --- Static Function Prototypes --------------------------------------------*/
+// --- Static Function Prototypes --------------------------------------------
 
 /**
  * @brief Calculates the XOR checksum.
@@ -352,7 +352,7 @@ static inline void clean_up(void);
  */
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 
-/* --- Function Definitions --------------------------------------------------*/
+// --- Function Definitions --------------------------------------------------
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
@@ -361,7 +361,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 	cdc_rts = rts;
 }
 
-/* cppcheck-suppress[misra-c2012-8.4] ; Required by FreeRTOS DEVIATION(D5) */
+// cppcheck-suppress[misra-c2012-8.4] ; Required by FreeRTOS DEVIATION(D5)
 uint32_t ulPortGetRunTime( void )
 {
 	return time_us_32();
@@ -379,19 +379,19 @@ static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
 
 static void uart_event_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	// cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 
 	for (;;)
 	{
-		/* Track free stack space for debugging */
+		// Track free stack space for debugging
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
 		if (!tud_cdc_n_available(0))
 		{
-			/* No data available, yield to other tasks */
+			// No data available, yield to other tasks
 			taskYIELD();
 			continue;
 		}
@@ -411,11 +411,11 @@ static void uart_event_task(void *pvParameters)
 
 static void cdc_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	// cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
-		/* TinyUSB device tasks */
+		// TinyUSB device tasks
 		tud_task();
 
 		if (true == tud_cdc_n_connected(0))
@@ -438,14 +438,14 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
 	bool error = false;
 
-	/* Check for NULL pointer */
+	// Check for NULL pointer
 	if (NULL == send_data)
 	{
 		statistics_counters.counters[QUEUE_SEND_ERROR]++;
 		error = true;
 	}
 
-	/* Check for buffer overflow risk */
+	// Check for buffer overflow risk
 	if ((false == error) && (length > (DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE)))
 	{
 		statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
@@ -454,7 +454,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 	if (false == error)
 	{
-		/* Compose header */
+		// Compose header
 		uint16_t panel_id = id;
 		panel_id <<= 5;
 		uart_outbound_buffer[0] = (panel_id >> 8);
@@ -463,28 +463,28 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 		(void)memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length); // flawfinder: ignore
 
-		/* Calculate and store checksum */
+		// Calculate and store checksum
 		uint8_t checksum = calculate_checksum(uart_outbound_buffer, (uint8_t)(length + HEADER_SIZE));
 		uart_outbound_buffer[HEADER_SIZE + length] = checksum;
 
 		uint8_t encode_buffer[MAX_ENCODED_BUFFER_SIZE];
 		size_t num_encoded = cobs_encode(uart_outbound_buffer, length + HEADER_SIZE + CHECKSUM_SIZE, encode_buffer);
 
-		/* Check for buffer overflow after encoding */
+		// Check for buffer overflow after encoding
 		if ((num_encoded + 1U) >= MAX_ENCODED_BUFFER_SIZE)
 		{
 			statistics_counters.counters[BUFFER_OVERFLOW_ERROR]++;
 		}
 		else
 		{
-			/* Append marker */
+			// Append marker
 			encode_buffer[num_encoded] = PACKET_MARKER;
 
 			cdc_packet_t packet;
 			packet.length = (uint8_t)num_encoded + 1U;
 			(void)memcpy(packet.data, encode_buffer, packet.length); // flawfinder: ignore
 
-			/* Enqueue data to be sent via USB CDC */
+			// Enqueue data to be sent via USB CDC
 			if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(1)) != pdTRUE)
 			{
 				statistics_counters.counters[CDC_QUEUE_SEND_ERROR]++;
@@ -495,25 +495,25 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 
 static void cdc_write_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	// cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	cdc_packet_t packet;
 	for (;;)
 	{
-		/* Wait for a packet to be sent */
+		// Wait for a packet to be sent
 		if (pdTRUE == xQueueReceive(cdc_transmit_queue, &packet, portMAX_DELAY))
 		{
-			/* Wait until the host is ready to receive data (both DTR & RTS asserted) */
+			// Wait until the host is ready to receive data (both DTR & RTS asserted)
 			while (!(cdc_dtr && cdc_rts))
 			{
-				/* If host is not ready, yield briefly before checking again. */
+				// If host is not ready, yield briefly before checking again.
 				vTaskDelay(pdMS_TO_TICKS(5));
 			}
 
 			size_t total_written = 0;
 			while (total_written < packet.length)
 			{
-				/* Check how many bytes is available to send */
+				// Check how many bytes is available to send
 				uint32_t n_avail = tud_cdc_n_write_available(0);
 				uint32_t n_write = MIN(n_avail, packet.length - total_written);
 				if (n_write > 0U)
@@ -521,11 +521,11 @@ static void cdc_write_task(void *pvParameters)
 					tud_cdc_n_write(0, &packet.data[total_written], n_write);
 					total_written += n_write;
 				}
-				/* Allow TinyUSB to proceed */
+				// Allow TinyUSB to proceed
 				tud_task();
 				taskYIELD();
 			}
-			/* Flush after all possible bytes are written */
+			// Flush after all possible bytes are written
 			statistics_counters.counters[BYTES_SENT] += total_written;
 			tud_cdc_write_flush();
 		}
@@ -538,7 +538,7 @@ static inline void send_status(uint8_t index)
 {
 	uint8_t data[5] = {0, 0, 0, 0, 0};
 
-	/* Return the corresponding statistic if index is valid */
+	// Return the corresponding statistic if index is valid
 	if (index < (uint8_t)NUM_STATISTICS_COUNTERS)
 	{
 		data[0] = index;
@@ -556,7 +556,7 @@ static void send_heap_status(uint8_t index)
 	uint8_t data[13] = {0};
 	bool done = false;
 
-	/* Invalid index, return not recognized */
+	// Invalid index, return not recognized
 	if (index > (uint8_t)NUM_TASKS)
 	{
 		data[0] = 0xFF;
@@ -567,26 +567,26 @@ static void send_heap_status(uint8_t index)
 	if (!done)
 	{
 		uint32_t value = 0;
-		/* Valid, but equal to NUM_TASKS, return idle task stats */
+		// Valid, but equal to NUM_TASKS, return idle task stats
 		if (index == (uint8_t)NUM_TASKS)
 		{
 			data[0] = index;
 
-			/* Absolute time */
+			// Absolute time
 			value = ulTaskGetIdleRunTimeCounter();
 			data[1] = (value >> 24U) & 0xFFU;
 			data[2] = (value >> 16U) & 0xFFU;
 			data[3] = (value >> 8U) & 0xFFU;
 			data[4] = value & 0xFFU;
 
-			/* Percent time */
+			// Percent time
 			value = ulTaskGetIdleRunTimePercent();
 			data[5] = (value >> 24U) & 0xFFU;
 			data[6] = (value >> 16U) & 0xFFU;
 			data[7] = (value >> 8) & 0xFFU;
 			data[8] = value & 0xFFU;
 
-			/* Minimum Ever Free Heap Size */
+			// Minimum Ever Free Heap Size
 			value = xPortGetMinimumEverFreeHeapSize();
 			data[9] = (value >> 24U) & 0xFFU;
 			data[10] = (value >> 16U) & 0xFFU;
@@ -597,24 +597,24 @@ static void send_heap_status(uint8_t index)
 		}
 		else
 		{
-			/* Valid indexes */
+			// Valid indexes
 			data[0] = index;
 
-			/* Absolute time */
+			// Absolute time
 			value = ulTaskGetRunTimeCounter(task_props[index].task_handle);
 			data[1] = (value >> 24U) & 0xFFU;
 			data[2] = (value >> 16U) & 0xFFU;
 			data[3] = (value >> 8U) & 0xFFU;
 			data[4] = value & 0xFFU;
 
-			/* Percentage time */
+			// Percentage time
 			value = ulTaskGetRunTimePercent(task_props[index].task_handle);
 			data[5] = (value >> 24U) & 0xFFU;
 			data[6] = (value >> 16U) & 0xFFU;
 			data[7] = (value >> 8U) & 0xFFU;
 			data[8] = value & 0xFFU;
 
-			/* High watermark */
+			// High watermark
 			value = task_props[index].high_watermark;
 			data[9] = (value >> 24U) & 0xFFU;
 			data[10] = (value >> 16U) & 0xFFU;
@@ -641,7 +641,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 	uint8_t len = 0U;
 	if (!done)
 	{
-		/* Decode ID, command, and length */
+		// Decode ID, command, and length
 		rxID = (uint16_t)(rx_buffer[0] << 3);
 		rxID |= ((rx_buffer[1] & 0xE0U) >> 5);
 		cmd = (uint8_t)(rx_buffer[1] & 0x1FU);
@@ -685,7 +685,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		switch (cmd)
 		{
 		case PC_LEDOUT_CMD:
-			if (led_out(decoded_data, len) != len)
+			if (led_out(decoded_data, len) != OUTPUT_OK)
 			{
 				statistics_counters.counters[LED_OUT_ERROR]++;
 			}
@@ -696,7 +696,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 			break;
 
 		case PC_DPYCTL_CMD:
-			if (display_out(decoded_data, len) != len)
+			if (display_out(decoded_data, len) != OUTPUT_OK)
 			{
 				statistics_counters.counters[DISPLAY_OUT_ERROR]++;
 			}
@@ -719,12 +719,12 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 			break;
 		}
 	}
-	/* Single point of return */
+	// Single point of return
 }
 
 static void decode_reception_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	// cppcheck-suppress[misra-c2012-11.5] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
 	size_t receive_buffer_index = 0;
@@ -745,7 +745,7 @@ static void decode_reception_task(void *pvParameters)
 		{
 			if (0U == receive_buffer_index)
 			{
-				/* Packet marker received but no data in buffer */
+				// Packet marker received but no data in buffer
 				statistics_counters.counters[COBS_DECODE_ERROR]++;
 				receive_buffer_index = 0;
 				continue;
@@ -780,7 +780,7 @@ static void decode_reception_task(void *pvParameters)
 
 static void process_outbound_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
+	// cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
@@ -792,7 +792,7 @@ static void process_outbound_task(void *pvParameters)
 		}
 		else if (errQUEUE_EMPTY == result)
 		{
-			/* code */
+			// code
 		}
 		else
 		{
@@ -808,24 +808,24 @@ static inline bool setup_hardware(void)
 {
 	bool success = true;
 
-	/* Initialize standard I/O (UART, etc.) */
+	// Initialize standard I/O (UART, etc.)
 	stdio_init_all();
 
-	/* Initialize outputs (LED, PWM, etc.) */
+	// Initialize outputs (LED, PWM, etc.)
 	output_result_t result = output_init();
 	if (result != OUTPUT_OK)
 	{
 		success = false;
 	}
 
-	/* Create data event queue */
+	// Create data event queue
 	data_event_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t));
 	if (NULL == data_event_queue)
 	{
 		success = false;
 	}
 
-	/* Inputs configuration (keypad, ADC, etc.) */
+	// Inputs configuration (keypad, ADC, etc.)
 	const input_config_t config = {
 		.columns               = 8,
 		.rows                  = 8,
@@ -834,7 +834,7 @@ static inline bool setup_hardware(void)
 		.adc_channels          = 16,
 		.adc_settling_time_ms  = 100,
 		.encoder_settling_time_ms = 10,
-		/* Enable encoder on row 8 (last row) */
+		// Enable encoder on row 8 (last row)
 		.encoder_mask          = { [7] = true }
 	};
 
@@ -845,20 +845,20 @@ static inline bool setup_hardware(void)
 		success = false;
 	}
 
-	/* Reset all error counters */
+	// Reset all error counters
 	for (uint i = 0; i < NUM_STATISTICS_COUNTERS; i++)
 	{
 		statistics_counters.counters[i] = 0;
 	}
 
-	/* Reset task props */
+	// Reset task props
 	for (uint i = 0; i < NUM_TASKS; i++)
 	{
 		task_props[i].high_watermark = 0;
 		task_props[i].task_handle    = NULL;
 	}
 
-	/* Watchdog 1s, pause on debug */
+	// Watchdog 1s, pause on debug
 	watchdog_enable(5000, true);
 
 	return success;
@@ -878,7 +878,7 @@ static inline void enter_error_state(void)
 
 static inline void clean_up(void)
 {
-	/* Delete all queues */
+	// Delete all queues
 	if (NULL != encoded_reception_queue)
 	{
 		vQueueDelete(encoded_reception_queue);
@@ -897,7 +897,7 @@ static inline void clean_up(void)
 		cdc_transmit_queue = NULL;
 	}
 
-	/* Delete all tasks */
+	// Delete all tasks
 	for (uint t = 0; t < NUM_TASKS; t++)
 	{
 		if (task_props[t].task_handle != NULL)
@@ -922,7 +922,7 @@ int main(void)
 	BaseType_t success;
 	statistics_counters.error_state = false;
 
-	/* Create core masks */
+	// Create core masks
 	UBaseType_t uxCore0Affinity = (1U << 0U);  // Core 0 only
 	UBaseType_t uxCore1Affinity = (1U << 1U);  // Core 1 only
 
@@ -932,22 +932,22 @@ int main(void)
 		clean_up();
 	}
 
-	/* Initialize TinyUSB hardware/board */
+	// Initialize TinyUSB hardware/board
 	board_init();
 
-	/* Initialize TinyUSB stack */
+	// Initialize TinyUSB stack
 	if (!tud_init(BOARD_TUD_RHPORT))
 	{
 		statistics_counters.error_state = true;
 	}
 
-	/* Setup hardware, queues, etc. */
+	// Setup hardware, queues, etc.
 	if (!setup_hardware())
 	{
 		statistics_counters.error_state = true;
 	}
 
-	/* Create the CDC task */
+	// Create the CDC task
 	success = xTaskCreate(cdc_task,
 	                      "cdc_task",
 	                      CDC_STACK_SIZE,
@@ -959,11 +959,11 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* Create queue for encoded data */
+	// Create queue for encoded data
 	encoded_reception_queue = xQueueCreate(ENCODED_QUEUE_SIZE, sizeof(uint8_t));
 	if (encoded_reception_queue != NULL)
 	{
-		/* UART event task */
+		// UART event task
 		success = xTaskCreate(uart_event_task,
 		                      "uart_event_task",
 		                      UART_EVENT_STACK_SIZE,
@@ -975,7 +975,7 @@ int main(void)
 			statistics_counters.error_state = true;
 		}
 
-		/* Decode reception task */
+		// Decode reception task
 		success = xTaskCreate(decode_reception_task,
 		                      "decode_reception_task",
 		                      DECODE_RECEPTION_STACK_SIZE,
@@ -992,11 +992,11 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* CDC writer queue */
+	// CDC writer queue
 	cdc_transmit_queue = xQueueCreate(CDC_TRANSMIT_QUEUE_SIZE, sizeof(cdc_packet_t));
 	if (cdc_transmit_queue != NULL)
 	{
-		/* CDC write task */
+		// CDC write task
 		success = xTaskCreate(cdc_write_task,
 		                      "cdc_write_task",
 		                      CDC_STACK_SIZE,
@@ -1013,7 +1013,7 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* Outbound processing task */
+	// Outbound processing task
 	success = xTaskCreate(process_outbound_task,
 	                      "process_outbound_task",
 	                      PROCESS_OUTBOUND_STACK_SIZE,
@@ -1025,7 +1025,7 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* ADC read task */
+	// ADC read task
 	success = xTaskCreate(adc_read_task,
 	                      "adc_read_task",
 	                      ADC_READ_STACK_SIZE,
@@ -1037,7 +1037,7 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* Keypad task */
+	// Keypad task
 	success = xTaskCreate(keypad_task,
 	                      "keypad_task",
 	                      KEYPAD_STACK_SIZE,
@@ -1049,7 +1049,7 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* Encoder read task */
+	// Encoder read task
 	success = xTaskCreate(encoder_read_task,
 	                      "encoder_task",
 	                      ENCODER_READ_STACK_SIZE,
@@ -1061,7 +1061,7 @@ int main(void)
 		statistics_counters.error_state = true;
 	}
 
-	/* Assign core affinity */
+	// Assign core affinity
 	vTaskCoreAffinitySet(task_props[CDC_TASK].task_handle, uxCore0Affinity);
 	vTaskCoreAffinitySet(task_props[UART_EVENT_TASK].task_handle, uxCore0Affinity);
 	vTaskCoreAffinitySet(task_props[CDC_WRITE_TASK].task_handle, uxCore0Affinity);
@@ -1072,7 +1072,7 @@ int main(void)
 	vTaskCoreAffinitySet(task_props[KEYPAD_TASK].task_handle, uxCore1Affinity);
 	vTaskCoreAffinitySet(task_props[ENCODER_READ_TASK].task_handle, uxCore1Affinity);
 
-	/* Start scheduler if no critical error was found */
+	// Start scheduler if no critical error was found
 	if (!statistics_counters.error_state)
 	{
 		vTaskStartScheduler();
@@ -1082,5 +1082,5 @@ int main(void)
 		enter_error_state();
 	}
 
-	return 0; /* Normally should never reach here */
+	return 0; // Normally should never reach here
 }

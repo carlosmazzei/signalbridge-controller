@@ -1,5 +1,7 @@
 /**
  * @file tm1639.c
+ * @author
+ *   Carlos Mazzei <carlos.mazzei@gmail.com>
  * @brief Implementation of the TM1639 LED driver using SPI hardware for Raspberry Pi Pico
  *
  * This driver utilizes the Raspberry Pi Pico's SPI0 hardware interface to control

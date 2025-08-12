@@ -2,7 +2,7 @@
  * @file inputs.c
  * @brief Implementation of keypad, ADC, and rotary encoder input handling for the A320 Pico Controller (FreeRTOS).
  * @author
- *   - Carlos Mazzei
+ *   Carlos Mazzei <carlos.mazzei@gmail.com>
  * @date 2020-2025
  *
  * This file implements the input subsystem, including keypad scanning, ADC reading/filtering,
@@ -109,7 +109,6 @@ static inline void keypad_cs_columns(bool select)
 
 void keypad_task(void *pvParameters)
 {
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
@@ -237,11 +236,9 @@ static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16
 void adc_read_task(void *pvParameters)
 {
 	adc_states_t adc_states;
-
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
-	/* Initialize the ADC states */
+	// Initialize the ADC states
 	for (int i = 0; i < ADC_CHANNELS; i++)
 	{
 		adc_states.adc_previous_value[i] = 0;
@@ -298,7 +295,6 @@ void encoder_read_task(void *pvParameters)
 	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 
-	/* cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3) */
 	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
@@ -358,9 +354,9 @@ void encoder_read_task(void *pvParameters)
 			keypad_cs_rows(false);
 		}
 
-		/* Get free heap for the task */
+		// Get free heap for the task
 		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		/* Update watchdog timer */
+		// Update watchdog timer
 		watchdog_update();
 	}
 }
