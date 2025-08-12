@@ -80,15 +80,18 @@
     "c-cpp-flylint.debug": true,
     "c-cpp-flylint.cppcheck.extraArgs": [
         "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions.txt",
+        "--check-level=exhaustive",
         "--force",
         "--max-configs=80",
         "--addon=${workspaceFolder}/misra.json",
         "--cppcheck-build-dir=${workspaceFolder}/.cppcheck",
         "-Dbi_decl(x)=",
     ],
+    "c-cpp-flylint.cppcheck.database": "${workspaceFolder}/build/compile_commands.json",
     "c-cpp-flylint.cppcheck.includePaths": [
         "${workspaceFolder}/include",
         "${workspaceFolder}/src",
+        "${workspaceFolder}/lib/FreeRTOS-Kernel/include",
     ],
     "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc",
     "c-cpp-flylint.language": "c"
