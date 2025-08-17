@@ -43,7 +43,7 @@
 * See http://www.freertos.org/a00110.html
 *----------------------------------------------------------*/
 
-/* Scheduler Related */
+// Scheduler Related
 #define configUSE_PREEMPTION                    1
 #define configUSE_TICKLESS_IDLE                 1
 #define configUSE_IDLE_HOOK                     1
@@ -55,7 +55,7 @@
 
 #define configIDLE_SHOULD_YIELD                 1
 
-/* Synchronization Related */
+// Synchronization Related
 #define configUSE_MUTEXES                       1
 #define configUSE_RECURSIVE_MUTEXES             1
 #define configUSE_APPLICATION_TASK_TAG          0
@@ -67,64 +67,73 @@
 #define configENABLE_BACKWARD_COMPATIBILITY     0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 5
 
-/* System */
+// System
 #define configSTACK_DEPTH_TYPE                  uint32_t
 #define configMESSAGE_BUFFER_LENGTH_TYPE        size_t
 
-/* Memory allocation related definitions. */
+// Memory allocation related definitions.
 #define configSUPPORT_STATIC_ALLOCATION         0
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
 #define configTOTAL_HEAP_SIZE                   (128*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
-/* Hook function related definitions. */
+// Hook function related definitions.
 #define configCHECK_FOR_STACK_OVERFLOW          2
 #define configUSE_MALLOC_FAILED_HOOK            1
+#define configUSE_STACK_OVERFLOW_HOOK           1
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
-/* Run time and task stats gathering related definitions. */
+// Run time and task stats gathering related definitions.
 #define configGENERATE_RUN_TIME_STATS           1
 #define configUSE_TRACE_FACILITY                1
-#define configUSE_STATS_FORMATTING_FUNCTIONS    0
+#define configUSE_STATS_FORMATTING_FUNCTIONS    1
 
-/* Runtime stats configurations */
+// Runtime stats configurations
 extern uint32_t ulPortGetRunTime( void );
 #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()
 #define portGET_RUN_TIME_COUNTER_VALUE()            ulPortGetRunTime()
 
-/* Co-routine related definitions. */
+// Co-routine related definitions.
 #define configUSE_CO_ROUTINES                   0
 #define configMAX_CO_ROUTINE_PRIORITIES         1
 
-/* Software timer related definitions. */
+// Software timer related definitions.
 #define configUSE_TIMERS                        1
 #define configTIMER_TASK_PRIORITY               ( configMAX_PRIORITIES - 1 )
 #define configTIMER_QUEUE_LENGTH                10
-#define configTIMER_TASK_STACK_DEPTH            1024
+#define configTIMER_TASK_STACK_DEPTH            2048
 
-/* Interrupt nesting behaviour configuration. */
-/*
- #define configKERNEL_INTERRUPT_PRIORITY         [dependent of processor]
- #define configMAX_SYSCALL_INTERRUPT_PRIORITY    [dependent on processor and application]
- #define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
- */
-
-/* SMP port only */
-#define configNUM_CORES                         2
+// SMP port only
+#define configNUMBER_OF_CORES                   2
 #define configUSE_CORE_AFFINITY                 1
 #define configTICK_CORE                         0
 #define configRUN_MULTIPLE_PRIORITIES           1
 #define configUSE_PASSIVE_IDLE_HOOK             0
 
-/* RP2040 specific */
+// RP2040 specific
 #define configSUPPORT_PICO_SYNC_INTEROP         1
 #define configSUPPORT_PICO_TIME_INTEROP         1
 
-/* Define to trap errors during development. */
+// MEMORY OPTIMIZATION: Reduce context switch overhead with larger stacks
+#define configMINIMAL_SECURE_STACK_SIZE         1024    // Increased for security
+#define configMAX_TASK_NAME_LEN                 16      // Keep reasonable
+
+// STACK MONITORING: Enable for 8KB stack debugging
+#define configRECORD_STACK_HIGH_ADDRESS         1
+//#define configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H   1
+
+// PERFORMANCE TUNING for larger stacks
+#define configUSE_TASK_NOTIFICATIONS            1
+#define configUSE_MUTEXES                       1
+#define configUSE_RECURSIVE_MUTEXES             1
+#define configUSE_COUNTING_SEMAPHORES           1
+#define configCHECK_FOR_STACK_OVERFLOW          2    // Critical with large stacks
+
+// Define to trap errors during development.
 #define configASSERT(x)                         assert(x)
 
 /* Set the following definitions to 1 to include the API function, or zero
-   to exclude the API function. */
+ * to exclude the API function. */
 #define INCLUDE_vTaskPrioritySet                1
 #define INCLUDE_uxTaskPriorityGet               1
 #define INCLUDE_vTaskDelete                     1
@@ -142,7 +151,7 @@ extern uint32_t ulPortGetRunTime( void );
 #define INCLUDE_xTaskResumeFromISR              0
 #define INCLUDE_xQueueGetMutexHolder            0
 
-/* A header file that defines trace macro can be included here. */
+// A header file that defines trace macro can be included here.
 
-#endif /* FREERTOS_CONFIG_H */
+#endif // FREERTOS_CONFIG_H
 

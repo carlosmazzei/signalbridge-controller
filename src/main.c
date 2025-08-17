@@ -73,6 +73,7 @@
 #include "inputs.h"
 #include "data_event.h"
 #include "task_props.h"
+#include "error_management.h"
 
 // --- Macros ----------------------------------------------------------------
 
@@ -102,11 +103,6 @@
 #define CHECKSUM_SIZE 1U
 
 /**
- * @brief Maximum size of the reception buffer.
- */
-// #define MAX_BUFFER_SIZE (HEADER_SIZE + DATA_BUFFER_SIZE + CHECKSUM_SIZE)
-
-/**
  * @brief Maximum size of the COBS-encoded reception buffer.
  *
  * Calculation: input_length + (n/254) + Packet Marker.
@@ -133,6 +129,7 @@
  */
 #define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
 #define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + 1)
+#define mainLED_STATUS_TASK_PRIORITY    (tskIDLE_PRIORITY + 1)
 #define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + 1)
 #define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
 #define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
@@ -142,46 +139,31 @@
 /**
  * @brief FreeRTOS stack sizes for the tasks.
  */
-#define CDC_STACK_SIZE             (3 * configMINIMAL_STACK_SIZE)
-#define UART_EVENT_STACK_SIZE      (3 * configMINIMAL_STACK_SIZE)
+#define CDC_STACK_SIZE              (3 * configMINIMAL_STACK_SIZE)
+#define UART_EVENT_STACK_SIZE       (3 * configMINIMAL_STACK_SIZE)
+#define LED_STATUS_STACK_SIZE       (2 * configMINIMAL_STACK_SIZE)
 #define DECODE_RECEPTION_STACK_SIZE (3 * configMINIMAL_STACK_SIZE)
 #define PROCESS_OUTBOUND_STACK_SIZE (3 * configMINIMAL_STACK_SIZE)
-#define ADC_READ_STACK_SIZE        (4 * configMINIMAL_STACK_SIZE)
-#define KEYPAD_STACK_SIZE          (5 * configMINIMAL_STACK_SIZE)
-#define ENCODER_READ_STACK_SIZE    (5 * configMINIMAL_STACK_SIZE)
+#define ADC_READ_STACK_SIZE         (4 * configMINIMAL_STACK_SIZE)
+#define KEYPAD_STACK_SIZE           (5 * configMINIMAL_STACK_SIZE)
+#define ENCODER_READ_STACK_SIZE     (5 * configMINIMAL_STACK_SIZE)
+
+/**
+ * @brief Task core affinity
+ */
+#define CORE_0_AFFINITY (1U << 0U)  // Core 0 only
+#define CORE_1_AFFINITY (1U << 1U)  // Core 1 only
+
+#define CDC_TASK_CORE_AFFINITY                  CORE_0_AFFINITY // Also used by CDC Write Task
+#define UART_EVENT_TASK_CORE_AFFINITY           CORE_0_AFFINITY
+#define LED_STATUS_TASK_CORE_AFFINITY           CORE_0_AFFINITY
+#define DECODE_RECEPTION_TASK_CORE_AFFINITY     CORE_1_AFFINITY
+#define PROCESS_OUTBOUND_TASK_CORE_AFFINITY     CORE_1_AFFINITY
+#define ADC_READ_TASK_CORE_AFFINITY             CORE_1_AFFINITY
+#define KEYPAD_TASK_CORE_AFFINITY               CORE_1_AFFINITY
+#define ENCODER_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY
 
 // --- Enums and Structs -----------------------------------------------------
-
-/**
- * @enum statistics_counter_enum_t
- * @brief Enumerates different error types in the system.
- */
-typedef enum statistics_counter_enum_t {
-	QUEUE_SEND_ERROR,
-	QUEUE_RECEIVE_ERROR,
-	CDC_QUEUE_SEND_ERROR,
-	DISPLAY_OUT_ERROR,
-	LED_OUT_ERROR,
-	WATCHDOG_ERROR,
-	MSG_MALFORMED_ERROR,
-	COBS_DECODE_ERROR,
-	RECEIVE_BUFFER_OVERFLOW_ERROR,
-	CHECKSUM_ERROR,
-	BUFFER_OVERFLOW_ERROR,
-	UNKNOWN_CMD_ERROR,
-	BYTES_SENT,
-	BYTES_RECEIVED,
-	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
-} statistics_counter_enum_t;
-
-/**
- * @struct statistics_counters_t
- * @brief Holds counters for different error types.
- */
-typedef struct statistics_counters_t {
-	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
-	bool error_state;                  /**< Flag indicating critical error state */
-} statistics_counters_t;
 
 /**
  * @enum task_enum_t
@@ -196,6 +178,7 @@ typedef enum task_enum_t {
 	ADC_READ_TASK,
 	KEYPAD_TASK,
 	ENCODER_READ_TASK,
+	LED_STATUS_TASK,
 	NUM_TASKS /**< Number of tasks in the system */
 } task_enum_t;
 
@@ -228,11 +211,6 @@ static QueueHandle_t data_event_queue = NULL;
  * Send_data() will enqueue packets here and cdc_write_task() will dequeue them and send to the host.
  */
 static QueueHandle_t cdc_transmit_queue = NULL;
-
-/**
- * @brief Stores various statistics counters and a global error state.
- */
-static statistics_counters_t statistics_counters;
 
 /**
  * @brief Stores properties (such as watermarks) for each task.
@@ -326,17 +304,18 @@ static void process_outbound_task(void *pvParameters);
 static void cdc_write_task(void *pvParameters);
 
 /**
+ * @brief LED status task.
+ *
+ * @param[in] pvParameters Pointer to task parameters (task_props_t).
+ */
+static void led_status_task(void *pvParameters);
+
+/**
  * @brief Sets up and initializes all required hardware resources.
  *
  * @return `true` if initialization was successful, `false` otherwise.
  */
 static inline bool setup_hardware(void);
-
-/**
- * @brief Enters an infinite loop indicating a critical error state.
- *        The LED blinks and the watchdog is updated periodically.
- */
-static inline void enter_error_state(void);
 
 /**
  * @brief Cleans up all allocated resources such as queues and tasks.
@@ -387,7 +366,7 @@ static void uart_event_task(void *pvParameters)
 	{
 		// Track free stack space for debugging
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
 
 		if (!tud_cdc_n_available(0))
 		{
@@ -404,7 +383,7 @@ static void uart_event_task(void *pvParameters)
 			{
 				statistics_counters.counters[QUEUE_SEND_ERROR]++;
 			}
-			watchdog_update();
+			update_watchdog_safe();
 		}
 	}
 }
@@ -418,17 +397,9 @@ static void cdc_task(void *pvParameters)
 		// TinyUSB device tasks
 		tud_task();
 
-		if (true == tud_cdc_n_connected(0))
-		{
-			gpio_put(PICO_DEFAULT_LED_PIN, 1);
-		}
-		else
-		{
-			gpio_put(PICO_DEFAULT_LED_PIN, 0);
-		}
-
+		// Update high watermark and safely reset watchdog timer
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
 		vTaskDelay(pdMS_TO_TICKS(2));
 	}
 }
@@ -530,7 +501,7 @@ static void cdc_write_task(void *pvParameters)
 			tud_cdc_write_flush();
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
 	}
 }
 
@@ -732,7 +703,7 @@ static void decode_reception_task(void *pvParameters)
 	for (;;)
 	{
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
 
 		uint8_t data;
 		if (pdFALSE == xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
@@ -782,6 +753,7 @@ static void process_outbound_task(void *pvParameters)
 {
 	// cppcheck-suppress[misra-c2012-11.5,cstyleCast] ; Required by FreeRTOS DEVIATION(D3)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
+
 	for (;;)
 	{
 		data_events_t data_event;
@@ -800,7 +772,55 @@ static void process_outbound_task(void *pvParameters)
 		}
 
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
+	}
+}
+
+static void led_status_task(void *pvParameters)
+{
+	task_props_t *task_prop = (task_props_t *)pvParameters;
+
+	for (;;)
+	{
+		if (true == statistics_counters.error_state)
+		{
+			// Error state - show error pattern
+			uint8_t blink_count = (uint8_t)statistics_counters.current_error_type;
+
+			// Show blink pattern using FreeRTOS delays
+			for (uint8_t i = 0; i < blink_count; i++) {
+				gpio_put(ERROR_LED_PIN, 1);
+				vTaskDelay(pdMS_TO_TICKS(BLINK_ON_MS));
+				gpio_put(ERROR_LED_PIN, 0);
+
+				if (i < (blink_count - 1))
+				{
+					vTaskDelay(pdMS_TO_TICKS(BLINK_OFF_MS));
+				}
+			}
+
+			vTaskDelay(pdMS_TO_TICKS(PATTERN_PAUSE_MS));
+		}
+		else
+		{
+			// Normal operation - show USB enumeration status
+			if (true == tud_cdc_n_connected(0))
+			{
+				// USB enumerated and ready - LED ON
+				gpio_put(ERROR_LED_PIN, 1);
+			}
+			else
+			{
+				// USB not enumerated - LED OFF
+				gpio_put(ERROR_LED_PIN, 0);
+			}
+
+			// Check USB status every 100ms
+			vTaskDelay(pdMS_TO_TICKS(100));
+		}
+
+		update_watchdog_safe();
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 	}
 }
 
@@ -858,22 +878,7 @@ static inline bool setup_hardware(void)
 		task_props[i].task_handle    = NULL;
 	}
 
-	// Watchdog 1s, pause on debug
-	watchdog_enable(5000, true);
-
 	return success;
-}
-
-static inline void enter_error_state(void)
-{
-	bool state = true; // cppcheck-suppress variableScope
-	for (;;)
-	{
-		state = !state;
-		gpio_put(PICO_DEFAULT_LED_PIN, state);
-		vTaskDelay(pdMS_TO_TICKS(500));
-		watchdog_update();
-	}
 }
 
 static inline void clean_up(void)
@@ -908,44 +913,9 @@ static inline void clean_up(void)
 	}
 }
 
-/**
- * @brief Main entry point of the application.
- *
- * This function initializes the system (hardware, queues, tasks),
- * checks for watchdog resets, and starts the FreeRTOS scheduler. If
- * an error is detected, it enters an infinite loop (error state).
- *
- * @return Zero on normal exit. Usually never returns because of FreeRTOS.
- */
-int main(void)
+static inline void create_resources()
 {
 	BaseType_t success;
-	statistics_counters.error_state = false;
-
-	// Create core masks
-	UBaseType_t uxCore0Affinity = (1U << 0U);  // Core 0 only
-	UBaseType_t uxCore1Affinity = (1U << 1U);  // Core 1 only
-
-	if (true == watchdog_caused_reboot())
-	{
-		statistics_counters.counters[WATCHDOG_ERROR]++;
-		clean_up();
-	}
-
-	// Initialize TinyUSB hardware/board
-	board_init();
-
-	// Initialize TinyUSB stack
-	if (!tud_init(BOARD_TUD_RHPORT))
-	{
-		statistics_counters.error_state = true;
-	}
-
-	// Setup hardware, queues, etc.
-	if (!setup_hardware())
-	{
-		statistics_counters.error_state = true;
-	}
 
 	// Create the CDC task
 	success = xTaskCreate(cdc_task,
@@ -954,9 +924,13 @@ int main(void)
 	                      (void *)&task_props[CDC_TASK],
 	                      mainCDC_TASK_PRIORITY,
 	                      &task_props[CDC_TASK].task_handle);
-	if (success != pdPASS)
+	if (pdPASS == success)
 	{
-		statistics_counters.error_state = true;
+		vTaskCoreAffinitySet(task_props[CDC_TASK].task_handle, CDC_TASK_CORE_AFFINITY);
+	}
+	else
+	{
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
 	}
 
 	// Create queue for encoded data
@@ -970,9 +944,13 @@ int main(void)
 		                      (void *)&task_props[UART_EVENT_TASK],
 		                      mainUART_TASK_PRIORITY,
 		                      &task_props[UART_EVENT_TASK].task_handle);
-		if (success != pdPASS)
+		if (pdPASS == success)
 		{
-			statistics_counters.error_state = true;
+			vTaskCoreAffinitySet(task_props[UART_EVENT_TASK].task_handle, UART_EVENT_TASK_CORE_AFFINITY);
+		}
+		else
+		{
+			set_error_state_persistent(ERROR_FREERTOS_STACK);
 		}
 
 		// Decode reception task
@@ -982,14 +960,18 @@ int main(void)
 		                      (void *)&task_props[DECODE_RECEPTION_TASK],
 		                      mainDECODE_TASK_PRIORITY,
 		                      &task_props[DECODE_RECEPTION_TASK].task_handle);
-		if (success != pdPASS)
+		if (pdPASS == success)
 		{
-			statistics_counters.error_state = true;
+			vTaskCoreAffinitySet(task_props[DECODE_RECEPTION_TASK].task_handle, DECODE_RECEPTION_TASK_CORE_AFFINITY);
+		}
+		else
+		{
+			set_error_state_persistent(ERROR_FREERTOS_STACK);
 		}
 	}
 	else
 	{
-		statistics_counters.error_state = true;
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
 	}
 
 	// CDC writer queue
@@ -1003,14 +985,18 @@ int main(void)
 		                      (void *)&task_props[CDC_WRITE_TASK],
 		                      mainCDC_TASK_PRIORITY,
 		                      &task_props[CDC_WRITE_TASK].task_handle);
-		if (success != pdPASS)
+		if (pdPASS == success)
 		{
-			statistics_counters.error_state = true;
+			vTaskCoreAffinitySet(task_props[CDC_WRITE_TASK].task_handle, CDC_TASK_CORE_AFFINITY);
+		}
+		else
+		{
+			set_error_state_persistent(ERROR_FREERTOS_STACK);
 		}
 	}
 	else
 	{
-		statistics_counters.error_state = true;
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
 	}
 
 	// Outbound processing task
@@ -1020,9 +1006,13 @@ int main(void)
 	                      (void *)&task_props[PROCESS_OUTBOUND_TASK],
 	                      mainPROCESS_QUEUE_TASK_PRIORITY,
 	                      &task_props[PROCESS_OUTBOUND_TASK].task_handle);
-	if (success != pdPASS)
+	if (pdPASS == success)
 	{
-		statistics_counters.error_state = true;
+		vTaskCoreAffinitySet(task_props[PROCESS_OUTBOUND_TASK].task_handle, PROCESS_OUTBOUND_TASK_CORE_AFFINITY);
+	}
+	else
+	{
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
 	}
 
 	// ADC read task
@@ -1032,9 +1022,13 @@ int main(void)
 	                      (void *)&task_props[ADC_READ_TASK],
 	                      mainADC_TASK_PRIORITY,
 	                      &task_props[ADC_READ_TASK].task_handle);
-	if (success != pdPASS)
+	if (pdPASS == success)
 	{
-		statistics_counters.error_state = true;
+		vTaskCoreAffinitySet(task_props[ADC_READ_TASK].task_handle, ADC_READ_TASK_CORE_AFFINITY);
+	}
+	else
+	{
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
 	}
 
 	// Keypad task
@@ -1044,9 +1038,13 @@ int main(void)
 	                      (void *)&task_props[KEYPAD_TASK],
 	                      mainKEY_TASK_PRIORITY,
 	                      &task_props[KEYPAD_TASK].task_handle);
-	if (success != pdPASS)
+	if (pdPASS == success)
 	{
-		statistics_counters.error_state = true;
+		vTaskCoreAffinitySet(task_props[KEYPAD_TASK].task_handle, KEYPAD_TASK_CORE_AFFINITY);
+	}
+	else
+	{
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
 	}
 
 	// Encoder read task
@@ -1056,30 +1054,99 @@ int main(void)
 	                      (void *)&task_props[ENCODER_READ_TASK],
 	                      mainENCODER_TASK_PRIORITY,
 	                      &task_props[ENCODER_READ_TASK].task_handle);
-	if (success != pdPASS)
+	if (pdPASS == success)
 	{
-		statistics_counters.error_state = true;
-	}
-
-	// Assign core affinity
-	vTaskCoreAffinitySet(task_props[CDC_TASK].task_handle, uxCore0Affinity);
-	vTaskCoreAffinitySet(task_props[UART_EVENT_TASK].task_handle, uxCore0Affinity);
-	vTaskCoreAffinitySet(task_props[CDC_WRITE_TASK].task_handle, uxCore0Affinity);
-
-	vTaskCoreAffinitySet(task_props[DECODE_RECEPTION_TASK].task_handle, uxCore1Affinity);
-	vTaskCoreAffinitySet(task_props[PROCESS_OUTBOUND_TASK].task_handle, uxCore1Affinity);
-	vTaskCoreAffinitySet(task_props[ADC_READ_TASK].task_handle, uxCore1Affinity);
-	vTaskCoreAffinitySet(task_props[KEYPAD_TASK].task_handle, uxCore1Affinity);
-	vTaskCoreAffinitySet(task_props[ENCODER_READ_TASK].task_handle, uxCore1Affinity);
-
-	// Start scheduler if no critical error was found
-	if (!statistics_counters.error_state)
-	{
-		vTaskStartScheduler();
+		vTaskCoreAffinitySet(task_props[ENCODER_READ_TASK].task_handle, ENCODER_READ_TASK_CORE_AFFINITY);
 	}
 	else
 	{
-		enter_error_state();
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
+	}
+
+	// LED status task
+	success = xTaskCreate(led_status_task,
+	                      "led_status_task",
+	                      LED_STATUS_STACK_SIZE,
+	                      (void *)&task_props[LED_STATUS_TASK],
+	                      mainLED_STATUS_TASK_PRIORITY,
+	                      &task_props[LED_STATUS_TASK].task_handle);
+	if (pdPASS == success)
+	{
+		vTaskCoreAffinitySet(task_props[LED_STATUS_TASK].task_handle, LED_STATUS_TASK_CORE_AFFINITY);
+	}
+	else
+	{
+		set_error_state_persistent(ERROR_FREERTOS_STACK);
+	}
+}
+
+/**
+ * @brief Main entry point of the application.
+ *
+ * This function initializes the system (hardware, queues, tasks),
+ * checks for watchdog resets, and starts the FreeRTOS scheduler. If
+ * an error is detected, it enters an infinite loop (error state).
+ *
+ * @return Zero on normal exit. Usually never returns because of FreeRTOS.
+ */
+int main(void)
+{
+	// Error detection
+	setup_watchdog_with_error_detection(10000);
+
+	// Handle previous errors
+	if (true == statistics_counters.error_state)
+	{
+		// Show error pattern for a limited time using busy_wait
+		for (int i = 0; i < 8; i++) {
+			show_error_pattern_blocking(statistics_counters.current_error_type);
+			update_watchdog_safe();
+		}
+
+		// Check error count - if too many, stay in error state
+		uint32_t error_count = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
+		statistics_counters.counters[WATCHDOG_ERROR] = error_count;
+		if (error_count > 5)
+		{
+			// Too many errors - stay in error state and reset
+			while (true) {
+				show_error_pattern_blocking(statistics_counters.current_error_type);
+				update_watchdog_safe();
+			}
+		}
+
+		// Try to recover - clear error state
+		clean_up();
+		statistics_counters.error_state = false;
+		statistics_counters.current_error_type = ERROR_NONE;
+	}
+
+	// Initialize TinyUSB hardware/board
+	board_init();
+
+	// Initialize TinyUSB stack
+	if (!tud_init(BOARD_TUD_RHPORT))
+	{
+		set_error_state_persistent(ERROR_RESOURCE_ALLOCATION);
+	}
+
+	// Setup hardware, queues, etc.
+	if (!setup_hardware())
+	{
+		set_error_state_persistent(ERROR_RESOURCE_ALLOCATION);
+	}
+
+	create_resources();
+
+	vTaskStartScheduler();
+
+	// If we reach here, the scheduler failed to start
+	set_error_state_persistent(ERROR_SCHEDULER_FAILED);
+
+	// Scheduler failed - use busy_wait for error display
+	while (true) {
+		show_error_pattern_blocking(ERROR_SCHEDULER_FAILED);
+		update_watchdog_safe();
 	}
 
 	return 0; // Normally should never reach here

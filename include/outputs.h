@@ -117,7 +117,7 @@
  * @note These codes are used to indicate the status of output operations such as initialization and display updates.
  * @ingroup outputs
  */
-typedef enum output_result_t {
+typedef enum {
 	OUTPUT_OK = 0,
 	OUTPUT_ERR_INIT = 1,
 	OUTPUT_ERR_DISPLAY_OUT = 2,
@@ -148,7 +148,7 @@ typedef struct out_statistics_counters_t {
 
 extern out_statistics_counters_t out_statistics_counters;
 
-/* --- Driver Structures --- */
+// --- Driver Structures ---
 
 /** @struct output_driver_t
  * @brief Holds the configuration for an output device.
@@ -157,20 +157,20 @@ struct output_driver_t;
 typedef struct output_driver_t output_driver_t;
 
 struct output_driver_t {
-	/* Chip ID (0-7) */
+	// Chip ID (0-7)
 	uint8_t chip_id;
 
-	/* Function pointer for chip selection (true = select/stb low, false = deselect/stb high) */
+	// Function pointer for chip selection (true = select/stb low, false = deselect/stb high)
 	uint8_t (*select_interface)(uint8_t chip_id, bool select);
 	void (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
 	void (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
 
-	/* SPI instance */
+	// SPI instance
 	spi_inst_t *spi;
 	uint8_t dio_pin;
 	uint8_t clk_pin;
 
-	/* SPI buffer */
+	// SPI buffer
 	uint8_t active_buffer[16]; // Active display buffer
 	uint8_t prep_buffer[16]; // Preparation buffer for double buffering
 	bool buffer_modified;    // Flag indicating if the prep buffer has changed

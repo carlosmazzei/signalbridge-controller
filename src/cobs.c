@@ -5,8 +5,8 @@
  *
  * This file contains the COBS encoding implementation.
  *
- * @copyright (c) 2020-2024 Carlos Mazzei
- * All rights reserved.
+ * @copyright
+ *   (c) 2020-2025 Carlos Mazzei - All rights reserved.
  */
 
 #include <stddef.h>

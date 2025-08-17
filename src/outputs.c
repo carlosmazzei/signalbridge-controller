@@ -53,7 +53,7 @@ output_drivers_t output_drivers;
  */
 out_statistics_counters_t out_statistics_counters;
 
-/* Function declarations */
+// Function declarations
 
 /**
  * @brief Initialize the multiplexer for chip select control
@@ -354,7 +354,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		}
 		else
 		{
-			/* If the driver handle is invalid, try to deselect the chip and set error */
+			// If the driver handle is invalid, try to deselect the chip and set error
 			(void)select_interface(physical_cs, false);
 			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
 			result = OUTPUT_ERR_DISPLAY_OUT;
