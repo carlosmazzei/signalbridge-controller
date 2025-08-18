@@ -21,7 +21,11 @@
 #include "error_management.h"
 
 // Global variable
-volatile statistics_counters_t statistics_counters;
+volatile statistics_counters_t statistics_counters = {
+	.counters = {0},
+	.error_state = false,
+	.current_error_type = ERROR_NONE
+};
 
 void show_error_pattern_blocking(error_type_t error_type)
 {

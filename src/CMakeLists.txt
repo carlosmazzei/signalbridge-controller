@@ -86,7 +86,7 @@ target_link_libraries(pi_controller
     FreeRTOS-Kernel-Heap4
 )
 
-# Doxygen: Run memory analysis script after build
+# Run memory analysis script after build
 add_custom_command(
     TARGET pi_controller POST_BUILD
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/memory_analysis.sh

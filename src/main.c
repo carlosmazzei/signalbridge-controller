@@ -1092,7 +1092,7 @@ static inline void create_resources()
 int main(void)
 {
 	// Error detection
-	setup_watchdog_with_error_detection(10000);
+	setup_watchdog_with_error_detection(5000);
 
 	// Handle previous errors
 	if (true == statistics_counters.error_state)
