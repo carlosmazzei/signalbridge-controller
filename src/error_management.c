@@ -20,12 +20,58 @@
 #include "task.h"
 #include "error_management.h"
 
-// Global variable
-volatile statistics_counters_t statistics_counters = {
-	.counters = {0},
-	.error_state = false,
-	.current_error_type = ERROR_NONE
+/**
+ * @brief Statistics counters instance (module scope).
+ */
+static volatile statistics_counters_t statistics_counters = {
+        .counters = {0},
+        .error_state = false,
+        .current_error_type = ERROR_NONE
 };
+
+void statistics_increment_counter(statistics_counter_enum_t index)
+{
+        statistics_counters.counters[index]++;
+}
+
+void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value)
+{
+        statistics_counters.counters[index] += value;
+}
+
+void statistics_set_counter(statistics_counter_enum_t index, uint32_t value)
+{
+        statistics_counters.counters[index] = value;
+}
+
+uint32_t statistics_get_counter(statistics_counter_enum_t index)
+{
+        return statistics_counters.counters[index];
+}
+
+void statistics_reset_all_counters(void)
+{
+        for (uint32_t i = 0; i < NUM_STATISTICS_COUNTERS; i++)
+        {
+                statistics_counters.counters[i] = 0;
+        }
+}
+
+bool statistics_is_error_state(void)
+{
+        return statistics_counters.error_state;
+}
+
+error_type_t statistics_get_error_type(void)
+{
+        return statistics_counters.current_error_type;
+}
+
+void statistics_clear_error(void)
+{
+        statistics_counters.error_state = false;
+        statistics_counters.current_error_type = ERROR_NONE;
+}
 
 void show_error_pattern_blocking(error_type_t error_type)
 {

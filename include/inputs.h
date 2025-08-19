@@ -125,10 +125,6 @@ typedef struct input_config_t
 	uint16_t encoder_settling_time_ms; /**< Encoder settling time in milliseconds */
 } input_config_t;
 
-/**
- * @brief Global input configuration instance.
- */
-extern input_config_t input_config;
 
 /**
  * @brief Possible results for input functions.
@@ -160,12 +156,6 @@ typedef struct encoder_states_t
 	int8_t count_encoder; /**< Encoder step counter */
 } encoder_states_t;
 
-/**
- * @brief Current state of each key in the keypad matrix.
- *
- * The size is KEYPAD_MAX_COLS * KEYPAD_MAX_ROWS.
- */
-extern uint8_t keypad_state[KEYPAD_MAX_COLS * KEYPAD_MAX_ROWS];
 
 /**
  * @brief Initialize the input system (keypad, ADC, encoder).

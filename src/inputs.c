@@ -20,14 +20,14 @@
 #include "error_management.h"
 
 /**
- * @brief Global input configuration instance.
+ * @brief Input configuration instance (module scope).
  */
-input_config_t input_config;
+static input_config_t input_config;
 
 /**
  * @brief State array for each key in the keypad matrix.
  */
-uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
+static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 
 /**
  * @brief ADC states for each channel.
