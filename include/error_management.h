@@ -12,6 +12,9 @@
 #ifndef ERROR_MANAGEMENT_H
 #define ERROR_MANAGEMENT_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
 // Error LED configuration
 #define ERROR_LED_PIN PICO_DEFAULT_LED_PIN
 
@@ -70,9 +73,59 @@ typedef struct statistics_counters_t {
 } statistics_counters_t;
 
 /**
- * @brief Holds various statistics counters for error tracking.
+ * @brief Increment a statistics counter.
+ *
+ * @param[in] index Counter index to increment.
  */
-extern volatile statistics_counters_t statistics_counters;
+void statistics_increment_counter(statistics_counter_enum_t index);
+
+/**
+ * @brief Add a value to a statistics counter.
+ *
+ * @param[in] index Counter index to update.
+ * @param[in] value Value to add.
+ */
+void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value);
+
+/**
+ * @brief Set a statistics counter to a specific value.
+ *
+ * @param[in] index Counter index to set.
+ * @param[in] value Value to assign.
+ */
+void statistics_set_counter(statistics_counter_enum_t index, uint32_t value);
+
+/**
+ * @brief Retrieve the value of a statistics counter.
+ *
+ * @param[in] index Counter index to read.
+ * @return Current counter value.
+ */
+uint32_t statistics_get_counter(statistics_counter_enum_t index);
+
+/**
+ * @brief Reset all statistics counters.
+ */
+void statistics_reset_all_counters(void);
+
+/**
+ * @brief Check if the system is in an error state.
+ *
+ * @return true if in error state, false otherwise.
+ */
+bool statistics_is_error_state(void);
+
+/**
+ * @brief Get the current error type.
+ *
+ * @return Current error type.
+ */
+error_type_t statistics_get_error_type(void);
+
+/**
+ * @brief Clear the error state and set error type to ERROR_NONE.
+ */
+void statistics_clear_error(void);
 
 /**
  * @brief Set the error state persistently in the watchdog registers.

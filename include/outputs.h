@@ -146,7 +146,6 @@ typedef struct out_statistics_counters_t {
 	bool error_state;                  /**< Flag indicating critical error state */
 } out_statistics_counters_t;
 
-extern out_statistics_counters_t out_statistics_counters;
 
 // --- Driver Structures ---
 
@@ -185,7 +184,6 @@ typedef struct output_drivers_t {
 	output_driver_t *driver_handles[MAX_SPI_INTERFACES];
 } output_drivers_t;
 
-extern output_drivers_t output_drivers;
 
 /**
  * Function Prototypes

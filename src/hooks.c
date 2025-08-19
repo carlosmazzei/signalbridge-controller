@@ -12,7 +12,7 @@
 #include "hooks.h"
 #include "error_management.h"
 
-volatile size_t free_heap_size = 0;
+static volatile size_t free_heap_size = 0;
 
 //-----------------------------------------------------------
 

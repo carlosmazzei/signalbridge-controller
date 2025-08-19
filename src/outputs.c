@@ -40,18 +40,18 @@ static const uint8_t device_config_map[MAX_SPI_INTERFACES] = DEVICE_CONFIG;
 static SemaphoreHandle_t spi_mutex = NULL;
 
 /**
- * @brief Structure holding all output driver handles.
+ * @brief Structure holding all output driver handles (module scope).
  *
- * This global variable stores pointers to the initialized output drivers for each interface.
+ * This variable stores pointers to the initialized output drivers for each interface.
  */
-output_drivers_t output_drivers;
+static output_drivers_t output_drivers;
 
 /**
- * @brief Output statistics counters.
+ * @brief Output statistics counters (module scope).
  *
- * This global variable holds counters for various output-related errors and states.
+ * This variable holds counters for various output-related errors and states.
  */
-out_statistics_counters_t out_statistics_counters;
+static out_statistics_counters_t out_statistics_counters;
 
 // Function declarations
 
