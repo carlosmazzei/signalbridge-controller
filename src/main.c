@@ -154,6 +154,9 @@
 #define CORE_0_AFFINITY (1U << 0U)  // Core 0 only
 #define CORE_1_AFFINITY (1U << 1U)  // Core 1 only
 
+/**
+ * @brief Core affinity for the CDC task.
+ */
 #define CDC_TASK_CORE_AFFINITY                  CORE_0_AFFINITY // Also used by CDC Write Task
 #define UART_EVENT_TASK_CORE_AFFINITY           CORE_0_AFFINITY
 #define LED_STATUS_TASK_CORE_AFFINITY           CORE_0_AFFINITY

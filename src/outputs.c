@@ -160,6 +160,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 static output_result_t init_driver(void)
 {
 	output_result_t result = OUTPUT_OK;
+
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
@@ -186,12 +187,6 @@ static output_result_t init_driver(void)
 		{
 			// Initialize generic driver (if needed)
 			/** @todo: initialize generic devices with generic drivers */
-		}
-		else
-		{
-			result = OUTPUT_ERR_INIT;
-			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-			continue;
 		}
 	}
 
@@ -222,11 +217,6 @@ static void uart0_init(uint32_t baudrate)
 output_result_t output_init(void)
 {
 	output_result_t result = OUTPUT_OK;
-
-	// Enable Pico default LED pin (GPIO 25)
-	gpio_init(PICO_DEFAULT_LED_PIN);
-	gpio_set_dir(PICO_DEFAULT_LED_PIN, 1);
-	gpio_put(PICO_DEFAULT_LED_PIN, !PICO_DEFAULT_LED_PIN_INVERTED);
 
 	// Create mutex
 	if (!spi_mutex)

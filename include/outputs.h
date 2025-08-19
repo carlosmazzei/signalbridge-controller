@@ -117,7 +117,7 @@
  * @note These codes are used to indicate the status of output operations such as initialization and display updates.
  * @ingroup outputs
  */
-typedef enum {
+typedef enum output_result_t {
 	OUTPUT_OK = 0,
 	OUTPUT_ERR_INIT = 1,
 	OUTPUT_ERR_DISPLAY_OUT = 2,
