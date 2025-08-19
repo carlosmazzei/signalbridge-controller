@@ -375,14 +375,14 @@ static void uart_event_task(void *pvParameters)
 			continue;
 		}
 
-                uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
-                statistics_add_to_counter(BYTES_RECEIVED, count);
+		uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
+		statistics_add_to_counter(BYTES_RECEIVED, count);
 		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
 		{
-                        if (xQueueSend(encoded_reception_queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE)
-                        {
-                                statistics_increment_counter(QUEUE_SEND_ERROR);
-                        }
+			if (xQueueSend(encoded_reception_queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE)
+			{
+				statistics_increment_counter(QUEUE_SEND_ERROR);
+			}
 			update_watchdog_safe();
 		}
 	}
@@ -412,14 +412,14 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 	// Check for NULL pointer
 	if (NULL == send_data)
 	{
-            statistics_increment_counter(QUEUE_SEND_ERROR);
+		statistics_increment_counter(QUEUE_SEND_ERROR);
 		error = true;
 	}
 
 	// Check for buffer overflow risk
 	if ((false == error) && (length > (DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE)))
 	{
-            statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
+		statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
 		error = true;
 	}
 
@@ -444,7 +444,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 		// Check for buffer overflow after encoding
 		if ((num_encoded + 1U) >= MAX_ENCODED_BUFFER_SIZE)
 		{
-                    statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
+			statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
 		}
 		else
 		{
@@ -458,7 +458,7 @@ static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, ui
 			// Enqueue data to be sent via USB CDC
 			if (xQueueSend(cdc_transmit_queue, &packet, pdMS_TO_TICKS(1)) != pdTRUE)
 			{
-                            statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
+				statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
 			}
 		}
 	}
@@ -497,7 +497,7 @@ static void cdc_write_task(void *pvParameters)
 				taskYIELD();
 			}
 			// Flush after all possible bytes are written
-                    statistics_add_to_counter(BYTES_SENT, total_written);
+			statistics_add_to_counter(BYTES_SENT, total_written);
 			tud_cdc_write_flush();
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
@@ -513,11 +513,11 @@ static inline void send_status(uint8_t index)
 	if (index < (uint8_t)NUM_STATISTICS_COUNTERS)
 	{
 		data[0] = index;
-            uint32_t counter_value = statistics_get_counter(index);
-            data[1] = (counter_value >> 24U) & 0xFFU;
-            data[2] = (counter_value >> 16U) & 0xFFU;
-            data[3] = (counter_value >> 8U) & 0xFFU;
-            data[4] = counter_value & 0xFFU;
+		uint32_t counter_value = statistics_get_counter(index);
+		data[1] = (counter_value >> 24U) & 0xFFU;
+		data[2] = (counter_value >> 16U) & 0xFFU;
+		data[3] = (counter_value >> 8U) & 0xFFU;
+		data[4] = counter_value & 0xFFU;
 	}
 
 	send_data(BOARD_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
@@ -604,7 +604,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 	if (length < (HEADER_SIZE + CHECKSUM_SIZE))
 	{
-            statistics_increment_counter(MSG_MALFORMED_ERROR);
+		statistics_increment_counter(MSG_MALFORMED_ERROR);
 		done = true;
 	}
 
@@ -621,20 +621,20 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 		if (length != (len + HEADER_SIZE + CHECKSUM_SIZE))
 		{
-                    statistics_increment_counter(MSG_MALFORMED_ERROR);
+			statistics_increment_counter(MSG_MALFORMED_ERROR);
 			done = true;
 		}
 	}
 
 	if ((!done) && (DATA_BUFFER_SIZE < len))
 	{
-            statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
+		statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
 		done = true;
 	}
 
 	if ((!done) && (rxID != BOARD_ID))
 	{
-            statistics_increment_counter(UNKNOWN_CMD_ERROR);
+		statistics_increment_counter(UNKNOWN_CMD_ERROR);
 		done = true;
 	}
 
@@ -647,7 +647,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 
 		if (calculated_checksum != received_checksum)
 		{
-                    statistics_increment_counter(CHECKSUM_ERROR);
+			statistics_increment_counter(CHECKSUM_ERROR);
 			done = true;
 		}
 	}
@@ -659,7 +659,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		case PC_LEDOUT_CMD:
 			if (led_out(decoded_data, len) != OUTPUT_OK)
 			{
-                            statistics_increment_counter(LED_OUT_ERROR);
+				statistics_increment_counter(LED_OUT_ERROR);
 			}
 			break;
 
@@ -670,7 +670,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 		case PC_DPYCTL_CMD:
 			if (display_out(decoded_data, len) != OUTPUT_OK)
 			{
-                            statistics_increment_counter(DISPLAY_OUT_ERROR);
+				statistics_increment_counter(DISPLAY_OUT_ERROR);
 			}
 			break;
 
@@ -687,7 +687,7 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 			break;
 
 		default:
-                    statistics_increment_counter(UNKNOWN_CMD_ERROR);
+			statistics_increment_counter(UNKNOWN_CMD_ERROR);
 			break;
 		}
 	}
@@ -709,7 +709,7 @@ static void decode_reception_task(void *pvParameters)
 		uint8_t data;
 		if (pdFALSE == xQueueReceive(encoded_reception_queue, (void *)&data, portMAX_DELAY))
 		{
-                    statistics_increment_counter(QUEUE_RECEIVE_ERROR);
+			statistics_increment_counter(QUEUE_RECEIVE_ERROR);
 			continue;
 		}
 
@@ -718,7 +718,7 @@ static void decode_reception_task(void *pvParameters)
 			if (0U == receive_buffer_index)
 			{
 				// Packet marker received but no data in buffer
-                            statistics_increment_counter(COBS_DECODE_ERROR);
+				statistics_increment_counter(COBS_DECODE_ERROR);
 				receive_buffer_index = 0;
 				continue;
 			}
@@ -734,7 +734,7 @@ static void decode_reception_task(void *pvParameters)
 			}
 			else
 			{
-                            statistics_increment_counter(COBS_DECODE_ERROR);
+				statistics_increment_counter(COBS_DECODE_ERROR);
 			}
 		}
 		else if (receive_buffer_index < MAX_ENCODED_BUFFER_SIZE - 1U)
@@ -744,7 +744,7 @@ static void decode_reception_task(void *pvParameters)
 		}
 		else
 		{
-                    statistics_increment_counter(RECEIVE_BUFFER_OVERFLOW_ERROR);
+			statistics_increment_counter(RECEIVE_BUFFER_OVERFLOW_ERROR);
 			receive_buffer_index = 0;
 		}
 	}
@@ -769,7 +769,7 @@ static void process_outbound_task(void *pvParameters)
 		}
 		else
 		{
-                    statistics_increment_counter(QUEUE_RECEIVE_ERROR);
+			statistics_increment_counter(QUEUE_RECEIVE_ERROR);
 		}
 
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
@@ -783,10 +783,10 @@ static void led_status_task(void *pvParameters)
 
 	for (;;)
 	{
-            if (true == statistics_is_error_state())
+		if (true == statistics_is_error_state())
 		{
 			// Error state - show error pattern
-                    uint8_t blink_count = (uint8_t)statistics_get_error_type();
+			uint8_t blink_count = (uint8_t)statistics_get_error_type();
 
 			// Show blink pattern using FreeRTOS delays
 			for (uint8_t i = 0; i < blink_count; i++) {
@@ -867,7 +867,7 @@ static inline bool setup_hardware(void)
 	}
 
 	// Reset all error counters
-        statistics_reset_all_counters();
+	statistics_reset_all_counters();
 
 	// Reset task props
 	for (uint i = 0; i < NUM_TASKS; i++)
@@ -1093,29 +1093,29 @@ int main(void)
 	setup_watchdog_with_error_detection(5000);
 
 	// Handle previous errors
-   if (true == statistics_is_error_state())
+	if (true == statistics_is_error_state())
 	{
 		// Show error pattern for a limited time using busy_wait
 		for (int i = 0; i < 8; i++) {
-                   show_error_pattern_blocking(statistics_get_error_type());
+			show_error_pattern_blocking(statistics_get_error_type());
 			update_watchdog_safe();
 		}
 
 		// Check error count - if too many, stay in error state
 		uint32_t error_count = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
-           statistics_set_counter(WATCHDOG_ERROR, error_count);
+		statistics_set_counter(WATCHDOG_ERROR, error_count);
 		if (error_count > 5)
 		{
 			// Too many errors - stay in error state and reset
 			while (true) {
-                           show_error_pattern_blocking(statistics_get_error_type());
+				show_error_pattern_blocking(statistics_get_error_type());
 				update_watchdog_safe();
 			}
 		}
 
 		// Try to recover - clear error state
 		clean_up();
-           statistics_clear_error();
+		statistics_clear_error();
 	}
 
 	// Initialize TinyUSB hardware/board
