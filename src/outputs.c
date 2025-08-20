@@ -40,20 +40,20 @@ static const uint8_t device_config_map[MAX_SPI_INTERFACES] = DEVICE_CONFIG;
 static SemaphoreHandle_t spi_mutex = NULL;
 
 /**
- * @brief Structure holding all output driver handles.
+ * @brief Structure holding all output driver handles (module scope).
  *
- * This global variable stores pointers to the initialized output drivers for each interface.
+ * This variable stores pointers to the initialized output drivers for each interface.
  */
-output_drivers_t output_drivers;
+static output_drivers_t output_drivers;
 
 /**
- * @brief Output statistics counters.
+ * @brief Output statistics counters (module scope).
  *
- * This global variable holds counters for various output-related errors and states.
+ * This variable holds counters for various output-related errors and states.
  */
-out_statistics_counters_t out_statistics_counters;
+static out_statistics_counters_t out_statistics_counters;
 
-/* Function declarations */
+// Function declarations
 
 /**
  * @brief Initialize the multiplexer for chip select control
@@ -160,6 +160,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 static output_result_t init_driver(void)
 {
 	output_result_t result = OUTPUT_OK;
+
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
@@ -186,12 +187,6 @@ static output_result_t init_driver(void)
 		{
 			// Initialize generic driver (if needed)
 			/** @todo: initialize generic devices with generic drivers */
-		}
-		else
-		{
-			result = OUTPUT_ERR_INIT;
-			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-			continue;
 		}
 	}
 
@@ -222,11 +217,6 @@ static void uart0_init(uint32_t baudrate)
 output_result_t output_init(void)
 {
 	output_result_t result = OUTPUT_OK;
-
-	// Enable Pico default LED pin (GPIO 25)
-	gpio_init(PICO_DEFAULT_LED_PIN);
-	gpio_set_dir(PICO_DEFAULT_LED_PIN, 1);
-	gpio_put(PICO_DEFAULT_LED_PIN, !PICO_DEFAULT_LED_PIN_INVERTED);
 
 	// Create mutex
 	if (!spi_mutex)
@@ -354,7 +344,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		}
 		else
 		{
-			/* If the driver handle is invalid, try to deselect the chip and set error */
+			// If the driver handle is invalid, try to deselect the chip and set error
 			(void)select_interface(physical_cs, false);
 			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
 			result = OUTPUT_ERR_DISPLAY_OUT;

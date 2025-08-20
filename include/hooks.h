@@ -6,7 +6,6 @@
 #include "task.h"
 #include "semphr.h"
 
-static size_t free_heap_size;
 
 /* Prototypes for the standard FreeRTOS callback/hook functions implemented
  * within this file. */

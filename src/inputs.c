@@ -17,16 +17,22 @@
 #include "task_props.h"
 #include "hardware/watchdog.h"
 #include "commands.h"
+#include "error_management.h"
 
 /**
- * @brief Global input configuration instance.
+ * @brief Input configuration instance (module scope).
  */
-input_config_t input_config;
+static input_config_t input_config;
 
 /**
  * @brief State array for each key in the keypad matrix.
  */
-uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
+static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
+
+/**
+ * @brief ADC states for each channel.
+ */
+adc_states_t adc_states;
 
 input_result_t input_init(const input_config_t *config)
 {
@@ -152,7 +158,7 @@ void keypad_task(void *pvParameters)
 		}
 
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
 	}
 }
 
@@ -211,31 +217,30 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
  * @param[in] channel ADC channel index.
  * @param[in] new_sample New ADC sample value.
  * @param[in,out] samples Pointer to the sample buffer for the channel.
- * @param[in,out] adc_states Pointer to the ADC states structure.
+ * @param[in,out] padc_states Pointer to the ADC states structure.
  * @return The moving average value for the specified channel.
  * @details Implements a circular buffer for moving average filtering.
  */
-static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *adc_states)
+static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *padc_states)
 {
 	// Remove old sample and add the new one to the sum
-	adc_states->adc_sum_values[channel] -= samples[adc_states->samples_index[channel]];
-	adc_states->adc_sum_values[channel] += new_sample;
-	samples[adc_states->samples_index[channel]] = new_sample;
+	padc_states->adc_sum_values[channel] -= samples[padc_states->samples_index[channel]];
+	padc_states->adc_sum_values[channel] += new_sample;
+	samples[padc_states->samples_index[channel]] = new_sample;
 
 	// Adjust the new index
-	adc_states->samples_index[channel]++;
-	if (adc_states->samples_index[channel] >= (uint16_t)ADC_NUM_TAPS)
+	padc_states->samples_index[channel]++;
+	if (padc_states->samples_index[channel] >= (uint16_t)ADC_NUM_TAPS)
 	{
-		adc_states->samples_index[channel] = 0;
+		padc_states->samples_index[channel] = 0;
 	}
 
 	// Return the moving average
-	return (uint16_t)(adc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
+	return (uint16_t)(padc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
 }
 
 void adc_read_task(void *pvParameters)
 {
-	adc_states_t adc_states;
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	// Initialize the ADC states
@@ -277,7 +282,7 @@ void adc_read_task(void *pvParameters)
 		adc_mux_select(0);
 
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		update_watchdog_safe();
 	}
 }
 
@@ -357,7 +362,7 @@ void encoder_read_task(void *pvParameters)
 		// Get free heap for the task
 		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
 		// Update watchdog timer
-		watchdog_update();
+		update_watchdog_safe();
 	}
 }
 

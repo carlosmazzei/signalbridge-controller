@@ -9,6 +9,7 @@ set(HEADER_FILES
     task_props.h
     tm1639.h
     tusb_config.h
+    error_management.h
 )
 
 # Check the existence of each header file
