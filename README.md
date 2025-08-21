@@ -20,6 +20,16 @@ Related repos:
 - [Signalbridge test suite](https://github.com/carlosmazzei/signalbridge-test-suite)
 - [Signalbridge firmware](https://github.com/carlosmazzei/signalbridge-controller) (This repo)
 
+## 📂 Repository Structure
+
+- **`src/`** – application source code
+- **`include/`** – public headers
+- **`lib/`** – external libraries (Pico SDK, FreeRTOS-Kernel)
+- **`scripts/`** – helper utilities (`analyze_memory.sh`, `memory_analysis.sh`, `check_placement.py`)
+- **`docs/`** – Doxygen configuration and generated documentation
+- **`assets/`** – logos and images
+- **`.devcontainer/`** – development container configuration
+
 ## 🚀 Quick Start
 
 ### Option 1: DevContainer (🎯 RECOMMENDED - One-Click Setup)
@@ -43,17 +53,17 @@ code .
 ```
 
 **What You Get Automatically:**
-- ✅ **ARM Toolchain** (gcc-arm-none-eabi 15:12.2.rel1-1)
-- ✅ **Build System** (CMake 3.25.1, Make)
-- ✅ **Debugging Tools** (GDB multiarch)
-- ✅ **Code Analysis** (Cppcheck 2.10, Uncrustify, SonarLint)
-- ✅ **Documentation** (Doxygen 1.9.4)
+- ✅ **ARM Toolchain** (gcc-arm-none-eabi 15:14.2.rel1-1)
+- ✅ **Build System** (CMake 3.31.6, Make)
+- ✅ **Debugging Tools** (GDB multiarch 16.3, OpenOCD 0.12.0)
+- ✅ **Code Analysis** (Cppcheck 2.17.1, Uncrustify 0.78.1, SonarLint, Flawfinder)
+- ✅ **Documentation** (Doxygen 1.9.8)
 - ✅ **VS Code Extensions** (C/C++ tools, CMake, Python, Copilot, Hex Editor)
 - ✅ **Pico SDK & FreeRTOS** (automatically configured)
 - ✅ **Environment Variables** (PICO_SDK_PATH, FREERTOS_KERNEL_PATH)
 
 **DevContainer Configuration Details:**
-- **Base Image**: Debian 12 (Bookworm) stable
+- **Base Image**: Debian 13 (Trixie)
 - **Dependencies**: Managed via `dependencies.json` with version pinning
 - **Post-Setup**: Automated submodule initialization and environment configuration
 - **Extensions**: 11 pre-installed VS Code extensions for embedded development
@@ -69,13 +79,13 @@ code .
 sudo apt update
 sudo apt install -y cmake doxygen python3 build-essential \
     gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib \
-    cppcheck uncrustify git nodejs openjdk-17-jre-headless
+    cppcheck uncrustify git nodejs openjdk-21-jre-headless
 ```
 
 #### For macOS (using Homebrew)
 ```bash
 brew update
-brew install cmake doxygen python3 arm-none-eabi-gcc cppcheck uncrustify git node openjdk@17
+brew install cmake doxygen python3 arm-none-eabi-gcc cppcheck uncrustify git node openjdk@21
 ```
 
 #### For Windows
@@ -84,6 +94,7 @@ brew install cmake doxygen python3 arm-none-eabi-gcc cppcheck uncrustify git nod
 3. Install [Doxygen](https://www.doxygen.nl/download.html)
 4. Install [Git for Windows](https://git-scm.com/)
 5. Install [Make for Windows](http://gnuwin32.sourceforge.net/packages/make.htm)
+6. Install [OpenJDK 21](https://adoptium.net/)
 
 </details>
 
@@ -95,12 +106,12 @@ brew install cmake doxygen python3 arm-none-eabi-gcc cppcheck uncrustify git nod
 The development container provides a complete embedded development environment:
 
 **Build Dependencies** (from `dependencies.json`):
-- **Compiler**: gcc-arm-none-eabi (15:12.2.rel1-1)
-- **Build Tools**: cmake (3.25.1-1), build-essential (12.9)
-- **Debugging**: gdb-multiarch (13.1-3)
-- **Code Quality**: cppcheck (2.10-2), uncrustify, flawfinder (2.0.19-1.1)
-- **Documentation**: doxygen (1.9.4-4)
-- **Runtime**: nodejs (18.19.0), python3 (3.11.2-1), openjdk-17-jre
+- **Compiler**: gcc-arm-none-eabi (15:14.2.rel1-1)
+- **Build Tools**: cmake (3.31.6-2), build-essential (12.12)
+- **Debugging**: gdb-multiarch (16.3-1), openocd (0.12.0-3+b2)
+- **Code Quality**: cppcheck (2.17.1-2), uncrustify (0.78.1+dfsg1-1+b2), flawfinder (2.0.19-1.1)
+- **Documentation**: doxygen (1.9.8+ds-2.1)
+- **Runtime**: nodejs (20.19.2+dfsg-1), python3 (3.13.5-1), openjdk-21-jre-headless (21.0.8+9-1)
 
 **VS Code Extensions** (auto-installed):
 - **C/C++ Development**: ms-vscode.cpptools, ms-vscode.cpptools-extension-pack
@@ -115,7 +126,7 @@ The development container provides a complete embedded development environment:
 export PICO_SDK_PATH="${containerWorkspaceFolder}/lib/pico-sdk"
 export FREERTOS_KERNEL_PATH="${containerWorkspaceFolder}/lib/FreeRTOS-Kernel"
 export PICO_TOOLCHAIN_PATH="/usr/bin"
-export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-arm64"
+export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-arm64"
 ```
 
 ## ✨ Features (Current Implementation)
