@@ -69,18 +69,19 @@ input_result_t input_init(const input_config_t *config)
 		input_config.encoder_settling_time_ms = config->encoder_settling_time_ms;
 
 		// Setup IO pins / use gpio_init_mask insted to initialized multiple pins
-		uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
-		                      (1UL << KEYPAD_COL_MUX_B) |
-		                      (1UL << KEYPAD_COL_MUX_C) |
-		                      (1UL << KEYPAD_COL_MUX_CS) |
-		                      (1UL << KEYPAD_ROW_MUX_A) |
-		                      (1UL << KEYPAD_ROW_MUX_B) |
-		                      (1UL << KEYPAD_ROW_MUX_C) |
-		                      (1UL << KEYPAD_ROW_MUX_CS) |
-		                      (1UL << KEYPAD_ROW_INPUT) |
-		                      (1UL << ADC_MUX_A) |
-		                      (1UL << ADC_MUX_B) |
-		                      (1UL << ADC_MUX_C));
+                uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
+                                      (1UL << KEYPAD_COL_MUX_B) |
+                                      (1UL << KEYPAD_COL_MUX_C) |
+                                      (1UL << KEYPAD_COL_MUX_CS) |
+                                      (1UL << KEYPAD_ROW_MUX_A) |
+                                      (1UL << KEYPAD_ROW_MUX_B) |
+                                      (1UL << KEYPAD_ROW_MUX_C) |
+                                      (1UL << KEYPAD_ROW_MUX_CS) |
+                                      (1UL << KEYPAD_ROW_INPUT) |
+                                      (1UL << ADC_MUX_A) |
+                                      (1UL << ADC_MUX_B) |
+                                      (1UL << ADC_MUX_C) |
+                                      (1UL << ADC_MUX_D));
 
 		gpio_init_mask(gpio_mask);
 		gpio_set_dir_masked(gpio_mask, 0xFFU);
@@ -348,7 +349,7 @@ void encoder_read_task(void *pvParameters)
 				{
 					encoder_generate_event(encoder_base, 1);
 				}                                  // then the index for enc_states
-				else if (encoder_state[0].count_encoder == -4)
+                                else if (encoder_state[encoder_base].count_encoder == -4)
 				{
 					encoder_generate_event(encoder_base, 0);
 				}
