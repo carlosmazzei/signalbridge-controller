@@ -403,8 +403,8 @@ static void cdc_task(void *pvParameters)
 		// Update high watermark and safely reset watchdog timer
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		update_watchdog_safe();
-		vTaskDelay(pdMS_TO_TICKS(2));
-	}
+                taskYIELD();
+        }
 }
 
 static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
