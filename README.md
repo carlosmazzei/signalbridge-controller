@@ -36,8 +36,8 @@ The fastest way to get started is using the pre-configured development container
 **One-Click Setup:**
 ```bash
 # Clone and open in VS Code
-git clone --recurse-submodules https://github.com/carlosmazzei/a320-pico-controller-freertos.git
-cd a320-pico-controller-freertos
+git clone --recurse-submodules https://github.com/carlosmazzei/signalbridge-controller.git
+cd signalbridge-controller
 code .
 # Click "Reopen in Container" when prompted
 ```
@@ -161,6 +161,40 @@ export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-arm64"
 - **Watchdog**: Hardware watchdog with task-level monitoring
 - **Memory Management**: Dynamic allocation with heap monitoring
 
+### Error Management and Diagnostics
+- **LED Blink Codes**: `ERROR_LED_PIN` indicates faults with 1–5 blink patterns
+- **Persistent Tracking**: Error type and count stored in watchdog scratch registers
+- **Statistics Counters**: `PC_ERROR_STATUS_CMD` reports counters for system events
+
+#### Error Blink Patterns
+| Error Type | Blinks | Description |
+|------------|--------|-------------|
+| `ERROR_WATCHDOG_TIMEOUT` | 1 | Watchdog timeout reset |
+| `ERROR_FREERTOS_STACK` | 2 | FreeRTOS stack overflow |
+| `ERROR_PICO_SDK_PANIC` | 3 | Pico SDK panic |
+| `ERROR_SCHEDULER_FAILED` | 4 | Scheduler startup failure |
+| `ERROR_RESOURCE_ALLOCATION` | 5 | Memory/resource allocation failure |
+
+#### Statistics Counters
+**Source**: `include/error_management.h`
+
+| Counter | Description |
+|---------|-------------|
+| `QUEUE_SEND_ERROR` | Queue send failures |
+| `QUEUE_RECEIVE_ERROR` | Queue receive failures |
+| `CDC_QUEUE_SEND_ERROR` | USB CDC queue send errors |
+| `DISPLAY_OUT_ERROR` | Display driver errors |
+| `LED_OUT_ERROR` | LED driver errors |
+| `WATCHDOG_ERROR` | Watchdog updates missed |
+| `MSG_MALFORMED_ERROR` | Malformed USB messages |
+| `COBS_DECODE_ERROR` | COBS decoding failures |
+| `RECEIVE_BUFFER_OVERFLOW_ERROR` | USB receive buffer overflow |
+| `CHECKSUM_ERROR` | Packet checksum mismatch |
+| `BUFFER_OVERFLOW_ERROR` | Internal buffer overflow |
+| `UNKNOWN_CMD_ERROR` | Unrecognized host command |
+| `BYTES_SENT` | Total bytes transmitted |
+| `BYTES_RECEIVED` | Total bytes received |
+
 ## 📘 Building the Project
 
 ### Using DevContainer (Recommended)
@@ -206,8 +240,7 @@ make
 | `columns` | 8 | 1-8 | Keypad matrix columns |
 | `rows` | 8 | 1-8 | Keypad matrix rows |
 | `key_settling_time_ms` | 20 | 1-1000 | Key debounce time |
-| `adc_banks` | 2 | 1-2 | Number of ADC multiplexer banks |
-| `adc_channels` | 8 | 1-16 | ADC channels per bank |
+| `adc_channels` | 16 | 1-16 | Number of ADC channels |
 | `adc_settling_time_ms` | 100 | 1-1000 | ADC settling time |
 | `encoder_settling_time_ms` | 10 | 1-1000 | Encoder debounce time |
 
@@ -248,27 +281,34 @@ make
 #### Input System
 | Function | GPIO Pin | Description |
 |----------|----------|-------------|
-| `KEYPAD_ROW_INPUT` | 0 | Keypad row input |
-| `KEYPAD_ROW_MUX_A-C` | 1-3 | Row multiplexer control |
-| `KEYPAD_ROW_MUX_CS` | 6 | Row multiplexer enable |
-| `ADC0_MUX_CS` | 7 | ADC bank 0 chip select |
-| `KEYPAD_COL_MUX_A-C` | 8-10 | Column multiplexer control |
-| `KEYPAD_COL_MUX_CS` | 11 | Column multiplexer enable |
-| `ADC_MUX_A-C` | 14-15, 22 | ADC channel multiplexer |
-| `ADC1_MUX_CS` | 21 | ADC bank 1 chip select |
+| `KEYPAD_COL_MUX_A` | 0 | Column multiplexer select A |
+| `KEYPAD_COL_MUX_B` | 1 | Column multiplexer select B |
+| `KEYPAD_COL_MUX_C` | 2 | Column multiplexer select C |
+| `KEYPAD_COL_MUX_CS` | 17 | Column multiplexer chip select |
+| `KEYPAD_ROW_INPUT` | 9 | Keypad row input |
+| `KEYPAD_ROW_MUX_A` | 6 | Row multiplexer select A |
+| `KEYPAD_ROW_MUX_B` | 7 | Row multiplexer select B |
+| `KEYPAD_ROW_MUX_C` | 3 | Row multiplexer select C |
+| `KEYPAD_ROW_MUX_CS` | 8 | Row multiplexer chip select |
+| `ADC_MUX_A` | 20 | ADC multiplexer select A |
+| `ADC_MUX_B` | 21 | ADC multiplexer select B |
+| `ADC_MUX_C` | 22 | ADC multiplexer select C |
+| `ADC_MUX_D` | 11 | ADC multiplexer select D |
 
 #### Output System  
 | Function | GPIO Pin | Description |
 |----------|----------|-------------|
-| `MUX_A_PIN-C_PIN` | 11-12, 14 | Output multiplexer control |
-| `SPI_SCK` | 18 | SPI clock |
-| `SPI_TX` | 19 | SPI data out |
+| `SPI_MUX_A_PIN` | 10 | Output multiplexer select A |
+| `SPI_MUX_B_PIN` | 14 | Output multiplexer select B |
+| `SPI_MUX_C_PIN` | 15 | Output multiplexer select C |
+| `SPI_MUX_CS` | 32 | Output multiplexer enable |
+| `PICO_DEFAULT_SPI_SCK_PIN` | 18 | SPI clock |
+| `PICO_DEFAULT_SPI_TX_PIN` | 19 | SPI data out |
 | `PWM_PIN` | 28 | PWM output for brightness |
-| `MUX_ENABLE` | 32 | Output multiplexer enable |
 
 ### Peripheral Usage (Implementation-Based)
 - **SPI0**: Hardware SPI for TM1639 and output devices
-- **ADC**: Two external ADC banks via multiplexer
+- **ADC**: External ADC channels selected via GPIO multiplexer
 - **PWM**: Hardware PWM slice for LED brightness control
 - **Watchdog**: Hardware watchdog timer (5s timeout)
 - **USB**: TinyUSB CDC for host communication
@@ -321,14 +361,32 @@ make
 ### Input System Functions
 
 #### `input_init()`
-**Signature**: `input_result_t input_init(const input_config_t *config)`  
-**Description**: Initializes complete input system (keypad, ADC, encoders)  
+**Signature**: `input_result_t input_init(const input_config_t *config)`
+**Description**: Initializes complete input system (keypad, ADC, encoders)
 **Returns**: `INPUT_OK` on success, error code otherwise
 
 #### FreeRTOS Tasks
 - `keypad_task()`: Scans matrix keypad with debouncing
-- `adc_read_task()`: Reads ADC channels with moving average filtering  
+- `adc_read_task()`: Reads ADC channels with moving average filtering
 - `encoder_read_task()`: Processes rotary encoder inputs
+
+### Error Management Functions
+
+#### `setup_watchdog_with_error_detection()`
+**Signature**: `void setup_watchdog_with_error_detection(uint32_t timeout_ms)`
+**Description**: Initializes watchdog timer and checks previous error state
+
+#### `update_watchdog_safe()`
+**Signature**: `void update_watchdog_safe(void)`
+**Description**: Updates watchdog only when not in error state
+
+#### `statistics_increment_counter()`
+**Signature**: `void statistics_increment_counter(statistics_counter_enum_t index)`
+**Description**: Increments one of the system statistics counters
+
+#### `statistics_get_error_type()`
+**Signature**: `error_type_t statistics_get_error_type(void)`
+**Description**: Retrieves current error type for LED pattern reporting
 
 ## 📊 Memory and Performance (Measured Specifications)
 
