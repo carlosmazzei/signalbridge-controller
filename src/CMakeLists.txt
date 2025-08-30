@@ -9,6 +9,12 @@ add_library(signalbridge_core STATIC
 
 target_include_directories(signalbridge_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
+# Enable coverage instrumentation when requested for GNU compilers
+if(ENABLE_COVERAGE AND CMAKE_C_COMPILER_ID MATCHES "GNU")
+    target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage)
+    target_link_libraries(signalbridge_core PUBLIC gcov)
+endif()
+
 # Add platform-specific dependencies to core library
 if(PICO_PLATFORM)
     # Pico target: Use RP2040 port and Pico SDK

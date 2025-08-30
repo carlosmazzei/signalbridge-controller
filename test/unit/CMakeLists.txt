@@ -15,11 +15,14 @@ add_unit_test(test_cobs
 add_unit_test(test_inputs
     test_inputs.c
     hardware_mocks.c
+    WRAP_FUNCTIONS gpio_put
 )
 
-# Test for outputs module (constant validation)
+# Test for outputs module (constant validation and simple behavior)
 add_unit_test(test_outputs
     test_outputs.c
+    hardware_mocks.c
+    WRAP_FUNCTIONS pwm_set_gpio_level
 )
 
 # Test for tm1639 module (constant validation)
