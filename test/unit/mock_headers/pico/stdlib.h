@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+// Pull in prototypes used by stdlib consumers
+#include "hardware/gpio.h"
+#include "pico/time.h"
+
 typedef unsigned int uint;
 
 // GPIO defines
@@ -34,8 +38,6 @@ void busy_wait_ms(uint32_t ms);
 uint32_t save_and_disable_interrupts(void);
 void adc_init(void);
 
-// FreeRTOS constants
-#define portMAX_DELAY 0xFFFFFFFF
 
 // UART constants
 extern void* uart0;
@@ -45,15 +47,11 @@ void uart_set_hw_flow(void* uart, bool cts, bool rts);
 void uart_set_format(void* uart, uint data_bits, uint stop_bits, uint parity);
 void uart_set_fifo_enabled(void* uart, bool enabled);
 
-// Memory functions
-void* pvPortMalloc(size_t size);
-void vPortFree(void* ptr);
 
 // More Pico SDK constants and functions
 #define PICO_DEFAULT_SPI_CSN_PIN 17
-void bi_decl(void);
+// Board info macros (no-op in tests)
+#define bi_decl(x)
 void bi_4pins_with_func(uint pin1, uint pin2, uint pin3, uint pin4, uint func);
 
-// FreeRTOS functions that might be called directly
-uint32_t uxTaskGetStackHighWaterMark(void* task);
-bool xQueueSend(void* queue, const void* item, uint32_t wait);
+// Note: Do not declare FreeRTOS APIs here; real headers provide them in tests

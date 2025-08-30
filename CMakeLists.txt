@@ -12,13 +12,11 @@ if(NOT HOST_BUILD)
     set(PICO_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/pico-sdk/")
     include(lib/pico-sdk/pico_sdk_init.cmake)
 
+    # Check Pico SDK version and pull in FreeRTOS (only for embedded builds)
     if (PICO_SDK_VERSION_STRING VERSION_LESS "1.5.0")
         message(FATAL_ERROR "Require minimum SDK version 1.5.0")
     endif()
-endif()
 
-# Check Pico SDK version and pull in FreeRTOS (only for embedded builds)
-if(NOT HOST_BUILD)
     # Pull in FreeRTOS
     set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS-Kernel/")
     include(FreeRTOS_Kernel_import.cmake)

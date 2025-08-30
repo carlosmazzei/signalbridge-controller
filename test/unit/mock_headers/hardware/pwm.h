@@ -2,7 +2,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct pwm_config pwm_config;
+typedef struct pwm_config {
+    float clkdiv;
+    uint16_t level;
+} pwm_config;
 typedef unsigned int uint;
 
 uint pwm_gpio_to_slice_num(uint pin);

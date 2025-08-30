@@ -9,27 +9,7 @@
 #include <cmocka.h>
 #include "outputs.h"
 
-// Mock hardware and FreeRTOS dependencies
-void gpio_init(uint32_t gpio) { (void)gpio; }
-void gpio_set_dir(uint32_t gpio, bool out) { (void)gpio; (void)out; }
-void gpio_put(uint32_t gpio, bool value) { (void)gpio; (void)value; }
-uint32_t pwm_gpio_to_slice_num(uint32_t gpio) { (void)gpio; return 0; }
-void pwm_set_wrap(uint32_t slice, uint16_t wrap) { (void)slice; (void)wrap; }
-void pwm_set_chan_level(uint32_t slice, uint32_t chan, uint16_t level) { (void)slice; (void)chan; (void)level; }
-void pwm_set_enabled(uint32_t slice, bool enabled) { (void)slice; (void)enabled; }
-uint32_t pwm_gpio_to_channel(uint32_t gpio) { (void)gpio; return 0; }
-
-typedef void* spi_inst_t;
-spi_inst_t *spi0 = (spi_inst_t*)0x12345678;
-
-uint32_t spi_init(spi_inst_t *spi, uint32_t baudrate) { (void)spi; return baudrate; }
-void spi_set_format(spi_inst_t *spi, uint32_t data_bits, uint32_t cpol, uint32_t cpha, uint32_t order) {
-    (void)spi; (void)data_bits; (void)cpol; (void)cpha; (void)order;
-}
-void gpio_set_function(uint32_t gpio, uint32_t fn) { (void)gpio; (void)fn; }
-
-typedef void* SemaphoreHandle_t;
-SemaphoreHandle_t xSemaphoreCreateMutex(void) { return (SemaphoreHandle_t)0x12345678; }
+// No hardware calls in these tests; rely on headers only
 
 static int setup(void **state)
 {

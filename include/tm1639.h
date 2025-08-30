@@ -79,7 +79,7 @@ typedef struct tm1639_key_t {
  * @return Pointer to initialized output_driver_t structure, or NULL on error.
  */
 output_driver_t* tm1639_init(uint8_t chip_id,
-                             uint8_t (*select_interface)(uint8_t chip_id, bool select),
+                             output_result_t (*select_interface)(uint8_t chip_id, bool select),
                              spi_inst_t *spi,
                              uint8_t dio_pin,
                              uint8_t clk_pin);
@@ -228,4 +228,4 @@ tm1639_result_t tm1639_deinit(output_driver_t *config);
  */
 tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
 
- #endif /* TM1639_H */
+ #endif // TM1639_H

@@ -9,12 +9,7 @@
 #include <cmocka.h>
 #include "tm1639.h"
 
-// Mock hardware and FreeRTOS dependencies
-void gpio_init(uint32_t gpio) { (void)gpio; }
-void gpio_set_dir(uint32_t gpio, bool out) { (void)gpio; (void)out; }
-void gpio_put(uint32_t gpio, bool value) { (void)gpio; (void)value; }
-typedef void* spi_inst_t;
-typedef void* SemaphoreHandle_t;
+// No hardware calls in these tests; rely on headers only
 
 // Mock outputs.h and TM1639 dependencies are now included from headers
 

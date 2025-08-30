@@ -45,11 +45,12 @@ else()
     target_sources(signalbridge_core PRIVATE ${FREERTOS_POSIX_SOURCES})
     
     # FreeRTOS POSIX include directories
-    target_include_directories(signalbridge_core BEFORE PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR}/../test/unit/mock_headers  # Mock Pico SDK headers
-        ${CMAKE_CURRENT_SOURCE_DIR}/../test  # For FreeRTOSConfig.h
+    # Put real FreeRTOS headers before mocks so FreeRTOS APIs resolve correctly
+    target_include_directories(signalbridge_core BEFORE PUBLIC 
         ${FREERTOS_KERNEL_PATH}/include      # FreeRTOS headers
         ${FREERTOS_POSIX_PORT_PATH}          # POSIX port headers
+        ${CMAKE_CURRENT_SOURCE_DIR}/../test/unit/mock_headers  # Mock Pico SDK headers
+        ${CMAKE_CURRENT_SOURCE_DIR}/../test  # For FreeRTOSConfig.h
     )
     
     # Link pthread for POSIX port

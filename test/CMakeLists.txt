@@ -78,8 +78,13 @@ function(add_unit_test test_name)
     )
 endfunction()
 
-# Build the core library from source directory
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src ${CMAKE_CURRENT_BINARY_DIR}/src)
+# Build or reuse the core library
+# When this test project is configured standalone (from test/), we need to
+# add the core library subdirectory. When included from the root project,
+# the target already exists and we should not re-add it.
+if(NOT TARGET signalbridge_core)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src ${CMAKE_CURRENT_BINARY_DIR}/src)
+endif()
 
 # Enable testing
 enable_testing()
