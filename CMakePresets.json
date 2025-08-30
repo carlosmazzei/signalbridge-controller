@@ -84,7 +84,8 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "HOST_BUILD": "ON",
                 "BUILD_TESTING": "ON",
-                "SIGNALBRIDGE_BUILD_DOCS": "OFF"
+                "SIGNALBRIDGE_BUILD_DOCS": "OFF",
+                "ENABLE_COVERAGE": "ON"
             },
             "generator": "Unix Makefiles"
         }
@@ -118,6 +119,13 @@
             "name": "host-tests", 
             "configurePreset": "host-tests",
             "displayName": "Build Host Tests",
+            "jobs": 4
+        },
+        {
+            "name": "host-tests-coverage",
+            "configurePreset": "host-tests",
+            "displayName": "Build + Coverage (Host Tests)",
+            "targets": ["coverage"],
             "jobs": 4
         }
     ],

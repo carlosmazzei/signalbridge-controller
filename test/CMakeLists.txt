@@ -32,8 +32,6 @@ if(NOT CMOCKA_INCLUDE_DIRS)
     get_target_property(CMOCKA_INCLUDE_DIRS CMocka::cmocka INTERFACE_INCLUDE_DIRECTORIES)
 endif()
 
-# FreeRTOS is now handled by the core library - no need to duplicate here
-
 # Test target configuration with CMocka best practices
 function(add_unit_test test_name)
     # Parse additional arguments for wrap functions
@@ -89,6 +87,11 @@ function(add_unit_test test_name)
         LABELS "unit"
         TIMEOUT 30
     )
+
+    # When coverage is enabled, ensure coverage generation runs after tests
+    if(ENABLE_COVERAGE)
+        set_tests_properties(${test_name} PROPERTIES FIXTURES_REQUIRED unit_coverage)
+    endif()
 endfunction()
 
 # Build or reuse the core library
@@ -106,10 +109,10 @@ enable_testing()
 add_subdirectory(unit)
 
 # Custom targets for convenience
+# Convenience target: run tests and generate coverage report
 add_custom_target(test_all
-    COMMAND ctest --output-on-failure --verbose
-    COMMENT "Running all unit tests"
-    DEPENDS test_cobs test_error_management test_outputs test_tm1639 test_inputs
+    COMMENT "Running unit tests and generating coverage report"
+    DEPENDS coverage
 )
 
 # Coverage target (only available if coverage is enabled)
@@ -118,12 +121,27 @@ if(ENABLE_COVERAGE)
     find_program(GENHTML_PATH genhtml)
     
     if(LCOV_PATH AND GENHTML_PATH)
+        # Also expose coverage as a post-tests CTest step via fixtures
+        add_test(NAME generate_coverage
+            COMMAND ${CMAKE_COMMAND}
+                -DLCOV_PATH=${LCOV_PATH}
+                -DGENHTML_PATH=${GENHTML_PATH}
+                -DCOVERAGE_DIR=${CMAKE_BINARY_DIR}/coverage
+                -DWORK_DIR=${CMAKE_BINARY_DIR}/test
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateCoverage.cmake
+        )
+        set_tests_properties(generate_coverage PROPERTIES
+            LABELS "coverage"
+            FIXTURES_CLEANUP unit_coverage
+        )
+
         add_custom_target(coverage
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage
             COMMAND ctest --output-on-failure
             COMMAND ${LCOV_PATH} --directory . --capture --output-file coverage.info
-            COMMAND ${LCOV_PATH} --remove coverage.info '/usr/*' --output-file coverage.info
-            COMMAND ${LCOV_PATH} --remove coverage.info '*/lib/*' --output-file coverage.info
+            # Some patterns may not match depending on environment; ignore 'unused' errors
+            COMMAND ${LCOV_PATH} --ignore-errors unused --remove coverage.info '/usr/*' --output-file coverage.info
+            COMMAND ${LCOV_PATH} --ignore-errors unused --remove coverage.info '*/lib/*' --output-file coverage.info
             COMMAND ${GENHTML_PATH} coverage.info --output-directory coverage
             COMMAND ${CMAKE_COMMAND} -E echo "Coverage report generated in ${CMAKE_BINARY_DIR}/coverage/index.html"
             COMMENT "Generating coverage report"
