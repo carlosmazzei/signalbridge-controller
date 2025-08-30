@@ -130,7 +130,7 @@ typedef enum output_result_t {
 /** @enum out_statistics_counter_enum_t
  * @brief Enumerates different error types in the output system.
  */
-typedef enum {
+typedef enum out_statistics_counter_enum_t {
 	OUT_CONTROLLER_ID_ERROR,
 	OUT_INIT_ERROR,
 	OUT_DRIVER_INIT_ERROR,

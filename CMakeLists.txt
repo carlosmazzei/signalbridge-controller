@@ -1,7 +1,28 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Enable compilation database for tools
-# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Compilation database: presets enable CMAKE_EXPORT_COMPILE_COMMANDS.
+# Create/update a symlink (Unix) or copy (others) at the source root so
+# linters and verification tools always find the active build's database.
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    if(UNIX)
+        add_custom_target(sync_compile_commands ALL
+            COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_SOURCE_DIR}/compile_commands.json
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                    ${CMAKE_BINARY_DIR}/compile_commands.json
+                    ${CMAKE_SOURCE_DIR}/compile_commands.json
+            COMMENT "Symlink compile_commands.json to source root"
+            BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
+        )
+    else()
+        add_custom_target(sync_compile_commands ALL
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_BINARY_DIR}/compile_commands.json
+                    ${CMAKE_SOURCE_DIR}/compile_commands.json
+            COMMENT "Copy compile_commands.json to source root"
+            BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
+        )
+    endif()
+endif()
 
 # Options
 option(SIGNALBRIDGE_BUILD_DOCS "Build Doxygen docs" ON)

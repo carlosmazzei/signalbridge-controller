@@ -12,6 +12,10 @@ ELF_FILE="${1:-build/src/pi_controller.elf}"
 ## \details You can override by passing as second argument.
 REPORT_FILE="${2:-build/memory_analysis_report.txt}"
 
+# Derive build directory from provided ELF path (fallback to 'build')
+ELF_DIR=$(dirname "$ELF_FILE")
+BUILD_DIR="$ELF_DIR"
+
 echo "=== MEMORY ANALYSIS SCRIPT ==="
 echo "Analyzing: $ELF_FILE"
 echo "Report: $REPORT_FILE"
@@ -204,8 +208,9 @@ echo "" >> "$REPORT_FILE"
 echo "📊 Getting stack usage information..."
 echo "=== STACK USAGE ANALYSIS ===" >> "$REPORT_FILE"
 
-# Find all .su files
-SU_FILES=$(find build -name "*.su" -type f 2>/dev/null)
+# Find all .su files under the actual build directory
+# Avoid exiting on non-zero if directory doesn't exist
+SU_FILES=$(find "$BUILD_DIR" -name "*.su" -type f 2>/dev/null || true)
 if [ -n "$SU_FILES" ]; then
     STACK_COUNT=$(echo "$SU_FILES" | wc -l | tr -d ' ')
 else
@@ -399,7 +404,9 @@ echo "" >> "$REPORT_FILE"
 # 6. Memory map (if exists)
 echo "📊 Checking for memory map..."
 echo "=== MEMORY MAP INFORMATION ===" >> "$REPORT_FILE"
-MAP_FILE="build/src/pi_controller.map"
+# Prefer a map next to the ELF (CMake sets -Map to CMAKE_CURRENT_BINARY_DIR)
+MAP_FILE="$ELF_DIR/pi_controller.map"
+ALT_MAP_FILE="$ELF_DIR/pi_controller.elf.map"
 if [ -f "$MAP_FILE" ]; then
     echo "Memory map file found: $MAP_FILE" >> "$REPORT_FILE"
     echo "Map file size: $(ls -la "$MAP_FILE" | awk '{print $5}') bytes" >> "$REPORT_FILE"
@@ -407,6 +414,13 @@ if [ -f "$MAP_FILE" ]; then
     echo "" >> "$REPORT_FILE"
     echo "Memory Configuration (excerpt):" >> "$REPORT_FILE"
     head -50 "$MAP_FILE" >> "$REPORT_FILE" 2>/dev/null || echo "Could not read map file" >> "$REPORT_FILE"
+elif [ -f "$ALT_MAP_FILE" ]; then
+    echo "Memory map file found: $ALT_MAP_FILE" >> "$REPORT_FILE"
+    echo "Map file size: $(ls -la "$ALT_MAP_FILE" | awk '{print $5}') bytes" >> "$REPORT_FILE"
+    echo "To view full map: less $ALT_MAP_FILE" >> "$REPORT_FILE"
+    echo "" >> "$REPORT_FILE"
+    echo "Memory Configuration (excerpt):" >> "$REPORT_FILE"
+    head -50 "$ALT_MAP_FILE" >> "$REPORT_FILE" 2>/dev/null || echo "Could not read map file" >> "$REPORT_FILE"
 else
     echo "No memory map file found" >> "$REPORT_FILE"
     echo "To generate: add 'LINKER:-Map=pi_controller.map' to linker options" >> "$REPORT_FILE"
