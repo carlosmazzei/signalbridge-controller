@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.14)
 # Enable compilation database for tools
 # set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Options
+option(SIGNALBRIDGE_BUILD_DOCS "Build Doxygen docs" ON)
+
 # Only load Pico SDK for embedded builds
 if(NOT HOST_BUILD)
     set(FAMILY rp2040)
@@ -33,11 +36,13 @@ endif()
 
 add_subdirectory(include)
 add_subdirectory(src)
-add_subdirectory(docs)
+if(SIGNALBRIDGE_BUILD_DOCS)
+    add_subdirectory(docs)
+endif()
 
-# Add tests (only for host builds)
-if(HOST_BUILD)
-    include(CTest)
+# Add tests via standard CTest flow (host builds only)
+include(CTest)
+if(HOST_BUILD AND BUILD_TESTING)
     add_subdirectory(test)
     
     # Add individual test targets for direct execution

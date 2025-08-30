@@ -82,7 +82,9 @@
                 "CMAKE_C_COMPILER": "/usr/bin/gcc",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "HOST_BUILD": "ON"
+                "HOST_BUILD": "ON",
+                "BUILD_TESTING": "ON",
+                "SIGNALBRIDGE_BUILD_DOCS": "OFF"
             },
             "generator": "Unix Makefiles"
         }

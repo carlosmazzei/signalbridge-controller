@@ -7,16 +7,29 @@ set(CMAKE_C_STANDARD 11)
 # Options for coverage
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 
-# Find CMocka package
-find_library(CMOCKA_LIBRARIES cmocka REQUIRED)
-find_path(CMOCKA_INCLUDE_DIRS cmocka.h)
-
-if(NOT CMOCKA_LIBRARIES)
-    message(FATAL_ERROR "CMocka library not found. Please install libcmocka-dev")
+# Find CMocka (imported target preferred)
+find_package(CMocka QUIET)
+if(NOT TARGET CMocka::cmocka)
+    if(CMOCKA_LIBRARIES AND CMOCKA_INCLUDE_DIRS)
+        add_library(CMocka::cmocka UNKNOWN IMPORTED)
+        set_target_properties(CMocka::cmocka PROPERTIES
+            IMPORTED_LOCATION "${CMOCKA_LIBRARIES}"
+            INTERFACE_INCLUDE_DIRECTORIES "${CMOCKA_INCLUDE_DIRS}"
+        )
+    else()
+        find_library(CMOCKA_LIBRARIES cmocka REQUIRED)
+        find_path(CMOCKA_INCLUDE_DIRS cmocka.h REQUIRED)
+        add_library(CMocka::cmocka UNKNOWN IMPORTED)
+        set_target_properties(CMocka::cmocka PROPERTIES
+            IMPORTED_LOCATION "${CMOCKA_LIBRARIES}"
+            INTERFACE_INCLUDE_DIRECTORIES "${CMOCKA_INCLUDE_DIRS}"
+        )
+    endif()
 endif()
-
+ 
+# Normalize include dirs variable for use below
 if(NOT CMOCKA_INCLUDE_DIRS)
-    message(FATAL_ERROR "CMocka headers not found. Please install libcmocka-dev")
+    get_target_property(CMOCKA_INCLUDE_DIRS CMocka::cmocka INTERFACE_INCLUDE_DIRECTORIES)
 endif()
 
 # FreeRTOS is now handled by the core library - no need to duplicate here
@@ -33,8 +46,8 @@ function(add_unit_test test_name)
     add_executable(${test_name} ${UNIT_TEST_UNPARSED_ARGUMENTS})
     
     # Link with the core library (which includes FreeRTOS POSIX) and CMocka
-    target_link_libraries(${test_name} 
-        ${CMOCKA_LIBRARIES} 
+    target_link_libraries(${test_name}
+        ${CMOCKA_LIBRARIES}
         signalbridge_core  # Includes FreeRTOS POSIX and pthread
     )
     
