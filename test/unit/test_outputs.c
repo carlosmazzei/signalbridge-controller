@@ -8,6 +8,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include "outputs.h"
+#include "hardware/pwm.h"
 
 // No hardware calls in these tests; rely on headers only
 
@@ -121,6 +122,22 @@ static void test_gpio_count_constant(void **state)
     assert_true(NUM_GPIO > 0);
 }
 
+// Wrapper for pwm_set_gpio_level to capture arguments
+void __wrap_pwm_set_gpio_level(uint pin, uint16_t level)
+{
+    check_expected(pin);
+    check_expected(level);
+}
+
+static void test_set_pwm_duty(void **state)
+{
+    (void) state;
+    uint8_t duty = 5;
+    expect_value(__wrap_pwm_set_gpio_level, pin, PWM_PIN);
+    expect_value(__wrap_pwm_set_gpio_level, level, duty * duty);
+    set_pwm_duty(duty);
+}
+
 int main(void) 
 {
     const struct CMUnitTest tests[] = {
@@ -132,6 +149,7 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_device_config_valid_values, setup, teardown),
         cmocka_unit_test_setup_teardown(test_pin_uniqueness, setup, teardown),
         cmocka_unit_test_setup_teardown(test_gpio_count_constant, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_set_pwm_duty, setup, teardown),
     };
     
     return cmocka_run_group_tests(tests, NULL, NULL);

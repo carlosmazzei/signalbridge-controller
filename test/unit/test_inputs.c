@@ -205,6 +205,28 @@ static void test_input_init_minimal_valid_config(void **state)
     assert_int_equal(INPUT_OK, result);
 }
 
+// Wrapper to intercept gpio_put calls
+void __wrap_gpio_put(uint pin, bool value)
+{
+    check_expected(pin);
+    check_expected(value);
+}
+
+static void test_adc_mux_select(void **state)
+{
+    (void) state;
+    // Expect each pin to be set according to channel bits (0x0F)
+    expect_value(__wrap_gpio_put, pin, ADC_MUX_A);
+    expect_value(__wrap_gpio_put, value, true);
+    expect_value(__wrap_gpio_put, pin, ADC_MUX_B);
+    expect_value(__wrap_gpio_put, value, true);
+    expect_value(__wrap_gpio_put, pin, ADC_MUX_C);
+    expect_value(__wrap_gpio_put, value, true);
+    expect_value(__wrap_gpio_put, pin, ADC_MUX_D);
+    expect_value(__wrap_gpio_put, value, true);
+    adc_mux_select(0x0F);
+}
+
 int main(void) 
 {
     const struct CMUnitTest tests[] = {
@@ -218,6 +240,7 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_input_init_null_queue, setup, teardown),
         cmocka_unit_test_setup_teardown(test_input_init_boundary_valid_values, setup, teardown),
         cmocka_unit_test_setup_teardown(test_input_init_minimal_valid_config, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_adc_mux_select, setup, teardown),
     };
     
     return cmocka_run_group_tests(tests, NULL, NULL);
