@@ -4,10 +4,15 @@
 
 set -e  # Exit on error
 
-ELF_FILE="build/src/pi_controller.elf"
-REPORT_FILE="build/memory_analysis_report.txt"
+## \brief Path to ELF file to analyze (default: build/src/pi_controller.elf)
+## \details You can override by passing as first argument.
+ELF_FILE="${1:-build/src/pi_controller.elf}"
 
-echo "=== MANUAL MEMORY ANALYSIS SCRIPT ==="
+## \brief Path to output memory report file (default: build/memory_analysis_report.txt)
+## \details You can override by passing as second argument.
+REPORT_FILE="${2:-build/memory_analysis_report.txt}"
+
+echo "=== MEMORY ANALYSIS SCRIPT ==="
 echo "Analyzing: $ELF_FILE"
 echo "Report: $REPORT_FILE"
 echo ""
@@ -201,7 +206,11 @@ echo "=== STACK USAGE ANALYSIS ===" >> "$REPORT_FILE"
 
 # Find all .su files
 SU_FILES=$(find build -name "*.su" -type f 2>/dev/null)
-STACK_COUNT=$(echo "$SU_FILES" | grep -c . 2>/dev/null || echo "0")
+if [ -n "$SU_FILES" ]; then
+    STACK_COUNT=$(echo "$SU_FILES" | wc -l | tr -d ' ')
+else
+    STACK_COUNT=0
+fi
 
 if [ "$STACK_COUNT" -gt 0 ]; then
     echo "Found $STACK_COUNT stack usage files" >> "$REPORT_FILE"
@@ -351,8 +360,9 @@ if [ "$STACK_COUNT" -gt 0 ]; then
         # Check for high usage functions
         TOP_OFFENDER=$(sort -t'|' -k1,1nr "$TEMP_DATA" | head -1 | cut -d'|' -f2 2>/dev/null)
         TOP_BYTES=$(sort -t'|' -k1,1nr "$TEMP_DATA" | head -1 | cut -d'|' -f1 2>/dev/null)
-        
-        if [ "$TOP_BYTES" -gt 200 ] 2>/dev/null; then
+
+        # Only compare if TOP_BYTES is a valid integer
+        if [[ "$TOP_BYTES" =~ ^[0-9]+$ ]] && [ "$TOP_BYTES" -gt 200 ]; then
             echo "🎯 IMMEDIATE ACTION NEEDED:" >> "$REPORT_FILE"
             echo "   Function '$TOP_OFFENDER' uses $TOP_BYTES bytes" >> "$REPORT_FILE"
             echo "   Recommendations:" >> "$REPORT_FILE"

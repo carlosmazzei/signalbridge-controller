@@ -1,0 +1,136 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "pico-debug",
+            "displayName": "Pico Debug (ARM)",
+            "description": "Debug configuration for Raspberry Pi Pico",
+            "binaryDir": "${sourceDir}/build-debug",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "PICO_BOARD": "pico",
+                "PICO_PLATFORM": "rp2040",
+                "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "HOST_BUILD": "OFF",
+                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
+                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+            },
+            "generator": "Unix Makefiles"
+        },
+        {
+            "name": "pico-release",
+            "displayName": "Pico Release (ARM)",
+            "description": "Release configuration for Raspberry Pi Pico",
+            "binaryDir": "${sourceDir}/build-release",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
+                "CMAKE_BUILD_TYPE": "Release",
+                "PICO_BOARD": "pico",
+                "PICO_PLATFORM": "rp2040",
+                "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "HOST_BUILD": "OFF",
+                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
+                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+            },
+            "generator": "Unix Makefiles"
+        },
+        {
+            "name": "pico-size",
+            "displayName": "Pico MinSize (ARM)",
+            "description": "Minimum size optimization for Raspberry Pi Pico",
+            "binaryDir": "${sourceDir}/build-size",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
+                "CMAKE_BUILD_TYPE": "MinSizeRel",
+                "PICO_BOARD": "pico",
+                "PICO_PLATFORM": "rp2040",
+                "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "HOST_BUILD": "OFF",
+                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
+                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+            },
+            "generator": "Unix Makefiles"
+        },
+        {
+            "name": "pico-relwithdebinfo",
+            "displayName": "Pico RelWithDebInfo (ARM)",
+            "description": "Release with debug info for Raspberry Pi Pico",
+            "binaryDir": "${sourceDir}/build-relwithdebinfo",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "PICO_BOARD": "pico",
+                "PICO_PLATFORM": "rp2040",
+                "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "HOST_BUILD": "OFF",
+                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
+                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+            },
+            "generator": "Unix Makefiles"
+        },
+        {
+            "name": "host-tests",
+            "displayName": "Host Tests",
+            "description": "Host compilation for unit tests",
+            "binaryDir": "${sourceDir}/build-tests",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/gcc",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "HOST_BUILD": "ON"
+            },
+            "generator": "Unix Makefiles"
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "pico-debug",
+            "configurePreset": "pico-debug",
+            "displayName": "Build Pico Debug",
+            "jobs": 4
+        },
+        {
+            "name": "pico-release",
+            "configurePreset": "pico-release",
+            "displayName": "Build Pico Release",
+            "jobs": 4
+        },
+        {
+            "name": "pico-size",
+            "configurePreset": "pico-size",
+            "displayName": "Build Pico MinSize",
+            "jobs": 4
+        },
+        {
+            "name": "pico-relwithdebinfo",
+            "configurePreset": "pico-relwithdebinfo",
+            "displayName": "Build Pico RelWithDebInfo",
+            "jobs": 4
+        },
+        {
+            "name": "host-tests", 
+            "configurePreset": "host-tests",
+            "displayName": "Build Host Tests",
+            "jobs": 4
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "host-tests",
+            "configurePreset": "host-tests",
+            "displayName": "Run Host Tests",
+            "output": {
+                "outputOnFailure": true,
+                "verbosity": "default"
+            },
+            "execution": {
+                "jobs": 4
+            }
+        }
+    ]
+}

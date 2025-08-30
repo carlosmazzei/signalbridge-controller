@@ -1,0 +1,12 @@
+#ifndef TASK_H
+#define TASK_H
+
+#include <stdint.h>
+
+// FreeRTOS task header mock
+
+// Mock FreeRTOS task functions
+void vTaskDelay(uint32_t ticks);
+uint32_t uxTaskGetStackHighWaterMark(void *task);
+
+#endif

@@ -3,7 +3,8 @@
 .cppcheck
 _deps
 cmake-*
-build
+build**
+.claude
 .DS_Store
 *.pdf
 *.code-workspace

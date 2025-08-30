@@ -1,0 +1,17 @@
+#ifndef MOCK_QUEUE_H
+#define MOCK_QUEUE_H
+
+#include <stdint.h>
+#include <stdbool.h>
+
+// Mock FreeRTOS queue types and functions
+typedef void* QueueHandle_t;
+
+#define pdTRUE 1
+#define pdFALSE 0
+#define pdPASS 1
+
+// Mock FreeRTOS queue functions
+int xQueueSend(QueueHandle_t xQueue, const void *pvItemToQueue, uint32_t xTicksToWait);
+
+#endif // MOCK_QUEUE_H

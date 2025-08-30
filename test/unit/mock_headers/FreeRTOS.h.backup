@@ -1,0 +1,17 @@
+#ifndef FREERTOS_H
+#define FREERTOS_H
+
+#include <stdint.h>
+
+typedef void* TaskHandle_t;
+typedef void* QueueHandle_t;
+
+uint32_t save_and_disable_interrupts(void);
+
+// FreeRTOS constants and macros
+#define portMAX_DELAY 0xFFFFFFFF
+#define pdMS_TO_TICKS(ms) (ms)
+#define pdTRUE 1
+#define pdFALSE 0
+
+#endif
