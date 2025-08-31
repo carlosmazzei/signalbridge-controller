@@ -6,6 +6,7 @@
 # Signalbridge - Controller Firmware
 
 ![build](https://github.com/carlosmazzei/signalbridge-controller/actions/workflows/build-all.yml/badge.svg)
+[![Coverage](https://codecov.io/gh/carlosmazzei/signalbridge-controller/branch/main/graph/badge.svg)](https://codecov.io/gh/carlosmazzei/signalbridge-controller)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![DevContainer](https://img.shields.io/badge/DevContainer-Ready-green.svg)](https://code.visualstudio.com/docs/remote/containers)
 
