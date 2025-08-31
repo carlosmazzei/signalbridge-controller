@@ -30,6 +30,12 @@ add_unit_test(test_tm1639
     test_tm1639.c
 )
 
+# Test for tm1637 module (protocol/basic behavior)
+add_unit_test(test_tm1637
+    test_tm1637.c
+    hardware_mocks.c
+)
+
 # Standalone COBS test (no hardware dependencies)
 add_executable(test_cobs_standalone test_cobs_standalone.c)
 target_link_libraries(test_cobs_standalone ${CMOCKA_LIBRARIES})

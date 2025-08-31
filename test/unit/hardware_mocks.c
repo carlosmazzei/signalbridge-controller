@@ -25,6 +25,7 @@ bool gpio_get(uint32_t gpio) { (void)gpio; return false; }
 void gpio_init_mask(uint32_t gpio_mask) { (void)gpio_mask; }
 void gpio_set_dir_masked(uint32_t gpio_mask, uint32_t value) { (void)gpio_mask; (void)value; }
 void gpio_put_masked(uint32_t gpio_mask, uint32_t value) { (void)gpio_mask; (void)value; }
+void gpio_deinit(uint32_t gpio) { (void)gpio; }
 
 // Time functions
 void busy_wait_ms(uint32_t ms) { (void)ms; }

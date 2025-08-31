@@ -16,6 +16,7 @@ void gpio_set_function(uint pin, uint fn);
 uint gpio_get_function(uint pin);
 void gpio_pull_up(uint pin);
 void gpio_pull_down(uint pin);
+void gpio_deinit(uint pin);
 void adc_gpio_init(uint pin);
 
 // Additional ADC functions

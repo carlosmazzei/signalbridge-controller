@@ -94,7 +94,9 @@ static void test_device_config_valid_values(void **state)
             device_type == DEVICE_GENERIC_LED ||
             device_type == DEVICE_GENERIC_DIGIT ||
             device_type == DEVICE_TM1639_LED ||
-            device_type == DEVICE_TM1639_DIGIT
+            device_type == DEVICE_TM1639_DIGIT ||
+            device_type == DEVICE_TM1637_LED ||
+            device_type == DEVICE_TM1637_DIGIT
         );
     }
 }

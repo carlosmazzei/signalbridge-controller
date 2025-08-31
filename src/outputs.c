@@ -320,12 +320,13 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for display output.
 		 */
-		if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
-		    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]))
-		{
-			out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-			result = OUTPUT_ERR_INVALID_PARAM;
-		}
+        if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
+        {
+            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+            result = OUTPUT_ERR_INVALID_PARAM;
+        }
 	}
 
 	/**
@@ -408,12 +409,13 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for LED output.
 		 */
-		if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
-		    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]))
-		{
-			out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-			result = OUTPUT_ERR_INVALID_PARAM;
-		}
+        if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1637_LED != device_config_map[physical_cs]))
+        {
+            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+            result = OUTPUT_ERR_INVALID_PARAM;
+        }
 	}
 
 	/**
