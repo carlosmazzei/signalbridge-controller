@@ -196,10 +196,17 @@ output_result_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits
 /**
  * @brief Set LEDs for matrix display
  *
- * @param config Pointer to TM1639 configuration structure
- * @param leds LED index or pattern
- * @param ledstate LED state (0-255)
- * @return output_result_t Error code, OUTPUT_OK if successful
+ * This function sets LED patterns for the TM1639 in matrix mode. It directly
+ * updates the display buffer at the specified address with the LED state data.
+ *
+ * @param[in,out] config   Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]     leds     LED index or address (0-15).
+ * @param[in]     ledstate LED state pattern (0-255).
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         TM1639_ERR_ADDRESS_RANGE if leds is out of range,
+ *         or error code from tm1639_update_buffer or tm1639_update.
  */
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
 

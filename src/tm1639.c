@@ -23,7 +23,7 @@
 
 /**
  * @brief Convert tm1639_result_t to output_result_t
- * 
+ *
  * This function converts TM1639-specific error codes to generic output error codes
  * for consistent error handling throughout the system.
  *
@@ -33,20 +33,20 @@
 static output_result_t tm1639_to_output_result(tm1639_result_t tm_result)
 {
 	output_result_t result;
-	
+
 	switch (tm_result)
 	{
-		case TM1639_OK:
-			result = OUTPUT_OK;
-			break;
-		case TM1639_ERR_INVALID_PARAM:
-			result = OUTPUT_ERR_INVALID_PARAM;
-			break;
-		default:
-			result = OUTPUT_ERR_DISPLAY_OUT;
-			break;
+	case TM1639_OK:
+		result = OUTPUT_OK;
+		break;
+	case TM1639_ERR_INVALID_PARAM:
+		result = OUTPUT_ERR_INVALID_PARAM;
+		break;
+	default:
+		result = OUTPUT_ERR_DISPLAY_OUT;
+		break;
 	}
-	
+
 	return result;
 }
 
@@ -940,18 +940,6 @@ output_result_t tm1639_set_digits(output_driver_t *config,
 
 /**
  * @brief Set LEDs for matrix display
- *
- * This function sets LED patterns for the TM1639 in matrix mode. It directly
- * updates the display buffer at the specified address with the LED state data.
- *
- * @param[in,out] config   Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- * @param[in]     leds     LED index or address (0-15).
- * @param[in]     ledstate LED state pattern (0-255).
- *
- * @return TM1639_OK on success,
- *         TM1639_ERR_INVALID_PARAM if config is NULL,
- *         TM1639_ERR_ADDRESS_RANGE if leds is out of range,
- *         or error code from tm1639_update_buffer or tm1639_update.
  */
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)
 {

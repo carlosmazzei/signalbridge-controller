@@ -22,6 +22,7 @@
 #include "semphr.h"
 
 #include "tm1639.h"
+#include "tm1637.h"
 #include "outputs.h"
 
 /**
@@ -171,6 +172,22 @@ static output_result_t init_driver(void)
 		{
 			// Initialize TM1639 driver
 			output_drivers.driver_handles[i] = tm1639_init(i,
+			                                               &select_interface,
+			                                               spi0,
+			                                               PICO_DEFAULT_SPI_TX_PIN,
+			                                               PICO_DEFAULT_SPI_SCK_PIN);
+			if (!output_drivers.driver_handles[i])
+			{
+				result = OUTPUT_ERR_INIT;
+				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				continue;
+			}
+		}
+		else if (((uint8_t)DEVICE_TM1637_DIGIT == device_config_map[i]) ||
+		         ((uint8_t)DEVICE_TM1637_LED == device_config_map[i]))
+		{
+			// Initialize TM1637 driver using same SPI infrastructure as TM1639
+			output_drivers.driver_handles[i] = tm1637_init(i,
 			                                               &select_interface,
 			                                               spi0,
 			                                               PICO_DEFAULT_SPI_TX_PIN,

@@ -5,6 +5,7 @@ add_library(signalbridge_core STATIC
     inputs.c
     outputs.c
     tm1639.c
+    tm1637.c
 )
 
 # (Headers linked later to control include order in host builds)
