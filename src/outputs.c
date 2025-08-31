@@ -340,7 +340,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
 		{
-			handle->set_digits(handle, digits, sizeof(digits), payload[5]);
+			result = handle->set_digits(handle, digits, sizeof(digits), payload[5]);
 		}
 		else
 		{
@@ -417,7 +417,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 			output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 			if ((NULL != handle) && (NULL != handle->set_leds))
 			{
-				handle->set_leds(handle, index, ledstate);
+				result = handle->set_leds(handle, index, ledstate);
 			}
 			else
 			{

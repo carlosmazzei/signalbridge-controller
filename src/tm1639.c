@@ -22,6 +22,35 @@
  #include "tm1639.h"
 
 /**
+ * @brief Convert tm1639_result_t to output_result_t
+ * 
+ * This function converts TM1639-specific error codes to generic output error codes
+ * for consistent error handling throughout the system.
+ *
+ * @param[in] tm_result TM1639-specific result code
+ * @return output_result_t Generic output result code
+ */
+static output_result_t tm1639_to_output_result(tm1639_result_t tm_result)
+{
+	output_result_t result;
+	
+	switch (tm_result)
+	{
+		case TM1639_OK:
+			result = OUTPUT_OK;
+			break;
+		case TM1639_ERR_INVALID_PARAM:
+			result = OUTPUT_ERR_INVALID_PARAM;
+			break;
+		default:
+			result = OUTPUT_ERR_DISPLAY_OUT;
+			break;
+	}
+	
+	return result;
+}
+
+/**
  * @brief Set the display brightness level (0-7).
  *
  * This function sets the brightness level of the TM1639 display. The brightness value
@@ -48,7 +77,7 @@ static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t le
 		config->brightness = set_level;
 
 		// Display control command with brightness level
-		uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_OFF | level;         // DISPLAY_ON | level
+		uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_ON | level;
 		result = tm1639_send_command(config, cmd);
 	}
 
@@ -128,6 +157,8 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 		config->buffer_modified = false;
 		config->brightness = 7U;
 		config->display_on = false;
+		config->set_digits = &tm1639_set_digits;
+		config->set_leds = &tm1639_set_leds;
 
 		// Clear display on startup
 		if (TM1639_OK != tm1639_clear(config))
@@ -766,7 +797,7 @@ static tm1639_result_t tm1639_update(output_driver_t *config)
 	else
 	{
 		// Only update if buffer has been modified
-		if (!config->buffer_modified)
+		if (config->buffer_modified)
 		{
 			result = tm1639_flush(config);
 		}
@@ -876,35 +907,78 @@ static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint
 /**
  * @brief Set BCD digits on the display
  */
-tm1639_result_t tm1639_set_digits(output_driver_t *config,
+output_result_t tm1639_set_digits(output_driver_t *config,
                                   const uint8_t *digits,
                                   const size_t length,
                                   const uint8_t dot_position)
 {
-	tm1639_result_t result;
+	tm1639_result_t tm_result;
 
 	// Step 1: Validate parameters
-	result = tm1639_validate_parameters(config, digits, length, dot_position);
+	tm_result = tm1639_validate_parameters(config, digits, length, dot_position);
 
 	// Step 2: Validate BCD encoding
-	if (TM1639_OK == result)
+	if (TM1639_OK == tm_result)
 	{
-		result = tm1639_validate_custom_array(digits, length);
+		tm_result = tm1639_validate_custom_array(digits, length);
 	}
 
 	// Step 3: Process digits
-	if (TM1639_OK == result)
+	if (TM1639_OK == tm_result)
 	{
-		result = tm1639_process_digits(config, digits, dot_position);
+		tm_result = tm1639_process_digits(config, digits, dot_position);
 	}
 
 	// Step 4: Update display
-	if (TM1639_OK == result)
+	if (TM1639_OK == tm_result)
 	{
-		result = tm1639_update(config);
+		tm_result = tm1639_update(config);
 	}
 
-	return result;
+	return tm1639_to_output_result(tm_result);
+}
+
+/**
+ * @brief Set LEDs for matrix display
+ *
+ * This function sets LED patterns for the TM1639 in matrix mode. It directly
+ * updates the display buffer at the specified address with the LED state data.
+ *
+ * @param[in,out] config   Pointer to the TM1639 output driver configuration structure. Must not be NULL.
+ * @param[in]     leds     LED index or address (0-15).
+ * @param[in]     ledstate LED state pattern (0-255).
+ *
+ * @return TM1639_OK on success,
+ *         TM1639_ERR_INVALID_PARAM if config is NULL,
+ *         TM1639_ERR_ADDRESS_RANGE if leds is out of range,
+ *         or error code from tm1639_update_buffer or tm1639_update.
+ */
+output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)
+{
+	tm1639_result_t tm_result = TM1639_OK;
+
+	// Parameter validation
+	if (NULL == config)
+	{
+		tm_result = TM1639_ERR_INVALID_PARAM;
+	}
+	else if (leds > 0x0FU)
+	{
+		tm_result = TM1639_ERR_ADDRESS_RANGE;
+	}
+	else
+	{
+		// Update preparation buffer with LED state
+		tm_result = tm1639_update_buffer(config, leds, ledstate);
+
+		// Update display if buffer update was successful
+		if (TM1639_OK == tm_result)
+		{
+			tm_result = tm1639_update(config);
+		}
+	}
+
+	return tm1639_to_output_result(tm_result);
 }
 
 /**

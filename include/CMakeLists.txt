@@ -20,9 +20,5 @@ foreach(header ${HEADER_FILES})
 endforeach()
 
 add_library(pico_controller_headers INTERFACE)
-target_include_directories(pico_controller_headers INTERFACE 
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${FREERTOS_KERNEL_PATH}/include
-        ${PICO_SDK_PATH}/src/common/pico_stdlib/include
-    )
-
+# Single source of truth for the project's public headers
+target_include_directories(pico_controller_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -189,9 +189,19 @@ tm1639_result_t tm1639_clear(output_driver_t *config);
  * @param digits Payload of digits to set (0-15)
  * @param length Length of the digits array (should be 8)
  * @param dot_position Decimal point state (true/false)
- * @return int Error code, 0 if successful
+ * @return output_result_t Error code, OUTPUT_OK if successful
  */
-tm1639_result_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
+output_result_t tm1639_set_digits(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
+
+/**
+ * @brief Set LEDs for matrix display
+ *
+ * @param config Pointer to TM1639 configuration structure
+ * @param leds LED index or pattern
+ * @param ledstate LED state (0-255)
+ * @return output_result_t Error code, OUTPUT_OK if successful
+ */
+output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
 
 /**
  * @brief Set an entire row in matrix mode

@@ -7,13 +7,16 @@ add_library(signalbridge_core STATIC
     tm1639.c
 )
 
-target_include_directories(signalbridge_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+# (Headers linked later to control include order in host builds)
 
 # Enable coverage instrumentation when requested for GNU compilers
 if(ENABLE_COVERAGE AND CMAKE_C_COMPILER_ID MATCHES "GNU")
     target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage)
     target_link_libraries(signalbridge_core PUBLIC gcov)
 endif()
+
+# Link project public headers last so host mocks take precedence when present
+target_link_libraries(signalbridge_core PUBLIC pico_controller_headers)
 
 # Add platform-specific dependencies to core library
 if(PICO_PLATFORM)
@@ -31,8 +34,6 @@ if(PICO_PLATFORM)
     )
 else()
     # Host/test builds: Use FreeRTOS POSIX port and mock headers
-    set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../lib/FreeRTOS-Kernel)
-    set(FREERTOS_POSIX_PORT_PATH ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix)
     
     # FreeRTOS POSIX port sources
     set(FREERTOS_POSIX_SOURCES
@@ -50,13 +51,10 @@ else()
     # Add FreeRTOS sources to core library
     target_sources(signalbridge_core PRIVATE ${FREERTOS_POSIX_SOURCES})
     
-    # FreeRTOS POSIX include directories
-    # Put real FreeRTOS headers before mocks so FreeRTOS APIs resolve correctly
-    target_include_directories(signalbridge_core BEFORE PUBLIC 
-        ${FREERTOS_KERNEL_PATH}/include      # FreeRTOS headers
-        ${FREERTOS_POSIX_PORT_PATH}          # POSIX port headers
-        ${CMAKE_CURRENT_SOURCE_DIR}/../test/unit/mock_headers  # Mock Pico SDK headers
-        ${CMAKE_CURRENT_SOURCE_DIR}/../test  # For FreeRTOSConfig.h
+    # Use interface targets for third-party headers, and force overrides to come first
+    target_link_libraries(signalbridge_core PUBLIC freertos_posix_headers mock_pico_headers)
+    target_include_directories(signalbridge_core BEFORE PUBLIC
+        ${CMAKE_SOURCE_DIR}/test                 # For FreeRTOSConfig.h (host single-core)
     )
     
     # Link pthread for POSIX port
@@ -133,11 +131,6 @@ pico_enable_stdio_usb(pi_controller 0)
 pico_enable_stdio_uart(pi_controller 0)
 
 pico_add_extra_outputs(pi_controller) 
-
-target_include_directories(pi_controller PUBLIC
-    ${FREERTOS_KERNEL_PATH}/include
-    ${PICO_SDK_PATH}/src/common/pico_stdlib/include
-)
 
 # Link required libraries
 target_link_libraries(pi_controller PRIVATE

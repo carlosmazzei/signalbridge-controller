@@ -161,8 +161,8 @@ struct output_driver_t {
 
 	// Function pointer for chip selection (true = select/stb low, false = deselect/stb high)
 	output_result_t (*select_interface)(uint8_t chip_id, bool select);
-	void (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
-	void (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
+	output_result_t (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
+	output_result_t (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
 
 	// SPI instance
 	spi_inst_t *spi;

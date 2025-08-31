@@ -55,6 +55,25 @@ if(NOT HOST_BUILD)
     pico_sdk_init()
 endif()
 
+# Configure FreeRTOS paths for host builds (POSIX port)
+if(HOST_BUILD)
+    set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS-Kernel" CACHE PATH "FreeRTOS kernel path")
+    set(FREERTOS_POSIX_PORT_PATH "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix" CACHE PATH "FreeRTOS POSIX port path")
+
+    # Interface targets to model third-party and mock headers
+    add_library(freertos_posix_headers INTERFACE)
+    target_include_directories(freertos_posix_headers INTERFACE
+        ${FREERTOS_KERNEL_PATH}/include
+        ${FREERTOS_POSIX_PORT_PATH}
+    )
+
+    add_library(mock_pico_headers INTERFACE)
+    target_include_directories(mock_pico_headers INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/unit/mock_headers
+        ${CMAKE_CURRENT_SOURCE_DIR}/test  # For FreeRTOSConfig.h
+    )
+endif()
+
 add_subdirectory(include)
 add_subdirectory(src)
 if(SIGNALBRIDGE_BUILD_DOCS)
