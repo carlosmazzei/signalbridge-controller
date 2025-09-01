@@ -22,6 +22,7 @@
 #include "semphr.h"
 
 #include "tm1639.h"
+#include "tm1637.h"
 #include "outputs.h"
 
 /**
@@ -182,6 +183,22 @@ static output_result_t init_driver(void)
 				continue;
 			}
 		}
+		else if (((uint8_t)DEVICE_TM1637_DIGIT == device_config_map[i]) ||
+		         ((uint8_t)DEVICE_TM1637_LED == device_config_map[i]))
+		{
+			// Initialize TM1637 driver using same SPI infrastructure as TM1639
+			output_drivers.driver_handles[i] = tm1637_init(i,
+			                                               &select_interface,
+			                                               spi0,
+			                                               PICO_DEFAULT_SPI_TX_PIN,
+			                                               PICO_DEFAULT_SPI_SCK_PIN);
+			if (!output_drivers.driver_handles[i])
+			{
+				result = OUTPUT_ERR_INIT;
+				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				continue;
+			}
+		}
 		else if (((uint8_t)DEVICE_GENERIC_DIGIT == device_config_map[i]) ||
 		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
@@ -303,12 +320,13 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for display output.
 		 */
-		if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
-		    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]))
-		{
-			out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-			result = OUTPUT_ERR_INVALID_PARAM;
-		}
+        if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
+        {
+            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+            result = OUTPUT_ERR_INVALID_PARAM;
+        }
 	}
 
 	/**
@@ -340,7 +358,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
 		{
-			handle->set_digits(handle, digits, sizeof(digits), payload[5]);
+			result = handle->set_digits(handle, digits, sizeof(digits), payload[5]);
 		}
 		else
 		{
@@ -391,12 +409,13 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for LED output.
 		 */
-		if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
-		    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]))
-		{
-			out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-			result = OUTPUT_ERR_INVALID_PARAM;
-		}
+        if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]) &&
+            ((uint8_t)DEVICE_TM1637_LED != device_config_map[physical_cs]))
+        {
+            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+            result = OUTPUT_ERR_INVALID_PARAM;
+        }
 	}
 
 	/**
@@ -417,7 +436,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 			output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 			if ((NULL != handle) && (NULL != handle->set_leds))
 			{
-				handle->set_leds(handle, index, ledstate);
+				result = handle->set_leds(handle, index, ledstate);
 			}
 			else
 			{

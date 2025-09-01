@@ -81,27 +81,37 @@
  */
 #define DEVICE_TM1639_DIGIT   4
 
+/** @def DEVICE_TM1637_LED
+ * @brief TM1637-based LED device using GPIO bit-banging.
+ */
+#define DEVICE_TM1637_LED     5
+
+/** @def DEVICE_TM1637_DIGIT
+ * @brief TM1637-based digit display device using GPIO bit-banging.
+ */
+#define DEVICE_TM1637_DIGIT   6
+
 /** @} */ // end of device_types
 
 /** @def DEVICE_CONFIG
  * @brief Device configuration map for SPI interfaces.
  *
- * This macro defines the device type for each SPI interface.
+ * This macro defines the device type for each interface.
  * Each entry corresponds to a controller ID (0-7), and the value specifies the device type
- * (e.g., DEVICE_TM1639_DIGIT or DEVICE_NONE).
+ * (e.g., DEVICE_TM1639_DIGIT, DEVICE_TM1637_DIGIT, or DEVICE_NONE).
  *
  * Example usage:
  * @code
  * const uint8_t config[] = DEVICE_CONFIG;
  * @endcode
  *
- * - Device 0-2: TM1639 digit controllers
- * - Device   3: TM1639 led controller
- * - Device 4-7: No device connected
+ * - Device 0-2: TM1639 digit controllers (SPI)
+ * - Device   3: TM1639 led controller (SPI)
+ * - Device 4-7: Available for TM1637 or other devices
  */
 #define DEVICE_CONFIG { \
 		DEVICE_TM1639_DIGIT, /* Device 0 */ \
-		DEVICE_TM1639_DIGIT, /* Device 1 */ \
+		DEVICE_TM1637_DIGIT, /* Device 1 */ \
 		DEVICE_TM1639_DIGIT, /* Device 2 */ \
 		DEVICE_TM1639_LED, /* Device 3 */ \
 		DEVICE_NONE, /* Device 4 */ \
@@ -110,12 +120,9 @@
 		DEVICE_NONE /* Device 7 */ \
 }
 
-/** @enum output_result_t
- * @brief Output Result Codes
- * This enum defines the possible result codes returned by output functions.
- * Each code indicates the success or type of error encountered during operations.
- * @note These codes are used to indicate the status of output operations such as initialization and display updates.
- * @ingroup outputs
+/**
+ * @brief Output result codes.
+ * Defines generic result codes returned by output functions.
  */
 typedef enum output_result_t {
 	OUTPUT_OK = 0,
@@ -127,10 +134,11 @@ typedef enum output_result_t {
 
 /** --- Statistics Structures --- */
 
-/** @enum out_statistics_counter_enum_t
- * @brief Enumerates different error types in the output system.
+/**
+ * @brief Output statistics counters.
+ * Enumerates different error types in the output system.
  */
-typedef enum {
+typedef enum out_statistics_counter_enum_t {
 	OUT_CONTROLLER_ID_ERROR,
 	OUT_INIT_ERROR,
 	OUT_DRIVER_INIT_ERROR,
@@ -160,9 +168,9 @@ struct output_driver_t {
 	uint8_t chip_id;
 
 	// Function pointer for chip selection (true = select/stb low, false = deselect/stb high)
-	uint8_t (*select_interface)(uint8_t chip_id, bool select);
-	void (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
-	void (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
+	output_result_t (*select_interface)(uint8_t chip_id, bool select);
+	output_result_t (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
+	output_result_t (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
 
 	// SPI instance
 	spi_inst_t *spi;

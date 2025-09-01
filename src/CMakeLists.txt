@@ -1,15 +1,84 @@
+# Create single static library for all modules (always available for testing)
+add_library(signalbridge_core STATIC
+    cobs.c
+    error_management.c
+    inputs.c
+    outputs.c
+    tm1639.c
+    tm1637.c
+)
+
+# (Headers linked later to control include order in host builds)
+
+# Enable coverage instrumentation when requested for GNU compilers
+if(ENABLE_COVERAGE AND CMAKE_C_COMPILER_ID MATCHES "GNU")
+    target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage)
+    target_link_libraries(signalbridge_core PUBLIC gcov)
+endif()
+
+# Link project public headers last so host mocks take precedence when present
+target_link_libraries(signalbridge_core PUBLIC pico_controller_headers)
+
+# Add platform-specific dependencies to core library
+if(PICO_PLATFORM)
+    # Pico target: Use RP2040 port and Pico SDK
+    target_link_libraries(signalbridge_core PUBLIC
+        pico_stdlib
+        hardware_gpio
+        hardware_watchdog
+        hardware_spi
+        hardware_pwm
+        hardware_clocks
+        hardware_pio
+        hardware_adc
+        FreeRTOS-Kernel  # This uses RP2040 port automatically
+    )
+else()
+    # Host/test builds: Use FreeRTOS POSIX port and mock headers
+    
+    # FreeRTOS POSIX port sources
+    set(FREERTOS_POSIX_SOURCES
+        ${FREERTOS_KERNEL_PATH}/tasks.c
+        ${FREERTOS_KERNEL_PATH}/list.c
+        ${FREERTOS_KERNEL_PATH}/queue.c
+        ${FREERTOS_KERNEL_PATH}/timers.c
+        ${FREERTOS_KERNEL_PATH}/event_groups.c
+        ${FREERTOS_KERNEL_PATH}/stream_buffer.c
+        ${FREERTOS_KERNEL_PATH}/portable/MemMang/heap_3.c
+        ${FREERTOS_POSIX_PORT_PATH}/port.c
+        ${FREERTOS_POSIX_PORT_PATH}/utils/wait_for_event.c
+    )
+    
+    # Add FreeRTOS sources to core library
+    target_sources(signalbridge_core PRIVATE ${FREERTOS_POSIX_SOURCES})
+    
+    # Use interface targets for third-party headers, and force overrides to come first
+    target_link_libraries(signalbridge_core PUBLIC freertos_posix_headers mock_pico_headers)
+    target_include_directories(signalbridge_core BEFORE PUBLIC
+        ${CMAKE_SOURCE_DIR}/test                 # For FreeRTOSConfig.h (host single-core)
+    )
+    
+    # Link pthread for POSIX port
+    target_link_libraries(signalbridge_core PUBLIC pthread)
+endif()
+
+# Only build executable for Pico platform
+if(NOT PICO_PLATFORM)
+    return()
+endif()
+
 add_executable(pi_controller)
 
-# Source files
+# Main application source files
 target_sources(pi_controller PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/main.c
     ${CMAKE_CURRENT_SOURCE_DIR}/hooks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/cobs.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/inputs.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/outputs.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/tm1639.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/error_management.c
+)
+
+# Link the core library
+target_link_libraries(pi_controller PRIVATE
+    signalbridge_core
 )
 
 target_compile_definitions(pi_controller PRIVATE
@@ -32,7 +101,6 @@ target_compile_options(pi_controller PRIVATE
     -Wstack-usage=3584                  # Warn if function uses >3.5KB stack (leave 0.5KB margin)
     
     # Memory optimization
-    -Os                                 # Optimize for size
     -ffunction-sections                 # Allow unused function removal
     -fdata-sections                     # Allow unused data removal
     
@@ -53,7 +121,7 @@ target_link_options(pi_controller PRIVATE
     "LINKER:--cref"                     # Generate cross-reference
     
     # Debug information
-    $<$<CONFIG:Debug>:"LINKER:--print-memory-usage">   # Show memory usage (debug only)
+    $<$<CONFIG:Debug>:LINKER:--print-memory-usage>   # Show memory usage (debug only)
     
     # Map file generation
     "LINKER:-Map=${CMAKE_CURRENT_BINARY_DIR}/pi_controller.map"
@@ -65,13 +133,8 @@ pico_enable_stdio_uart(pi_controller 0)
 
 pico_add_extra_outputs(pi_controller) 
 
-target_include_directories(pi_controller PUBLIC
-    ${FREERTOS_KERNEL_PATH}/include
-    ${PICO_SDK_PATH}/src/common/pico_stdlib/include
-)
-
 # Link required libraries
-target_link_libraries(pi_controller
+target_link_libraries(pi_controller PRIVATE
     pico_controller_headers
     pico_stdlib 
     pico_multicore
@@ -87,9 +150,11 @@ target_link_libraries(pi_controller
 )
 
 # Run memory analysis script after build
-add_custom_command(
-    TARGET pi_controller POST_BUILD
+add_custom_target(memory_analysis ALL
+    DEPENDS pi_controller
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/memory_analysis.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/pi_controller.elf
+            ${CMAKE_CURRENT_BINARY_DIR}/memory_analysis_report.txt
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Running memory_analysis.sh after build"
 )

@@ -403,8 +403,8 @@ static void cdc_task(void *pvParameters)
 		// Update high watermark and safely reset watchdog timer
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		update_watchdog_safe();
-                taskYIELD();
-        }
+		taskYIELD();
+	}
 }
 
 static void send_data(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
@@ -671,7 +671,8 @@ static void process_inbound_data(const uint8_t *rx_buffer, size_t length)
 			break;
 
 		case PC_DPYCTL_CMD:
-			if (display_out(decoded_data, len) != OUTPUT_OK)
+			output_result_t result = display_out(decoded_data, len);
+			if (result != OUTPUT_OK)
 			{
 				statistics_increment_counter(DISPLAY_OUT_ERROR);
 			}

@@ -31,6 +31,61 @@
             "filterStderr": true,
             "filterStdout": false,
             "stopAtEntry": true
+        },
+        {
+            "name": "Debug Test - Error Management",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test/build/unit/test_error_management",
+            "args": [],
+            "cwd": "${workspaceFolder}/test/build/unit",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
+            "name": "Debug Test - COBS",
+            "type": "cppdbg", 
+            "request": "launch",
+            "program": "${workspaceFolder}/test/build/unit/test_cobs",
+            "args": [],
+            "cwd": "${workspaceFolder}/test/build/unit",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
+            "name": "Debug Test - Inputs",
+            "type": "cppdbg",
+            "request": "launch", 
+            "program": "${workspaceFolder}/test/build/unit/test_inputs",
+            "args": [],
+            "cwd": "${workspaceFolder}/test/build/unit",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
+            "name": "Debug Test - Outputs",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test/build/unit/test_outputs", 
+            "args": [],
+            "cwd": "${workspaceFolder}/test/build/unit",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
+            "name": "Debug Test - TM1639",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test/build/unit/test_tm1639",
+            "args": [],
+            "cwd": "${workspaceFolder}/test/build/unit", 
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
         }
     ]
 }

@@ -95,7 +95,7 @@
             "type": "shell",
             "command": "make",
             "args": [
-                "-j$(nproc)"
+                "-j$(sysctl -n hw.ncpu)"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/build"
@@ -206,6 +206,137 @@
             },
             "problemMatcher": [],
             "detail": "Format current file with uncrustify code formatter"
+        },
+        {
+            "label": "Configure Tests",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "Test build directory created"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Create test build directory (CMake config not working)",
+            "dependsOn": "Create Test Build Directory"
+        },
+        {
+            "label": "Create Test Build Directory",
+            "type": "shell",
+            "command": "mkdir",
+            "args": [
+                "-p",
+                "test/build"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Create test build directory if it doesn't exist"
+        },
+        {
+            "label": "Build Tests",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "cd test && mkdir -p build && cd build && cmake .. && make"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build CMocka unit tests",
+            "dependsOn": "Configure Tests"
+        },
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "cd test/build && make test_all"
+            ],
+            "group": {
+                "kind": "test", 
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Run all CMocka unit tests using CTest",
+            "dependsOn": "Build Tests"
+        },
+        {
+            "label": "Generate Coverage Report",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "cd test && rm -rf build && mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON .. && make && make coverage"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Generate HTML coverage report using CMake target"
+        },
+        {
+            "label": "Clean Tests",
+            "type": "shell",
+            "command": "rm",
+            "args": [
+                "-rf",
+                "test/build"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Remove test build directory"
         },
         {
             "label": "uncrustify all C/C++ files",

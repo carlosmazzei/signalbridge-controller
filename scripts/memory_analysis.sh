@@ -4,10 +4,19 @@
 
 set -e  # Exit on error
 
-ELF_FILE="build/src/pi_controller.elf"
-REPORT_FILE="build/memory_analysis_report.txt"
+## \brief Path to ELF file to analyze (default: build/src/pi_controller.elf)
+## \details You can override by passing as first argument.
+ELF_FILE="${1:-build/src/pi_controller.elf}"
 
-echo "=== MANUAL MEMORY ANALYSIS SCRIPT ==="
+## \brief Path to output memory report file (default: build/memory_analysis_report.txt)
+## \details You can override by passing as second argument.
+REPORT_FILE="${2:-build/memory_analysis_report.txt}"
+
+# Derive build directory from provided ELF path (fallback to 'build')
+ELF_DIR=$(dirname "$ELF_FILE")
+BUILD_DIR="$ELF_DIR"
+
+echo "=== MEMORY ANALYSIS SCRIPT ==="
 echo "Analyzing: $ELF_FILE"
 echo "Report: $REPORT_FILE"
 echo ""
@@ -199,9 +208,14 @@ echo "" >> "$REPORT_FILE"
 echo "📊 Getting stack usage information..."
 echo "=== STACK USAGE ANALYSIS ===" >> "$REPORT_FILE"
 
-# Find all .su files
-SU_FILES=$(find build -name "*.su" -type f 2>/dev/null)
-STACK_COUNT=$(echo "$SU_FILES" | grep -c . 2>/dev/null || echo "0")
+# Find all .su files under the actual build directory
+# Avoid exiting on non-zero if directory doesn't exist
+SU_FILES=$(find "$BUILD_DIR" -name "*.su" -type f 2>/dev/null || true)
+if [ -n "$SU_FILES" ]; then
+    STACK_COUNT=$(echo "$SU_FILES" | wc -l | tr -d ' ')
+else
+    STACK_COUNT=0
+fi
 
 if [ "$STACK_COUNT" -gt 0 ]; then
     echo "Found $STACK_COUNT stack usage files" >> "$REPORT_FILE"
@@ -351,8 +365,9 @@ if [ "$STACK_COUNT" -gt 0 ]; then
         # Check for high usage functions
         TOP_OFFENDER=$(sort -t'|' -k1,1nr "$TEMP_DATA" | head -1 | cut -d'|' -f2 2>/dev/null)
         TOP_BYTES=$(sort -t'|' -k1,1nr "$TEMP_DATA" | head -1 | cut -d'|' -f1 2>/dev/null)
-        
-        if [ "$TOP_BYTES" -gt 200 ] 2>/dev/null; then
+
+        # Only compare if TOP_BYTES is a valid integer
+        if [[ "$TOP_BYTES" =~ ^[0-9]+$ ]] && [ "$TOP_BYTES" -gt 200 ]; then
             echo "🎯 IMMEDIATE ACTION NEEDED:" >> "$REPORT_FILE"
             echo "   Function '$TOP_OFFENDER' uses $TOP_BYTES bytes" >> "$REPORT_FILE"
             echo "   Recommendations:" >> "$REPORT_FILE"
@@ -389,7 +404,9 @@ echo "" >> "$REPORT_FILE"
 # 6. Memory map (if exists)
 echo "📊 Checking for memory map..."
 echo "=== MEMORY MAP INFORMATION ===" >> "$REPORT_FILE"
-MAP_FILE="build/src/pi_controller.map"
+# Prefer a map next to the ELF (CMake sets -Map to CMAKE_CURRENT_BINARY_DIR)
+MAP_FILE="$ELF_DIR/pi_controller.map"
+ALT_MAP_FILE="$ELF_DIR/pi_controller.elf.map"
 if [ -f "$MAP_FILE" ]; then
     echo "Memory map file found: $MAP_FILE" >> "$REPORT_FILE"
     echo "Map file size: $(ls -la "$MAP_FILE" | awk '{print $5}') bytes" >> "$REPORT_FILE"
@@ -397,6 +414,13 @@ if [ -f "$MAP_FILE" ]; then
     echo "" >> "$REPORT_FILE"
     echo "Memory Configuration (excerpt):" >> "$REPORT_FILE"
     head -50 "$MAP_FILE" >> "$REPORT_FILE" 2>/dev/null || echo "Could not read map file" >> "$REPORT_FILE"
+elif [ -f "$ALT_MAP_FILE" ]; then
+    echo "Memory map file found: $ALT_MAP_FILE" >> "$REPORT_FILE"
+    echo "Map file size: $(ls -la "$ALT_MAP_FILE" | awk '{print $5}') bytes" >> "$REPORT_FILE"
+    echo "To view full map: less $ALT_MAP_FILE" >> "$REPORT_FILE"
+    echo "" >> "$REPORT_FILE"
+    echo "Memory Configuration (excerpt):" >> "$REPORT_FILE"
+    head -50 "$ALT_MAP_FILE" >> "$REPORT_FILE" 2>/dev/null || echo "Could not read map file" >> "$REPORT_FILE"
 else
     echo "No memory map file found" >> "$REPORT_FILE"
     echo "To generate: add 'LINKER:-Map=pi_controller.map' to linker options" >> "$REPORT_FILE"
