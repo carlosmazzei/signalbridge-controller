@@ -36,7 +36,7 @@
  * @brief Multiplexer enable pin.
  * This pin is used to enable the multiplexer for chip selection.
  */
-#define SPI_MUX_CS 32
+#define SPI_MUX_CS 27
 /** @} */ // end of mux_pins
 
 /** @def MAX_SPI_INTERFACES
@@ -134,25 +134,7 @@ typedef enum output_result_t {
 
 /** --- Statistics Structures --- */
 
-/**
- * @brief Output statistics counters.
- * Enumerates different error types in the output system.
- */
-typedef enum out_statistics_counter_enum_t {
-	OUT_CONTROLLER_ID_ERROR,
-	OUT_INIT_ERROR,
-	OUT_DRIVER_INIT_ERROR,
-	OUT_INVALID_PARAM_ERROR,
-	OUT_NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
-} out_statistics_counter_enum_t;
 
-/** @struct out_statistics_counters_t
- * @brief Holds counters for different error types of the output.
- */
-typedef struct out_statistics_counters_t {
-	uint32_t counters[OUT_NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
-	bool error_state;                  /**< Flag indicating critical error state */
-} out_statistics_counters_t;
 
 
 // --- Driver Structures ---

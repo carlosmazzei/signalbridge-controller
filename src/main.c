@@ -1099,11 +1099,10 @@ int main(void)
 	// Handle previous errors
 	if (true == statistics_is_error_state())
 	{
-		// Show error pattern for a limited time using busy_wait
-		for (int i = 0; i < 8; i++) {
-			show_error_pattern_blocking(statistics_get_error_type());
-			update_watchdog_safe();
-		}
+
+		// Show error pattern for a bounded time while keeping watchdog alive
+		// Keep below watchdog grace window to allow tentative restart path
+		show_error_for_duration_ms(ERROR_DISPLAY_BEFORE_TENTATIVE_RESTART_MS);
 
 		// Check error count - if too many, stay in error state
 		uint32_t error_count = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
@@ -1111,7 +1110,8 @@ int main(void)
 		if (error_count > 5)
 		{
 			// Too many errors - stay in error state and reset
-			while (true) {
+			while (true)
+			{
 				show_error_pattern_blocking(statistics_get_error_type());
 				update_watchdog_safe();
 			}

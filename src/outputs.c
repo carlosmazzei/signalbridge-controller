@@ -24,6 +24,7 @@
 #include "tm1639.h"
 #include "tm1637.h"
 #include "outputs.h"
+#include "error_management.h"
 
 /**
  * @brief Device configuration map for all SPI interfaces.
@@ -46,13 +47,6 @@ static SemaphoreHandle_t spi_mutex = NULL;
  * This variable stores pointers to the initialized output drivers for each interface.
  */
 static output_drivers_t output_drivers;
-
-/**
- * @brief Output statistics counters (module scope).
- *
- * This variable holds counters for various output-related errors and states.
- */
-static out_statistics_counters_t out_statistics_counters;
 
 // Function declarations
 
@@ -95,7 +89,7 @@ static output_result_t init_mux(void)
 	output_result_t output_result  = OUTPUT_OK;
 	if (result != TM1639_OK)
 	{
-		out_statistics_counters.counters[OUT_INIT_ERROR]++;
+		statistics_increment_counter(OUT_INIT_ERROR);
 		output_result = OUTPUT_ERR_INIT;
 	}
 	else
@@ -122,7 +116,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
 		result = OUTPUT_ERR_INVALID_PARAM;
-		out_statistics_counters.counters[OUT_INVALID_PARAM_ERROR]++;
+		statistics_increment_counter(OUT_INVALID_PARAM_ERROR);
 	}
 
 	if (select)
@@ -179,7 +173,7 @@ static output_result_t init_driver(void)
 			if (!output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
-				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
 				continue;
 			}
 		}
@@ -195,7 +189,7 @@ static output_result_t init_driver(void)
 			if (!output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
-				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
 				continue;
 			}
 		}
@@ -221,10 +215,10 @@ static void uart0_init(uint32_t baudrate)
 	// Initialize UART0 hardware
 	uart_init(uart0, baudrate);
 
-	// Set GPIO 16 as UART0 TX
+	// Set GPIO 12 as UART0 TX
 	gpio_set_function(12, GPIO_FUNC_UART);
 
-	// Set GPIO 17 as UART0 RX
+	// Set GPIO 13 as UART0 RX
 	gpio_set_function(13, GPIO_FUNC_UART);
 
 	// Optional: Enable FIFO
@@ -250,8 +244,8 @@ output_result_t output_init(void)
 	output_result_t result_mux = init_mux();
 	if (result_mux != OUTPUT_OK)
 	{
-		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-		result = OUTPUT_ERR_INIT;
+		statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
+		//result = OUTPUT_ERR_INIT; // Do not trigger init error on mux failure
 	}
 
 	// Initialize SPI
@@ -266,6 +260,7 @@ output_result_t output_init(void)
 	if ((gpio_get_function(PICO_DEFAULT_SPI_SCK_PIN) != GPIO_FUNC_SPI) ||
 	    (gpio_get_function(PICO_DEFAULT_SPI_TX_PIN) != GPIO_FUNC_SPI))
 	{
+        statistics_increment_counter(OUT_INIT_ERROR);
 		result =  OUTPUT_ERR_INIT;
 	}
 
@@ -285,8 +280,8 @@ output_result_t output_init(void)
 	output_result_t result_init = init_driver();
 	if (result_init != OUTPUT_OK)
 	{
-		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-		result = OUTPUT_ERR_INIT;
+		statistics_increment_counter(OUT_INIT_ERROR);
+		//result = OUTPUT_ERR_INIT; // Do not trigger init error on driver failure
 	}
 
 	return result;
@@ -309,7 +304,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	    ((uint8_t)0 == payload[0]) ||
 	    (payload[0] > (uint8_t)MAX_SPI_INTERFACES))
 	{
-		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+		statistics_increment_counter(OUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 	else
@@ -320,13 +315,13 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for display output.
 		 */
-        if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
-        {
-            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-            result = OUTPUT_ERR_INVALID_PARAM;
-        }
+		if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
+		{
+			statistics_increment_counter(OUT_CONTROLLER_ID_ERROR);
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
 	}
 
 	/**
@@ -364,7 +359,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		{
 			// If the driver handle is invalid, try to deselect the chip and set error
 			(void)select_interface(physical_cs, false);
-			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+			statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
 			result = OUTPUT_ERR_DISPLAY_OUT;
 		}
 	}
@@ -398,7 +393,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	    (0U == payload[0]) ||
 	    ((uint8_t)MAX_SPI_INTERFACES < payload[0]))
 	{
-		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+		statistics_increment_counter(OUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 	else
@@ -409,13 +404,13 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for LED output.
 		 */
-        if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1637_LED != device_config_map[physical_cs]))
-        {
-            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-            result = OUTPUT_ERR_INVALID_PARAM;
-        }
+		if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1637_LED != device_config_map[physical_cs]))
+		{
+			statistics_increment_counter(OUT_CONTROLLER_ID_ERROR);
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
 	}
 
 	/**
@@ -441,7 +436,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 			else
 			{
 				(void)select_interface(physical_cs, false);
-				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
 				result = OUTPUT_ERR_DISPLAY_OUT;
 			}
 		}

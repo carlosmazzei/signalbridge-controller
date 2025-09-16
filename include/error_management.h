@@ -23,6 +23,9 @@
 #define BLINK_OFF_MS     150     // Time between blinks in pattern
 #define PATTERN_PAUSE_MS 2000    // Pause between pattern repeats
 
+// Duration to show error before a tentative restart (must be < watchdog grace)
+#define ERROR_DISPLAY_BEFORE_TENTATIVE_RESTART_MS 12000
+
 // Watchdog scratch register usage
 #define WATCHDOG_ERROR_TYPE_REG    0
 #define WATCHDOG_ERROR_COUNT_REG   1
@@ -31,6 +34,10 @@
 #define ERROR_MAGIC_VALUE     0xDEADBEEF
 #define CLEAN_BOOT_MAGIC      0x600DC0DE
 
+/**
+ * @enum error_type_t
+ * @brief Enumerates different error types in the system.
+ */
 typedef enum {
 	ERROR_NONE = 0,
 	ERROR_WATCHDOG_TIMEOUT = 1,
@@ -45,6 +52,7 @@ typedef enum {
  * @brief Enumerates different error types in the system.
  */
 typedef enum statistics_counter_enum_t {
+	// Main error enums
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
@@ -59,6 +67,13 @@ typedef enum statistics_counter_enum_t {
 	UNKNOWN_CMD_ERROR,
 	BYTES_SENT,
 	BYTES_RECEIVED,
+
+	// Output error enums
+	OUT_CONTROLLER_ID_ERROR,
+	OUT_INIT_ERROR,
+	OUT_DRIVER_INIT_ERROR,
+	OUT_INVALID_PARAM_ERROR,
+
 	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
 } statistics_counter_enum_t;
 
@@ -140,6 +155,17 @@ void set_error_state_persistent(error_type_t type);
  * @param[in] error_type The type of error to display.
  */
 void show_error_pattern_blocking(error_type_t error_type);
+
+/**
+ * @brief Show error pattern for a bounded duration while servicing watchdog.
+ *
+ * Repeats the current error LED pattern and calls `update_watchdog_safe()`
+ * until `duration_ms` elapses. Use a value comfortably below the watchdog
+ * error grace in `update_watchdog_safe()` (currently 15000 ms).
+ *
+ * @param[in] duration_ms Duration to display the pattern, in milliseconds.
+ */
+void show_error_for_duration_ms(uint32_t duration_ms);
 
 /**
  * @brief Set the up watchdog with error detection object
