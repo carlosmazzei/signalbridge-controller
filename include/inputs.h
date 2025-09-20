@@ -1,223 +1,225 @@
+/**
+ * @file inputs.h
+ * @brief Input subsystem configuration and task interfaces.
+ *
+ * The module multiplexes a large keypad matrix, a bank of ADC channels and a
+ * configurable number of rotary encoders.  Scan results are converted into
+ * @ref data_events_t payloads that are queued for transmission to the host.
+ */
+
 #ifndef KEYPAD_H
 #define KEYPAD_H
 
-#include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stdint.h>
+
 #include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "pico/stdlib.h"
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
+#include "pico/stdlib.h"
+#include "queue.h"
+#include "task.h"
 
 /**
- * @defgroup KEYPAD Keypad definitions
+ * @defgroup input_subsystem Input subsystem
+ * @brief Configuration values and task entry points for input scanning.
+ *
+ * The definitions in this group describe the multiplexed keypad, ADC and
+ * encoder front-ends that feed the firmware.  They are shared by
+ * @ref inputs.c and consumers that need to reason about the generated
+ * @ref data_events_t payloads.
  * @{
  */
-/** @def KEYPAD_ROWS
- *  @brief Number of keypad rows. */
+
+/**
+ * @name Keypad matrix configuration
+ * @{
+ */
+/** Number of rows available in the keypad matrix. */
 #define KEYPAD_ROWS 8U
-/** @def KEYPAD_COLUMNS
- * @brief Number of keypad columns. */
+/** Number of columns available in the keypad matrix. */
 #define KEYPAD_COLUMNS 8U
-/** @def KEYPAD_MAX_COLS
- * @brief Maximum number of keypad columns. */
+/** Upper bound for the keypad column count accepted by @ref input_init(). */
 #define KEYPAD_MAX_COLS 8U
-/** @def KEYPAD_MAX_ROWS
- * @brief Maximum number of keypad rows. */
+/** Upper bound for the keypad row count accepted by @ref input_init(). */
 #define KEYPAD_MAX_ROWS 8U
-/** * @def KEYPAD_STABILITY_BITS
- * @brief Number of stability bits for debounce. */
-#define KEYPAD_STABILITY_BITS 3
-/** @def KEYPAD_STABILITY_MASK
- * @brief Bitmask for keypad stability. */
+/** Number of consecutive samples used to determine a stable key state. */
+#define KEYPAD_STABILITY_BITS 3U
+/** Bit-mask composed from @ref KEYPAD_STABILITY_BITS used for debouncing. */
 #define KEYPAD_STABILITY_MASK ((1U << KEYPAD_STABILITY_BITS) - 1U)
-/** @def KEYPAD_COL_MUX_A
- * @brief GPIO pin for keypad column multiplexer A. */
+/** GPIO identifier for the keypad column multiplexer bit 0. */
 #define KEYPAD_COL_MUX_A 0U
-/** @def KEYPAD_COL_MUX_B
- * @brief GPIO pin for keypad column multiplexer B. */
-#define KEYPAD_COL_MUX_B 1UL
-/** @def KEYPAD_COL_MUX_C
- * @brief GPIO pin for keypad column multiplexer C. */
-#define KEYPAD_COL_MUX_C 2UL
-/** @def KEYPAD_COL_MUX_CS
- * @brief GPIO pin for keypad column multiplexer chip select. */
-#define KEYPAD_COL_MUX_CS 17UL
-/** @def KEYPAD_ROW_INPUT
- * @brief GPIO pin for keypad row input. */
+/** GPIO identifier for the keypad column multiplexer bit 1. */
+#define KEYPAD_COL_MUX_B 1U
+/** GPIO identifier for the keypad column multiplexer bit 2. */
+#define KEYPAD_COL_MUX_C 2U
+/** Chip-select GPIO for the keypad column multiplexer (active low). */
+#define KEYPAD_COL_MUX_CS 17U
+/** GPIO identifier for the keypad row input used for sampling. */
 #define KEYPAD_ROW_INPUT 9U
-/** @def KEYPAD_ROW_MUX_A
- * @brief GPIO pin for keypad row multiplexer A. */
+/** GPIO identifier for the keypad row multiplexer bit 0. */
 #define KEYPAD_ROW_MUX_A 6U
-/** @def KEYPAD_ROW_MUX_B
- * @brief GPIO pin for keypad row multiplexer B. */
+/** GPIO identifier for the keypad row multiplexer bit 1. */
 #define KEYPAD_ROW_MUX_B 7U
-/** @def KEYPAD_ROW_MUX_C
- * @brief GPIO pin for keypad row multiplexer C. */
+/** GPIO identifier for the keypad row multiplexer bit 2. */
 #define KEYPAD_ROW_MUX_C 3U
-/** @def KEYPAD_ROW_MUX_CS
- * @brief GPIO pin for keypad row multiplexer chip select. */
+/** Chip-select GPIO for the keypad row multiplexer (active low). */
 #define KEYPAD_ROW_MUX_CS 8U
-/** @def KEY_PRESSED_MASK
- * @brief Bitmask for key pressed state (two consecutives actives). */
+/** Debounce mask indicating a stable pressed state. */
 #define KEY_PRESSED_MASK 0x03U
-/** @def KEY_RELEASED_MASK
- * @brief Bitmask for key released state (two consecutives inactives). */
+/** Debounce mask indicating a stable released state. */
 #define KEY_RELEASED_MASK 0x04U
-/** @def  KEY_PRESSED
- * @brief Key pressed state. */
+/** Encoded state value for a pressed key. */
 #define KEY_PRESSED 1U
-/** @def KEY_RELEASED
- * @brief Key released state. */
+/** Encoded state value for a released key. */
 #define KEY_RELEASED 0U
 /** @} */
 
 /**
- * @defgroup ADC ADC definitions
+ * @name ADC multiplexer configuration
  * @{
  */
-/** @def ADC_MUX_A
- * @brief GPIO pin for ADC multiplexer A. */
+/** GPIO identifier for ADC multiplexer bit 0. */
 #define ADC_MUX_A 20U
-/** @def ADC_MUX_B
- * @brief GPIO pin for ADC multiplexer B. */
+/** GPIO identifier for ADC multiplexer bit 1. */
 #define ADC_MUX_B 21U
-/** @def ADC_MUX_C
- * @brief GPIO pin for ADC multiplexer C. */
+/** GPIO identifier for ADC multiplexer bit 2. */
 #define ADC_MUX_C 22U
-/** @def ADC_MUX_D
- * @brief GPIO pin for ADC multiplexer D. */
+/** GPIO identifier for ADC multiplexer bit 3. */
 #define ADC_MUX_D 11U
-/** @def ADC_CHANNELS
- * @brief Maximum number of ADC channels. */
-#define ADC_CHANNELS 16
-/** @def ADC_NUM_TAPS
- * @brief Number of taps for moving average filter.
- * This defines how many samples are used for filtering ADC values.
- */
-#define ADC_NUM_TAPS 4
+/** Number of ADC channels provided by the hardware multiplexer. */
+#define ADC_CHANNELS 16U
+/** Length of the moving-average filter applied to ADC samples. */
+#define ADC_NUM_TAPS 4U
 /** @} */
 
 /**
- * @defgroup ENCODER Encoder definitions
+ * @name Encoder configuration
  * @{
  */
-/** @def MAX_NUM_ENCODERS
- * @brief Maximum number of rotary encoders supported.
- */
+/** Maximum number of rotary encoders supported by the input task. */
 #define MAX_NUM_ENCODERS 8U
 /** @} */
 
 /**
- * @brief Input configuration structure (keypad, ADC, encoder).
+ * @brief Run-time configuration for the input subsystem.
  */
 typedef struct input_config_t
 {
-	uint8_t rows;                /**< Number of keypad rows */
-	uint8_t columns;             /**< Number of keypad columns */
-	uint16_t key_settling_time_ms; /**< Key settling time in milliseconds */
-	uint8_t adc_channels;        /**< ADC channels per bank */
-	uint16_t adc_settling_time_ms; /**< ADC settling time in milliseconds */
-	QueueHandle_t input_event_queue; /**< Queue for sending input events */
-	bool encoder_mask[MAX_NUM_ENCODERS]; /**< Mask to enable/disable encoders */
-	uint16_t encoder_settling_time_ms; /**< Encoder settling time in milliseconds */
+        uint8_t rows;                             /**< Number of keypad rows to scan. */
+        uint8_t columns;                          /**< Number of keypad columns to scan. */
+        uint16_t key_settling_time_ms;            /**< Debounce delay applied between column selects. */
+        uint8_t adc_channels;                     /**< Number of ADC channels populated on the board. */
+        uint16_t adc_settling_time_ms;            /**< Delay between ADC channel selections. */
+        QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
+        bool encoder_mask[MAX_NUM_ENCODERS];      /**< Bitmap flagging which rows host encoders. */
+        uint16_t encoder_settling_time_ms;        /**< Delay between encoder samples. */
 } input_config_t;
 
-
 /**
- * @brief Possible results for input functions.
+ * @brief Result codes produced by the input subsystem API.
  */
 typedef enum input_result_t {
-	INPUT_OK = 0,        /**< Operation successful */
-	INPUT_ERROR = 1,     /**< Operation failed */
-	INPUT_INVALID_CONFIG = 2,/**< Invalid configuration */
-	INPUT_QUEUE_FULL = 3 /**< Input event queue is full */
+        INPUT_OK = 0,             /**< Operation completed successfully. */
+        INPUT_ERROR = 1,          /**< Unspecified error while processing. */
+        INPUT_INVALID_CONFIG = 2, /**< One or more configuration parameters are invalid. */
+        INPUT_QUEUE_FULL = 3      /**< Event queue did not accept new data. */
 } input_result_t;
 
 /**
- * @brief Structure to hold ADC states (filters, samples, indices).
+ * @brief Bookkeeping data for ADC channels.
  */
 typedef struct adc_states_t
 {
-	uint16_t adc_previous_value[ADC_CHANNELS];     /**< Last filtered value for each channel */
-	uint32_t adc_sum_values[ADC_CHANNELS];         /**< Sum of values for moving average */
-	uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS]; /**< Recent samples for each channel */
-	uint16_t samples_index[ADC_CHANNELS];          /**< Circular index for samples */
+        uint16_t adc_previous_value[ADC_CHANNELS];            /**< Last filtered reading per channel. */
+        uint32_t adc_sum_values[ADC_CHANNELS];                /**< Accumulator used by the moving average filter. */
+        uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS];/**< Circular buffer with recent samples. */
+        uint16_t samples_index[ADC_CHANNELS];                 /**< Cursor into @ref adc_sample_value. */
 } adc_states_t;
 
 /**
- * @brief Structure to hold rotary encoder states.
+ * @brief Quadrature decoder state for each rotary encoder.
  */
 typedef struct encoder_states_t
 {
-	uint8_t old_encoder; /**< Previous encoder state (for transition detection) */
-	int8_t count_encoder; /**< Encoder step counter */
+        uint8_t old_encoder; /**< Last sampled quadrature state. */
+        int8_t count_encoder;/**< Accumulated detent count pending reporting. */
 } encoder_states_t;
 
+/** @} */
 
 /**
- * @brief Initialize the input system (keypad, ADC, encoder).
+ * @brief Configure GPIO, ADC and encoder metadata for subsequent input tasks.
  *
- * @param[in] config Pointer to the input configuration structure.
- * @return INPUT_OK if initialized successfully, INPUT_INVALID_CONFIG if parameters are invalid.
+ * The function validates the provided configuration and primes the internal
+ * state machines.  On success, the calling code can start the keypad, ADC and
+ * encoder tasks which will make use of the cached settings.
+ *
+ * @param[in] config Pointer to a populated configuration structure.
+ *
+ * @retval INPUT_OK             Configuration accepted and hardware initialised.
+ * @retval INPUT_INVALID_CONFIG One or more parameters are outside the
+ *                              supported range.
  */
 input_result_t input_init(const input_config_t *config);
 
 /**
- * @brief Keypad task to update and populate key events
- * @param[in,out] pvParameters Pointer to the keypad task parameters.
+ * @brief FreeRTOS task that scans the keypad matrix and generates key events.
+ *
+ * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void keypad_task(void *pvParameters);
 
 /**
- * @brief Set the rows of the keypad.
- * @param[in] rows Rows to set.
+ * @brief Update the active row selection on the keypad multiplexer.
+ *
+ * @param[in] rows Row index to present on the multiplexer outputs.
  */
 void keypad_set_rows(uint8_t rows);
 
 /**
- * @brief Set the columns of the keypad.
- * @param[in] columns Columns to set.
+ * @brief Update the active column selection on the keypad multiplexer.
+ *
+ * @param[in] columns Column index to present on the multiplexer outputs.
  */
 void keypad_set_columns(uint8_t columns);
 
 /**
- * @brief Generate and send a key event to the input event queue.
- * @param[in] row Key row.
- * @param[in] column Key column.
- * @param[in] state Key state (KEY_PRESSED or KEY_RELEASED).
- * @details The event is only sent if the input event queue is not NULL.
+ * @brief Enqueue a keypad event describing the transition of a single key.
+ *
+ * @param[in] row    Keypad row index that changed state.
+ * @param[in] column Keypad column index that changed state.
+ * @param[in] state  New key state, see @ref KEY_PRESSED and @ref KEY_RELEASED.
  */
 void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state);
 
 /**
- * @brief FreeRTOS task for reading ADC channels, filtering, and generating events.
+ * @brief FreeRTOS task that samples the ADC multiplexer and reports changes.
  *
- * @param[in] pvParameters Pointer to task parameters (task_props_t*).
+ * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void adc_read_task(void *pvParameters);
 
 /**
- * @brief Select the ADC input.
- * @param[in] channel Channel to select
+ * @brief Present a new channel selection on the ADC multiplexer.
+ *
+ * @param[in] channel Channel index to route to the ADC core.
  */
 void adc_mux_select(uint8_t channel);
 
 /**
- * @brief FreeRTOS task for reading rotary encoders and generating events.
+ * @brief FreeRTOS task that decodes rotary encoder transitions.
  *
- * @param[in] pvParameters Pointer to task parameters (task_props_t*).
+ * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void encoder_read_task(void *pvParameters);
 
 /**
- * @brief Generate and send a rotary encoder event to the event queue.
+ * @brief Enqueue a rotary encoder event with the detected direction.
  *
- * @param[in] rotary Encoder number.
- * @param[in] dir Rotation direction (1 for clockwise, 0 for counterclockwise).
+ * @param[in] rotary Encoder identifier (0-based index).
+ * @param[in] dir    Direction flag (`1` clockwise, `0` counter-clockwise).
  */
 void encoder_generate_event(uint8_t rotary, uint16_t dir);
 
-#endif
+#endif /* KEYPAD_H */

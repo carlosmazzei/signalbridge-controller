@@ -12,12 +12,14 @@
  *   (c) 2020-2025 Carlos Mazzei. All rights reserved.
  */
 
+#include <string.h>
+
 #include "inputs.h"
-#include "data_event.h"
-#include "task_props.h"
-#include "hardware/watchdog.h"
 #include "commands.h"
+#include "data_event.h"
 #include "error_management.h"
+#include "hardware/watchdog.h"
+#include "task_props.h"
 
 /**
  * @brief Input configuration instance (module scope).
@@ -29,11 +31,10 @@ static input_config_t input_config;
  */
 static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 
-/**
- * @brief ADC states for each channel.
- */
+/** @brief ADC filter state exported for use by the ADC task. */
 adc_states_t adc_states;
 
+/** @copydoc input_init */
 input_result_t input_init(const input_config_t *config)
 {
 	input_result_t result = INPUT_OK;
@@ -68,7 +69,7 @@ input_result_t input_init(const input_config_t *config)
 		}
 		input_config.encoder_settling_time_ms = config->encoder_settling_time_ms;
 
-		// Setup IO pins / use gpio_init_mask insted to initialized multiple pins
+                // Setup IO pins using gpio_init_mask to configure multiple pins at once
                 uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
                                       (1UL << KEYPAD_COL_MUX_B) |
                                       (1UL << KEYPAD_COL_MUX_C) |
@@ -98,7 +99,8 @@ input_result_t input_init(const input_config_t *config)
 
 /**
  * @brief Control the chip select (CS) for the keypad row multiplexer.
- * @param[in] select true to enable (active low), false to disable.
+ *
+ * @param[in] select `true` to enable the row bank (active low).
  */
 static inline void keypad_cs_rows(bool select)
 {
@@ -107,42 +109,56 @@ static inline void keypad_cs_rows(bool select)
 
 /**
  * @brief Control the chip select (CS) for the keypad column multiplexer.
- * @param[in] select true to enable (active low), false to disable.
+ *
+ * @param[in] select `true` to enable the column bank (active low).
  */
 static inline void keypad_cs_columns(bool select)
 {
-	gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
+        gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
 }
 
+/**
+ * @brief Convert keypad row/column coordinates into a 1D index.
+ *
+ * @param[in] row    Row index to encode.
+ * @param[in] column Column index to encode.
+ *
+ * @return Linear index into @ref keypad_state.
+ */
+static inline uint8_t keypad_index(uint8_t row, uint8_t column)
+{
+        return (uint8_t)(column * input_config.rows) + row;
+}
+
+/** @copydoc keypad_task */
 void keypad_task(void *pvParameters)
 {
-	task_props_t * task_props = (task_props_t*) pvParameters;
+        task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
 	{
-		for (uint8_t c = 0; c < input_config.columns; c++)
-		{
-			// Select the column
-			keypad_set_columns(c);
-			keypad_cs_columns(true);
-			uint8_t keycode_base = c * input_config.rows;
+                for (uint8_t c = 0; c < input_config.columns; c++)
+                {
+                        // Select the column
+                        keypad_set_columns(c);
+                        keypad_cs_columns(true);
 
-			// Settle the column
-			vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
+                        // Settle the column
+                        vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
 
-			for (uint8_t r = 0; r < input_config.rows; r++)
+                        for (uint8_t r = 0; r < input_config.rows; r++)
 			{
 				if (true == input_config.encoder_mask[r])
 				{
 					continue; // Skip encoder
 				}
 
-				keypad_set_rows(r); // Also set the ADC channels
-				keypad_cs_rows(true);
+                                keypad_set_rows(r); // Also set the ADC channels
+                                keypad_cs_rows(true);
 
-				uint8_t keycode = keycode_base + r;
-				bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
-				keypad_state[keycode] = ((keypad_state[keycode] << 1U) & 0xFEU) | (pressed ? 1U : 0U);
+                                uint8_t keycode = keypad_index(r, c);
+                                bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
+                                keypad_state[keycode] = ((keypad_state[keycode] << 1U) & 0xFEU) | (pressed ? 1U : 0U);
 
 				if (KEY_PRESSED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
 				{
@@ -163,25 +179,28 @@ void keypad_task(void *pvParameters)
 	}
 }
 
+/** @copydoc keypad_set_columns */
 void keypad_set_columns(uint8_t columns)
 {
-	// Set the columns of the keypad (multiplexer control)
-	gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
+        // Set the columns of the keypad (multiplexer control)
+        gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
 	gpio_put(KEYPAD_COL_MUX_B, (columns & 0x02U) != 0U);
 	gpio_put(KEYPAD_COL_MUX_C, (columns & 0x04U) != 0U);
 }
 
+/** @copydoc keypad_set_rows */
 void keypad_set_rows(uint8_t rows)
 {
-	// Set the rows of the keypad (multiplexer control)
-	gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
-	gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
-	gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
+        // Set the rows of the keypad (multiplexer control)
+        gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
+        gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
+        gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
 }
 
+/** @copydoc keypad_generate_event */
 void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 {
-	if (NULL != input_config.input_event_queue)
+        if (NULL != input_config.input_event_queue)
 	{
 		data_events_t key_event;
 		key_event.command = PC_KEY_CMD;
@@ -194,10 +213,12 @@ void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 
 /**
  * @brief Generate and send an ADC event to the input event queue.
- * @param channel ADC channel number.
- * @param value Filtered ADC value.
- * @details The event contains the channel and the 16-bit value split into two bytes.
- *          The event is only sent if the input event queue is not NULL.
+ *
+ * @param[in] channel ADC channel number.
+ * @param[in] value   Filtered ADC value.
+ *
+ * The event contains the channel and the 16-bit value split into two bytes and
+ * is only sent when the input queue is available.
  */
 static void adc_generate_event(uint8_t channel, uint16_t value)
 {
@@ -215,12 +236,12 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
 
 /**
  * @brief Calculate the moving average for an ADC channel.
- * @param[in] channel ADC channel index.
- * @param[in] new_sample New ADC sample value.
- * @param[in,out] samples Pointer to the sample buffer for the channel.
+ * @param[in]     channel     ADC channel index.
+ * @param[in]     new_sample  New ADC sample value.
+ * @param[in,out] samples     Pointer to the sample buffer for the channel.
  * @param[in,out] padc_states Pointer to the ADC states structure.
+ *
  * @return The moving average value for the specified channel.
- * @details Implements a circular buffer for moving average filtering.
  */
 static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *padc_states)
 {
@@ -240,9 +261,10 @@ static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16
 	return (uint16_t)(padc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
 }
 
+/** @copydoc adc_read_task */
 void adc_read_task(void *pvParameters)
 {
-	task_props_t * task_props = (task_props_t*) pvParameters;
+        task_props_t * task_props = (task_props_t*) pvParameters;
 
 	// Initialize the ADC states
 	for (int i = 0; i < ADC_CHANNELS; i++)
@@ -287,19 +309,21 @@ void adc_read_task(void *pvParameters)
 	}
 }
 
+/** @copydoc adc_mux_select */
 void adc_mux_select(uint8_t channel)
 {
-	// Select the ADC channel via multiplexer
-	gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
+        // Select the ADC channel via multiplexer
+        gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
 	gpio_put(ADC_MUX_B, (channel & 0x02U) != 0U);
 	gpio_put(ADC_MUX_C, (channel & 0x04U) != 0U);
 	gpio_put(ADC_MUX_D, (channel & 0x08U) != 0U);
 }
 
+/** @copydoc encoder_read_task */
 void encoder_read_task(void *pvParameters)
 {
-	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
-	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+        const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+        encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 
 	task_props_t * task_prop = (task_props_t*) pvParameters;
 
@@ -367,10 +391,11 @@ void encoder_read_task(void *pvParameters)
 	}
 }
 
+/** @copydoc encoder_generate_event */
 void encoder_generate_event(uint8_t rotary, uint16_t direction)
 {
-	if (NULL != input_config.input_event_queue)
-	{
+        if (NULL != input_config.input_event_queue)
+        {
 		data_events_t encoder_event;
 		encoder_event.data[0] = 0;
 		encoder_event.data[1] = 0;
@@ -384,7 +409,8 @@ void encoder_generate_event(uint8_t rotary, uint16_t direction)
 
 /**
  * @brief Set the encoder mask to enable or disable encoders.
- * @param mask Bitmask to enable/disable encoders.
+ *
+ * @param[in] mask Bitmask to enable or disable individual encoders.
  */
 static void encoder_set_mask(uint8_t mask)
 {

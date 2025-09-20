@@ -1,0 +1,73 @@
+/**
+ * @mainpage Signalbridge Controller Firmware
+ *
+ * @section overview Overview
+ * The Signalbridge Controller firmware turns a Raspberry Pi Pico into a USB powered
+ * I/O concentrator for home cockpit panels.  It multiplexes dozens of discrete
+ * switches, rotary encoders, analog sensors, LED annunciators and seven-segment
+ * displays and exposes their state to a desktop flight simulator host over a
+ * CDC (virtual COM) link.  The codebase is organised as a collection of
+ * FreeRTOS tasks, hardware abstraction layers for the TM1637/TM1639 LED
+ * controllers, and lightweight communication helpers built around Consistent
+ * Overhead Byte Stuffing (COBS).
+ *
+ * @section architecture Firmware architecture
+ * - @ref app_setup_hardware() prepares the hardware peripherals, instantiates
+ *   the shared application context and configures the multiplexer front-ends
+ *   that fan signals across the keypad, encoder and ADC banks.
+ * - @ref app_tasks_create_all() launches the FreeRTOS tasks that scan inputs,
+ *   service TinyUSB, marshal outbound events and refresh the various display
+ *   controllers.
+ * - The @ref app_comm_send_packet() helper encodes responses and telemetries
+ *   with COBS and enqueues them on the TinyUSB CDC transmit queue, while
+ *   @ref app_comm_process_inbound() routes host commands to the outputs layer.
+ * - @ref output_init() initialises the SPI fabric, PWM dimmer channel, TM1637
+ *   and TM1639 drivers and exposes helpers to drive both seven-segment digits
+ *   and discrete LED lamps.
+ * - @ref input_init() and its companion tasks scan the keypad matrix, perform
+ *   moving-average filtering on the ADC channels and decode rotary encoders,
+ *   generating @ref data_events_t records that are forwarded to the host.
+ * - @ref error_management.h consolidates system statistics, watchdog handling
+ *   and persistent error reporting that is reflected on the status LED.
+ *
+ * @section data_flow Data flow
+ * 1. Host commands arrive through TinyUSB and are framed as COBS packets.
+ * 2. @ref app_tasks.c decodes the packets and dispatches requests to
+ *    @ref outputs.c or internal services.
+ * 3. Input tasks generate events in the @ref data_event_t format which are
+ *    encoded by @ref app_comm_send_packet() and sent back to the simulator.
+ * 4. Error counters and runtime telemetry are exposed over dedicated commands
+ *    so the host can monitor board health.
+ *
+ * @section tasks FreeRTOS tasks
+ * | Task | Responsibility |
+ * | ---- | -------------- |
+ * | `cdc_task` | Services TinyUSB and pumps the device stack. |
+ * | `uart_event_task` | Buffers inbound CDC bytes and feeds the COBS decoder. |
+ * | `decode_reception_task` | Reconstructs packets and hands them to
+ *   @ref app_comm_process_inbound(). |
+ * | `process_outbound_task` | Converts queued @ref data_events_t into CDC
+ *   packets. |
+ * | `cdc_write_task` | Streams encoded frames to the host while honouring flow
+ *   control. |
+ * | `keypad_task`, `adc_read_task`, `encoder_read_task` | Scan the keypad
+ *   matrix, ADC channels and rotary encoders respectively. |
+ * | `led_status_task` | Provides visual feedback for the current error state
+ *   and USB link status. |
+ *
+ * @section diagnostics Diagnostics and watchdog
+ * The firmware mirrors critical error conditions to a dedicated LED pattern,
+ * keeps a rolling set of counters for communication faults, and leverages the
+ * RP2040 watchdog to recover from persistent failures.  The documentation in
+ * @ref error_management.h details the available statistics counters and error
+ * types that can be queried by the host.
+ *
+ * @section extending Extending the firmware
+ * The modular layout separates public APIs in `include/` from their
+ * implementations in `src/`.  Each subsystem exposes a focused set of
+ * functions documented with detailed parameter, return and error conditions so
+ * new hardware drivers or control panels can be integrated with minimal
+ * friction.  Refer to the documentation of @ref outputs.h and @ref inputs.h for
+ * examples of how payloads are structured and queues are used to exchange data
+ * between tasks.
+ */

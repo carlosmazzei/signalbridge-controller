@@ -83,6 +83,7 @@ static void process_outbound_task(void *pvParameters);
 static void cdc_write_task(void *pvParameters);
 static void led_status_task(void *pvParameters);
 
+/** @copydoc app_tasks_create_all */
 bool app_tasks_create_all(void)
 {
         bool success = true;
@@ -208,6 +209,7 @@ bool app_tasks_create_all(void)
         return success;
 }
 
+/** @copydoc app_tasks_cleanup */
 void app_tasks_cleanup(void)
 {
         QueueHandle_t queue = app_context_get_encoded_queue();
@@ -243,6 +245,11 @@ void app_tasks_cleanup(void)
         }
 }
 
+/**
+ * @brief Task that reads raw CDC bytes and enqueues them for decoding.
+ *
+ * @param[in,out] pvParameters Pointer to the owning task properties structure.
+ */
 static void uart_event_task(void *pvParameters)
 {
         task_props_t *task_prop = (task_props_t *)pvParameters;
@@ -274,6 +281,11 @@ static void uart_event_task(void *pvParameters)
         }
 }
 
+/**
+ * @brief TinyUSB device task responsible for polling the USB stack.
+ *
+ * @param[in,out] pvParameters Pointer to the owning task properties structure.
+ */
 static void cdc_task(void *pvParameters)
 {
         task_props_t *task_prop = (task_props_t *)pvParameters;
@@ -286,6 +298,11 @@ static void cdc_task(void *pvParameters)
         }
 }
 
+/**
+ * @brief Task that decodes COBS-framed packets received from the host.
+ *
+ * @param[in,out] pvParameters Pointer to the owning task properties structure.
+ */
 static void decode_reception_task(void *pvParameters)
 {
         task_props_t *task_prop = (task_props_t *)pvParameters;
@@ -346,6 +363,11 @@ static void decode_reception_task(void *pvParameters)
         }
 }
 
+/**
+ * @brief Task that sends queued input events to the host.
+ *
+ * @param[in,out] pvParameters Pointer to the owning task properties structure.
+ */
 static void process_outbound_task(void *pvParameters)
 {
         task_props_t *task_prop = (task_props_t *)pvParameters;
@@ -379,6 +401,11 @@ static void process_outbound_task(void *pvParameters)
         }
 }
 
+/**
+ * @brief Task that transmits encoded packets over USB CDC.
+ *
+ * @param[in,out] pvParameters Pointer to the owning task properties structure.
+ */
 static void cdc_write_task(void *pvParameters)
 {
         task_props_t *task_prop = (task_props_t *)pvParameters;
@@ -419,6 +446,11 @@ static void cdc_write_task(void *pvParameters)
         }
 }
 
+/**
+ * @brief Task that drives the status LED based on system state.
+ *
+ * @param[in,out] pvParameters Pointer to the owning task properties structure.
+ */
 static void led_status_task(void *pvParameters)
 {
         task_props_t *task_prop = (task_props_t *)pvParameters;
@@ -462,6 +494,11 @@ static void led_status_task(void *pvParameters)
         }
 }
 
+/**
+ * @brief FreeRTOS hook that retrieves the current runtime counter in microseconds.
+ *
+ * @return Monotonic runtime value used by the kernel statistics module.
+ */
 uint32_t ulPortGetRunTime(void)
 {
         return time_us_32();

@@ -17,6 +17,7 @@
 #include "inputs.h"
 #include "outputs.h"
 
+/** @copydoc app_setup_hardware */
 bool app_setup_hardware(void)
 {
         bool success = true;

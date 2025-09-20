@@ -13,10 +13,12 @@
  * (c) 2020-2025 Carlos Mazzei. All rights reserved.
  */
 
-#include "hardware/spi.h"
+#include <string.h>
+
 #include "hardware/pwm.h"
-#include "pico/stdlib.h"
+#include "hardware/spi.h"
 #include "pico/binary_info.h"
+#include "pico/stdlib.h"
 
 #include "FreeRTOS.h"
 #include "semphr.h"
@@ -29,8 +31,8 @@
 /**
  * @brief Device configuration map for all SPI interfaces.
  *
- * This array holds the device type for each SPI interface, as defined by DEVICE_CONFIG.
- * Each entry corresponds to a controller ID (0-based).
+ * Mirrors @ref DEVICE_CONFIG so the implementation can reason about the
+ * concrete driver assigned to each logical slot.
  */
 static const uint8_t device_config_map[MAX_SPI_INTERFACES] = DEVICE_CONFIG;
 
@@ -43,22 +45,18 @@ static SemaphoreHandle_t spi_mutex = NULL;
 
 /**
  * @brief Structure holding all output driver handles (module scope).
- *
- * This variable stores pointers to the initialized output drivers for each interface.
  */
 static output_drivers_t output_drivers;
 
-// Function declarations
-
 /**
- * @brief Initialize the multiplexer for chip select control
- * This function initializes the GPIO pins used for the multiplexer
+ * @brief Initialise GPIO used by the SPI multiplexer.
  *
- * @return output_result_t Error code, 0 if successful
+ * @retval OUTPUT_OK        GPIOs configured successfully.
+ * @retval OUTPUT_ERR_INIT  One or more GPIOs failed the post-configuration check.
  */
 static output_result_t init_mux(void)
 {
-	tm1639_result_t result = TM1639_OK;
+        tm1639_result_t result = TM1639_OK;
 
 	// Initialize multiplexer pins
 	gpio_init(SPI_MUX_CS);
@@ -101,16 +99,17 @@ static output_result_t init_mux(void)
 }
 
 /**
- * @brief Select the interace chip through multiplexer
- *  This function selects the specified chip by setting the multiplexer pins
+ * @brief Toggle the multiplexer lines for the requested device.
  *
- * @param[in] chip_select Chip select number (0-7)
- * @param[in] select True to select (STB low), false to deselect (STB high)
- * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
+ * @param[in] chip_select Chip select number (0-7).
+ * @param[in] select      `true` to assert the strobe, `false` to release it.
+ *
+ * @retval OUTPUT_OK            Multiplexer state updated.
+ * @retval OUTPUT_ERR_INVALID_PARAM Chip identifier outside the supported range.
  */
 static output_result_t select_interface(uint8_t chip_select, bool select)
 {
-	output_result_t result = OUTPUT_OK;
+        output_result_t result = OUTPUT_OK;
 
 	// Check if chip_select is within valid range
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
@@ -141,20 +140,14 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 }
 
 /**
- * @brief Initialize the output drivers
- * This function initializes the output drivers based on the device configuration map.
- * It checks the device type for each SPI interface and initializes the corresponding driver.
- * For TM1639 devices, it initializes the TM1639 driver with the appropriate parameters.
- * For generic devices, it can be extended to initialize a generic driver if needed.
- * If a device type is not supported, it skips initialization for that interface.
+ * @brief Instantiate driver back-ends based on @ref device_config_map.
  *
- * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
- * @note This function assumes that the device_config_map is correctly defined and matches the expected device types.
- *
+ * @retval OUTPUT_OK        All configured drivers initialised successfully.
+ * @retval OUTPUT_ERR_INIT  At least one driver failed to allocate resources.
  */
 static output_result_t init_driver(void)
 {
-	output_result_t result = OUTPUT_OK;
+        output_result_t result = OUTPUT_OK;
 
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
@@ -205,15 +198,14 @@ static output_result_t init_driver(void)
 }
 
 /**
- * @brief Initialize UART0 on GPIO 16 (TX) and GPIO 17 (RX).
- * This function configures UART0 with the specified baud rate and assigns the TX/RX pins.
+ * @brief Initialise UART0 on GPIO 12 (TX) and GPIO 13 (RX).
  *
- * @param[in] baudrate UART baud rate (e.g., 115200).
+ * @param[in] baudrate UART baud rate (e.g. 115200).
  */
 static void uart0_init(uint32_t baudrate)
 {
-	// Initialize UART0 hardware
-	uart_init(uart0, baudrate);
+        // Initialize UART0 hardware
+        uart_init(uart0, baudrate);
 
 	// Set GPIO 12 as UART0 TX
 	gpio_set_function(12, GPIO_FUNC_UART);
@@ -225,9 +217,10 @@ static void uart0_init(uint32_t baudrate)
 	uart_set_fifo_enabled(uart0, true);
 }
 
+/** @copydoc output_init */
 output_result_t output_init(void)
 {
-	output_result_t result = OUTPUT_OK;
+        output_result_t result = OUTPUT_OK;
 
 	// Create mutex
 	if (!spi_mutex)
@@ -287,9 +280,10 @@ output_result_t output_init(void)
 	return result;
 }
 
+/** @copydoc display_out */
 output_result_t display_out(const uint8_t *payload, uint8_t length)
 {
-	output_result_t result = OUTPUT_OK;
+        output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
 
 	/**
@@ -376,10 +370,11 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	return result;
 }
 
+/** @copydoc led_out */
 output_result_t led_out(const uint8_t *payload, uint8_t length)
 {
-	output_result_t result = OUTPUT_OK;
-	uint8_t physical_cs;
+        output_result_t result = OUTPUT_OK;
+        uint8_t physical_cs;
 
 	/**
 	 * @par Parameter validation
@@ -458,9 +453,10 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	return result;
 }
 
+/** @copydoc set_pwm_duty */
 void set_pwm_duty(uint8_t duty)
 {
-	// Square the fade value to make the LED's brightness appear more linear
-	// Note this range matches with the wrap value
-	pwm_set_gpio_level(PWM_PIN, duty * duty);
+        // Square the fade value to make the LED's brightness appear more linear
+        // Note this range matches with the wrap value
+        pwm_set_gpio_level(PWM_PIN, duty * duty);
 }
