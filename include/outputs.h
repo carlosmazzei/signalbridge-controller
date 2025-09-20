@@ -86,25 +86,25 @@
  * given payload.
  */
 #define DEVICE_CONFIG { \
-        DEVICE_TM1639_DIGIT, /* Device 0 */ \
-        DEVICE_TM1637_DIGIT, /* Device 1 */ \
-        DEVICE_TM1639_DIGIT, /* Device 2 */ \
-        DEVICE_TM1639_LED,   /* Device 3 */ \
-        DEVICE_NONE,         /* Device 4 */ \
-        DEVICE_NONE,         /* Device 5 */ \
-        DEVICE_NONE,         /* Device 6 */ \
-        DEVICE_NONE          /* Device 7 */ \
+		DEVICE_TM1639_DIGIT, /* Device 0 */ \
+		DEVICE_TM1637_DIGIT, /* Device 1 */ \
+		DEVICE_TM1639_DIGIT, /* Device 2 */ \
+		DEVICE_TM1639_LED, /* Device 3 */ \
+		DEVICE_NONE, /* Device 4 */ \
+		DEVICE_NONE, /* Device 5 */ \
+		DEVICE_NONE, /* Device 6 */ \
+		DEVICE_NONE  /* Device 7 */ \
 }
 
 /**
  * @brief Result codes returned by output helpers.
  */
 typedef enum output_result_t {
-        OUTPUT_OK = 0,             /**< Operation completed successfully. */
-        OUTPUT_ERR_INIT = 1,       /**< Hardware initialisation failed. */
-        OUTPUT_ERR_DISPLAY_OUT = 2,/**< Display or LED driver rejected the payload. */
-        OUTPUT_ERR_INVALID_PARAM = 3, /**< Payload validation failed. */
-        OUTPUT_ERR_SEMAPHORE = 4   /**< Failed to acquire the SPI mutex. */
+	OUTPUT_OK = 0,             /**< Operation completed successfully. */
+	OUTPUT_ERR_INIT = 1,       /**< Hardware initialisation failed. */
+	OUTPUT_ERR_DISPLAY_OUT = 2,/**< Display or LED driver rejected the payload. */
+	OUTPUT_ERR_INVALID_PARAM = 3, /**< Payload validation failed. */
+	OUTPUT_ERR_SEMAPHORE = 4   /**< Failed to acquire the SPI mutex. */
 } output_result_t;
 
 /**
@@ -117,25 +117,25 @@ typedef struct output_driver_t output_driver_t;
  * @brief Abstraction around a concrete display or LED driver instance.
  */
 struct output_driver_t {
-        uint8_t chip_id; /**< Logical identifier mapped to the multiplexer select lines. */
-        output_result_t (*select_interface)(uint8_t chip_id, bool select); /**< Mux control callback. */
-        output_result_t (*set_digits)(output_driver_t *config, const uint8_t *digits, size_t length, uint8_t dot_position); /**< Digit update callback. */
-        output_result_t (*set_leds)(output_driver_t *config, uint8_t leds, uint8_t ledstate); /**< LED update callback. */
-        spi_inst_t *spi; /**< SPI instance used by the device (if applicable). */
-        uint8_t dio_pin; /**< GPIO pin used as DIO for TM1637 bit-banging. */
-        uint8_t clk_pin; /**< GPIO pin used as CLK for TM1637 bit-banging. */
-        uint8_t active_buffer[16]; /**< Snapshot of the last committed frame. */
-        uint8_t prep_buffer[16];   /**< Staging buffer used before flushing to hardware. */
-        bool buffer_modified;      /**< Indicates that @ref prep_buffer needs flushing. */
-        uint8_t brightness;        /**< Driver brightness level (0-7). */
-        bool display_on;           /**< Current display state. */
+	uint8_t chip_id; /**< Logical identifier mapped to the multiplexer select lines. */
+	output_result_t (*select_interface)(uint8_t chip_id, bool select); /**< Mux control callback. */
+	output_result_t (*set_digits)(output_driver_t *config, const uint8_t *digits, size_t length, uint8_t dot_position); /**< Digit update callback. */
+	output_result_t (*set_leds)(output_driver_t *config, uint8_t leds, uint8_t ledstate); /**< LED update callback. */
+	spi_inst_t *spi; /**< SPI instance used by the device (if applicable). */
+	uint8_t dio_pin; /**< GPIO pin used as DIO for TM1637 bit-banging. */
+	uint8_t clk_pin; /**< GPIO pin used as CLK for TM1637 bit-banging. */
+	uint8_t active_buffer[16]; /**< Snapshot of the last committed frame. */
+	uint8_t prep_buffer[16];   /**< Staging buffer used before flushing to hardware. */
+	bool buffer_modified;      /**< Indicates that @ref prep_buffer needs flushing. */
+	uint8_t brightness;        /**< Driver brightness level (0-7). */
+	bool display_on;           /**< Current display state. */
 };
 
 /**
  * @brief Container for every driver handle managed by @ref outputs.c.
  */
 typedef struct output_drivers_t {
-        output_driver_t *driver_handles[MAX_SPI_INTERFACES]; /**< Pointer table indexed by chip ID. */
+	output_driver_t *driver_handles[MAX_SPI_INTERFACES]; /**< Pointer table indexed by chip ID. */
 } output_drivers_t;
 
 /** @} */
@@ -185,4 +185,4 @@ output_result_t led_out(const uint8_t *payload, uint8_t length);
  */
 void set_pwm_duty(uint8_t duty);
 
-#endif /* OUTPUTS_H */
+#endif // OUTPUTS_H

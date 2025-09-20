@@ -34,7 +34,6 @@ static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 /** @brief ADC filter state exported for use by the ADC task. */
 adc_states_t adc_states;
 
-/** @copydoc input_init */
 input_result_t input_init(const input_config_t *config)
 {
 	input_result_t result = INPUT_OK;
@@ -69,20 +68,20 @@ input_result_t input_init(const input_config_t *config)
 		}
 		input_config.encoder_settling_time_ms = config->encoder_settling_time_ms;
 
-                // Setup IO pins using gpio_init_mask to configure multiple pins at once
-                uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
-                                      (1UL << KEYPAD_COL_MUX_B) |
-                                      (1UL << KEYPAD_COL_MUX_C) |
-                                      (1UL << KEYPAD_COL_MUX_CS) |
-                                      (1UL << KEYPAD_ROW_MUX_A) |
-                                      (1UL << KEYPAD_ROW_MUX_B) |
-                                      (1UL << KEYPAD_ROW_MUX_C) |
-                                      (1UL << KEYPAD_ROW_MUX_CS) |
-                                      (1UL << KEYPAD_ROW_INPUT) |
-                                      (1UL << ADC_MUX_A) |
-                                      (1UL << ADC_MUX_B) |
-                                      (1UL << ADC_MUX_C) |
-                                      (1UL << ADC_MUX_D));
+		// Setup IO pins using gpio_init_mask to configure multiple pins at once
+		uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
+		                      (1UL << KEYPAD_COL_MUX_B) |
+		                      (1UL << KEYPAD_COL_MUX_C) |
+		                      (1UL << KEYPAD_COL_MUX_CS) |
+		                      (1UL << KEYPAD_ROW_MUX_A) |
+		                      (1UL << KEYPAD_ROW_MUX_B) |
+		                      (1UL << KEYPAD_ROW_MUX_C) |
+		                      (1UL << KEYPAD_ROW_MUX_CS) |
+		                      (1UL << KEYPAD_ROW_INPUT) |
+		                      (1UL << ADC_MUX_A) |
+		                      (1UL << ADC_MUX_B) |
+		                      (1UL << ADC_MUX_C) |
+		                      (1UL << ADC_MUX_D));
 
 		gpio_init_mask(gpio_mask);
 		gpio_set_dir_masked(gpio_mask, 0xFFU);
@@ -114,7 +113,7 @@ static inline void keypad_cs_rows(bool select)
  */
 static inline void keypad_cs_columns(bool select)
 {
-        gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
+	gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
 }
 
 /**
@@ -127,38 +126,37 @@ static inline void keypad_cs_columns(bool select)
  */
 static inline uint8_t keypad_index(uint8_t row, uint8_t column)
 {
-        return (uint8_t)(column * input_config.rows) + row;
+	return (uint8_t)(column * input_config.rows) + row;
 }
 
-/** @copydoc keypad_task */
 void keypad_task(void *pvParameters)
 {
-        task_props_t * task_props = (task_props_t*) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	while (true)
 	{
-                for (uint8_t c = 0; c < input_config.columns; c++)
-                {
-                        // Select the column
-                        keypad_set_columns(c);
-                        keypad_cs_columns(true);
+		for (uint8_t c = 0; c < input_config.columns; c++)
+		{
+			// Select the column
+			keypad_set_columns(c);
+			keypad_cs_columns(true);
 
-                        // Settle the column
-                        vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
+			// Settle the column
+			vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
 
-                        for (uint8_t r = 0; r < input_config.rows; r++)
+			for (uint8_t r = 0; r < input_config.rows; r++)
 			{
 				if (true == input_config.encoder_mask[r])
 				{
 					continue; // Skip encoder
 				}
 
-                                keypad_set_rows(r); // Also set the ADC channels
-                                keypad_cs_rows(true);
+				keypad_set_rows(r); // Also set the ADC channels
+				keypad_cs_rows(true);
 
-                                uint8_t keycode = keypad_index(r, c);
-                                bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
-                                keypad_state[keycode] = ((keypad_state[keycode] << 1U) & 0xFEU) | (pressed ? 1U : 0U);
+				uint8_t keycode = keypad_index(r, c);
+				bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
+				keypad_state[keycode] = ((keypad_state[keycode] << 1U) & 0xFEU) | (pressed ? 1U : 0U);
 
 				if (KEY_PRESSED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
 				{
@@ -179,28 +177,25 @@ void keypad_task(void *pvParameters)
 	}
 }
 
-/** @copydoc keypad_set_columns */
 void keypad_set_columns(uint8_t columns)
 {
-        // Set the columns of the keypad (multiplexer control)
-        gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
+	// Set the columns of the keypad (multiplexer control)
+	gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
 	gpio_put(KEYPAD_COL_MUX_B, (columns & 0x02U) != 0U);
 	gpio_put(KEYPAD_COL_MUX_C, (columns & 0x04U) != 0U);
 }
 
-/** @copydoc keypad_set_rows */
 void keypad_set_rows(uint8_t rows)
 {
-        // Set the rows of the keypad (multiplexer control)
-        gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
-        gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
-        gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
+	// Set the rows of the keypad (multiplexer control)
+	gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
+	gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
+	gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
 }
 
-/** @copydoc keypad_generate_event */
 void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 {
-        if (NULL != input_config.input_event_queue)
+	if (NULL != input_config.input_event_queue)
 	{
 		data_events_t key_event;
 		key_event.command = PC_KEY_CMD;
@@ -261,10 +256,9 @@ static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16
 	return (uint16_t)(padc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
 }
 
-/** @copydoc adc_read_task */
 void adc_read_task(void *pvParameters)
 {
-        task_props_t * task_props = (task_props_t*) pvParameters;
+	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	// Initialize the ADC states
 	for (int i = 0; i < ADC_CHANNELS; i++)
@@ -309,21 +303,19 @@ void adc_read_task(void *pvParameters)
 	}
 }
 
-/** @copydoc adc_mux_select */
 void adc_mux_select(uint8_t channel)
 {
-        // Select the ADC channel via multiplexer
-        gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
+	// Select the ADC channel via multiplexer
+	gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
 	gpio_put(ADC_MUX_B, (channel & 0x02U) != 0U);
 	gpio_put(ADC_MUX_C, (channel & 0x04U) != 0U);
 	gpio_put(ADC_MUX_D, (channel & 0x08U) != 0U);
 }
 
-/** @copydoc encoder_read_task */
 void encoder_read_task(void *pvParameters)
 {
-        const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
-        encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 
 	task_props_t * task_prop = (task_props_t*) pvParameters;
 
@@ -373,7 +365,7 @@ void encoder_read_task(void *pvParameters)
 				{
 					encoder_generate_event(encoder_base, 1);
 				}                                  // then the index for enc_states
-                                else if (encoder_state[encoder_base].count_encoder == -4)
+				else if (encoder_state[encoder_base].count_encoder == -4)
 				{
 					encoder_generate_event(encoder_base, 0);
 				}
@@ -391,11 +383,10 @@ void encoder_read_task(void *pvParameters)
 	}
 }
 
-/** @copydoc encoder_generate_event */
 void encoder_generate_event(uint8_t rotary, uint16_t direction)
 {
-        if (NULL != input_config.input_event_queue)
-        {
+	if (NULL != input_config.input_event_queue)
+	{
 		data_events_t encoder_event;
 		encoder_event.data[0] = 0;
 		encoder_event.data[1] = 0;

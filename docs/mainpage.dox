@@ -34,7 +34,7 @@
  * 1. Host commands arrive through TinyUSB and are framed as COBS packets.
  * 2. @ref app_tasks.c decodes the packets and dispatches requests to
  *    @ref outputs.c or internal services.
- * 3. Input tasks generate events in the @ref data_event_t format which are
+ * 3. Input tasks generate events in the @ref data_events_t format which are
  *    encoded by @ref app_comm_send_packet() and sent back to the simulator.
  * 4. Error counters and runtime telemetry are exposed over dedicated commands
  *    so the host can monitor board health.

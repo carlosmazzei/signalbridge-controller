@@ -106,24 +106,24 @@
  */
 typedef struct input_config_t
 {
-        uint8_t rows;                             /**< Number of keypad rows to scan. */
-        uint8_t columns;                          /**< Number of keypad columns to scan. */
-        uint16_t key_settling_time_ms;            /**< Debounce delay applied between column selects. */
-        uint8_t adc_channels;                     /**< Number of ADC channels populated on the board. */
-        uint16_t adc_settling_time_ms;            /**< Delay between ADC channel selections. */
-        QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
-        bool encoder_mask[MAX_NUM_ENCODERS];      /**< Bitmap flagging which rows host encoders. */
-        uint16_t encoder_settling_time_ms;        /**< Delay between encoder samples. */
+	uint8_t rows;                             /**< Number of keypad rows to scan. */
+	uint8_t columns;                          /**< Number of keypad columns to scan. */
+	uint16_t key_settling_time_ms;            /**< Debounce delay applied between column selects. */
+	uint8_t adc_channels;                     /**< Number of ADC channels populated on the board. */
+	uint16_t adc_settling_time_ms;            /**< Delay between ADC channel selections. */
+	QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
+	bool encoder_mask[MAX_NUM_ENCODERS];      /**< Bitmap flagging which rows host encoders. */
+	uint16_t encoder_settling_time_ms;        /**< Delay between encoder samples. */
 } input_config_t;
 
 /**
  * @brief Result codes produced by the input subsystem API.
  */
 typedef enum input_result_t {
-        INPUT_OK = 0,             /**< Operation completed successfully. */
-        INPUT_ERROR = 1,          /**< Unspecified error while processing. */
-        INPUT_INVALID_CONFIG = 2, /**< One or more configuration parameters are invalid. */
-        INPUT_QUEUE_FULL = 3      /**< Event queue did not accept new data. */
+	INPUT_OK = 0,             /**< Operation completed successfully. */
+	INPUT_ERROR = 1,          /**< Unspecified error while processing. */
+	INPUT_INVALID_CONFIG = 2, /**< One or more configuration parameters are invalid. */
+	INPUT_QUEUE_FULL = 3      /**< Event queue did not accept new data. */
 } input_result_t;
 
 /**
@@ -131,10 +131,10 @@ typedef enum input_result_t {
  */
 typedef struct adc_states_t
 {
-        uint16_t adc_previous_value[ADC_CHANNELS];            /**< Last filtered reading per channel. */
-        uint32_t adc_sum_values[ADC_CHANNELS];                /**< Accumulator used by the moving average filter. */
-        uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS];/**< Circular buffer with recent samples. */
-        uint16_t samples_index[ADC_CHANNELS];                 /**< Cursor into @ref adc_sample_value. */
+	uint16_t adc_previous_value[ADC_CHANNELS];            /**< Last filtered reading per channel. */
+	uint32_t adc_sum_values[ADC_CHANNELS];                /**< Accumulator used by the moving average filter. */
+	uint16_t adc_sample_value[ADC_CHANNELS][ADC_NUM_TAPS];/**< Circular buffer with recent samples. */
+	uint16_t samples_index[ADC_CHANNELS];                 /**< Cursor into @ref adc_sample_value. */
 } adc_states_t;
 
 /**
@@ -142,8 +142,8 @@ typedef struct adc_states_t
  */
 typedef struct encoder_states_t
 {
-        uint8_t old_encoder; /**< Last sampled quadrature state. */
-        int8_t count_encoder;/**< Accumulated detent count pending reporting. */
+	uint8_t old_encoder; /**< Last sampled quadrature state. */
+	int8_t count_encoder;/**< Accumulated detent count pending reporting. */
 } encoder_states_t;
 
 /** @} */
@@ -218,8 +218,8 @@ void encoder_read_task(void *pvParameters);
  * @brief Enqueue a rotary encoder event with the detected direction.
  *
  * @param[in] rotary Encoder identifier (0-based index).
- * @param[in] dir    Direction flag (`1` clockwise, `0` counter-clockwise).
+ * @param[in] direction Direction flag (`1` clockwise, `0` counter-clockwise).
  */
-void encoder_generate_event(uint8_t rotary, uint16_t dir);
+void encoder_generate_event(uint8_t rotary, uint16_t direction);
 
-#endif /* KEYPAD_H */
+#endif // KEYPAD_H

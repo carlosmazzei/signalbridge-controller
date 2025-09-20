@@ -263,7 +263,7 @@ jobs:
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-devcontainer]
+    needs: [detect-changes]
     if: |
       (needs.detect-changes.outputs.firmware-changed == 'true' ||
        needs.detect-changes.outputs.devcontainer-changed == 'true' ||

@@ -59,9 +59,9 @@ static output_result_t tm1637_to_output_result(tm1637_result_t tm_result)
  */
 static inline void tm1637_pin_release(uint8_t pin)
 {
-    gpio_set_function(pin, GPIO_FUNC_SIO);
-    gpio_pull_up(pin);
-    gpio_set_dir(pin, GPIO_IN); // high-Z with pull-up -> logic high
+	gpio_set_function(pin, GPIO_FUNC_SIO);
+	gpio_pull_up(pin);
+	gpio_set_dir(pin, GPIO_IN); // high-Z with pull-up -> logic high
 }
 
 /**
@@ -71,9 +71,9 @@ static inline void tm1637_pin_release(uint8_t pin)
  */
 static inline void tm1637_pin_low(uint8_t pin)
 {
-    gpio_set_function(pin, GPIO_FUNC_SIO);
-    gpio_set_dir(pin, GPIO_OUT);
-    gpio_put(pin, 0);
+	gpio_set_function(pin, GPIO_FUNC_SIO);
+	gpio_set_dir(pin, GPIO_OUT);
+	gpio_put(pin, 0);
 }
 
 /**
@@ -83,7 +83,7 @@ static inline void tm1637_pin_low(uint8_t pin)
  */
 static inline void tm1637_clk_high(const output_driver_t *config)
 {
-    tm1637_pin_release(config->clk_pin);
+	tm1637_pin_release(config->clk_pin);
 }
 
 /**
@@ -93,7 +93,7 @@ static inline void tm1637_clk_high(const output_driver_t *config)
  */
 static inline void tm1637_clk_low(const output_driver_t *config)
 {
-    tm1637_pin_low(config->clk_pin);
+	tm1637_pin_low(config->clk_pin);
 }
 
 /**
@@ -103,7 +103,7 @@ static inline void tm1637_clk_low(const output_driver_t *config)
  */
 static inline void tm1637_dio_high(const output_driver_t *config)
 {
-    tm1637_pin_release(config->dio_pin);
+	tm1637_pin_release(config->dio_pin);
 }
 
 /**
@@ -113,7 +113,7 @@ static inline void tm1637_dio_high(const output_driver_t *config)
  */
 static inline void tm1637_dio_low(const output_driver_t *config)
 {
-    tm1637_pin_low(config->dio_pin);
+	tm1637_pin_low(config->dio_pin);
 }
 
 /**
@@ -123,9 +123,9 @@ static inline void tm1637_dio_low(const output_driver_t *config)
  */
 static inline void tm1637_restore_spi_pins(const output_driver_t *config)
 {
-    // Restore SPI function so TM1639 (or others) can use the bus
-    gpio_set_function(config->dio_pin, GPIO_FUNC_SPI);
-    gpio_set_function(config->clk_pin, GPIO_FUNC_SPI);
+	// Restore SPI function so TM1639 (or others) can use the bus
+	gpio_set_function(config->dio_pin, GPIO_FUNC_SPI);
+	gpio_set_function(config->clk_pin, GPIO_FUNC_SPI);
 }
 
 /**
@@ -135,19 +135,19 @@ static inline void tm1637_restore_spi_pins(const output_driver_t *config)
  */
 static inline void tm1637_start(const output_driver_t *config)
 {
-    // Select the chip via multiplexer
-    (void)config->select_interface(config->chip_id, true);
+	// Select the chip via multiplexer
+	(void)config->select_interface(config->chip_id, true);
 
-    // Ensure idle high on both lines
-    tm1637_clk_high(config);
-    tm1637_dio_high(config);
-    sleep_us(TM1637_DELAY_US);
+	// Ensure idle high on both lines
+	tm1637_clk_high(config);
+	tm1637_dio_high(config);
+	sleep_us(TM1637_DELAY_US);
 
-    // Start: DIO goes low while CLK is high, then pull CLK low
-    tm1637_dio_low(config);
-    sleep_us(TM1637_DELAY_US);
-    tm1637_clk_low(config);
-    sleep_us(TM1637_DELAY_US);
+	// Start: DIO goes low while CLK is high, then pull CLK low
+	tm1637_dio_low(config);
+	sleep_us(TM1637_DELAY_US);
+	tm1637_clk_low(config);
+	sleep_us(TM1637_DELAY_US);
 }
 
 /**
@@ -157,19 +157,19 @@ static inline void tm1637_start(const output_driver_t *config)
  */
 static inline void tm1637_stop(const output_driver_t *config)
 {
-    // Ensure DIO low, then release CLK, then release DIO
-    tm1637_dio_low(config);
-    sleep_us(TM1637_DELAY_US);
-    tm1637_clk_high(config);
-    sleep_us(TM1637_DELAY_US);
-    tm1637_dio_high(config);
-    sleep_us(TM1637_DELAY_US);
+	// Ensure DIO low, then release CLK, then release DIO
+	tm1637_dio_low(config);
+	sleep_us(TM1637_DELAY_US);
+	tm1637_clk_high(config);
+	sleep_us(TM1637_DELAY_US);
+	tm1637_dio_high(config);
+	sleep_us(TM1637_DELAY_US);
 
-    // Deselect the chip via multiplexer
-    (void)config->select_interface(config->chip_id, false);
+	// Deselect the chip via multiplexer
+	(void)config->select_interface(config->chip_id, false);
 
-    // Restore SPI pin function for other devices
-    tm1637_restore_spi_pins(config);
+	// Restore SPI pin function for other devices
+	tm1637_restore_spi_pins(config);
 }
 
 /**
@@ -182,36 +182,36 @@ static inline void tm1637_stop(const output_driver_t *config)
  */
 static inline int tm1637_write_byte(const output_driver_t *config, uint8_t data)
 {
-    // Send 8 bits, LSB first
-    for (uint8_t i = 0U; i < (uint8_t)8; i++)
-    {
-        tm1637_clk_low(config);
+	// Send 8 bits, LSB first
+	for (uint8_t i = 0U; i < (uint8_t)8; i++)
+	{
+		tm1637_clk_low(config);
 
-        if ((data >> i) & 0x01U)
-        {
-            tm1637_dio_high(config); // release -> logic high
-        }
-        else
-        {
-            tm1637_dio_low(config); // drive low
-        }
+		if ((data >> i) & 0x01U)
+		{
+			tm1637_dio_high(config); // release -> logic high
+		}
+		else
+		{
+			tm1637_dio_low(config); // drive low
+		}
 
-        sleep_us(TM1637_DELAY_US);
-        tm1637_clk_high(config);
-        sleep_us(TM1637_DELAY_US);
-    }
+		sleep_us(TM1637_DELAY_US);
+		tm1637_clk_high(config);
+		sleep_us(TM1637_DELAY_US);
+	}
 
-    // ACK cycle: release DIO and sample while CLK high
-    tm1637_clk_low(config);
-    tm1637_dio_high(config); // release line for ACK from device
-    sleep_us(TM1637_DELAY_US);
-    tm1637_clk_high(config);
-    sleep_us(TM1637_DELAY_US);
-    int ack = (gpio_get(config->dio_pin) == 0) ? 1 : 0; // 0 = pulled low by device -> ACK
-    tm1637_clk_low(config);
-    sleep_us(TM1637_DELAY_US);
+	// ACK cycle: release DIO and sample while CLK high
+	tm1637_clk_low(config);
+	tm1637_dio_high(config); // release line for ACK from device
+	sleep_us(TM1637_DELAY_US);
+	tm1637_clk_high(config);
+	sleep_us(TM1637_DELAY_US);
+	int ack = (gpio_get(config->dio_pin) == 0) ? 1 : 0; // 0 = pulled low by device -> ACK
+	tm1637_clk_low(config);
+	sleep_us(TM1637_DELAY_US);
 
-    return ack;
+	return ack;
 }
 
 /**
@@ -224,7 +224,7 @@ static inline int tm1637_write_byte(const output_driver_t *config, uint8_t data)
  */
 static tm1637_result_t tm1637_send_command(const output_driver_t *config, uint8_t cmd)
 {
-    tm1637_result_t result = TM1637_OK;
+	tm1637_result_t result = TM1637_OK;
 
 	// Parameter validation
 	if (NULL == config)
@@ -233,17 +233,17 @@ static tm1637_result_t tm1637_send_command(const output_driver_t *config, uint8_
 	}
 	else
 	{
-        tm1637_start(config);
-        int write_result = tm1637_write_byte(config, cmd);
-        tm1637_stop(config);
+		tm1637_start(config);
+		int write_result = tm1637_write_byte(config, cmd);
+		tm1637_stop(config);
 
-        if (1 != write_result)
-        {
-            result = TM1637_ERR_WRITE;
-        }
-    }
+		if (1 != write_result)
+		{
+			result = TM1637_ERR_WRITE;
+		}
+	}
 
-    return result;
+	return result;
 }
 
 /**
@@ -269,13 +269,13 @@ static tm1637_result_t tm1637_set_brightness(output_driver_t *config, uint8_t le
 	}
 	else
 	{
-        uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
-        config->brightness = set_level;
+		uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
+		config->brightness = set_level;
 
-        // Display control command with brightness level
-        uint8_t cmd = (uint8_t)TM1637_CMD_DISPLAY_ON | set_level;
-        result = tm1637_send_command(config, cmd);
-    }
+		// Display control command with brightness level
+		uint8_t cmd = (uint8_t)TM1637_CMD_DISPLAY_ON | set_level;
+		result = tm1637_send_command(config, cmd);
+	}
 
 	return result;
 }
@@ -406,7 +406,7 @@ static tm1637_result_t tm1637_update_buffer(output_driver_t *config, uint8_t add
  */
 static tm1637_result_t tm1637_flush(output_driver_t *config)
 {
-    tm1637_result_t result = TM1637_OK;
+	tm1637_result_t result = TM1637_OK;
 
 	if (NULL == config)
 	{
@@ -420,40 +420,40 @@ static tm1637_result_t tm1637_flush(output_driver_t *config)
 		// Reset the modified flag
 		config->buffer_modified = false;
 
-        // TM1637 Protocol: Send data command first
-        tm1637_start(config);
-        if (tm1637_write_byte(config, TM1637_CMD_DATA_WRITE) != 1)
-        {
-            result = TM1637_ERR_WRITE;
-        }
-        tm1637_stop(config);
+		// TM1637 Protocol: Send data command first
+		tm1637_start(config);
+		if (tm1637_write_byte(config, TM1637_CMD_DATA_WRITE) != 1)
+		{
+			result = TM1637_ERR_WRITE;
+		}
+		tm1637_stop(config);
 
 		// TM1637 Protocol: Send address and data
 		if (TM1637_OK == result)
 		{
-            tm1637_start(config);
+			tm1637_start(config);
 
-            // Send starting address (0xC0 for first digit)
-            if (tm1637_write_byte(config, TM1637_CMD_ADDR_BASE) != 1)
-            {
-                result = TM1637_ERR_WRITE;
-            }
-            else
-            {
-                // Write all 4 digits data to TM1637
-                for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
-                {
-                    if (tm1637_write_byte(config, config->active_buffer[i]) != 1)
-                    {
-                        result = TM1637_ERR_WRITE;
-                    }
-                }
-            }
-            tm1637_stop(config);
-        }
-    }
+			// Send starting address (0xC0 for first digit)
+			if (tm1637_write_byte(config, TM1637_CMD_ADDR_BASE) != 1)
+			{
+				result = TM1637_ERR_WRITE;
+			}
+			else
+			{
+				// Write all 4 digits data to TM1637
+				for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
+				{
+					if (tm1637_write_byte(config, config->active_buffer[i]) != 1)
+					{
+						result = TM1637_ERR_WRITE;
+					}
+				}
+			}
+			tm1637_stop(config);
+		}
+	}
 
-    return result;
+	return result;
 }
 
 /**
@@ -581,7 +581,7 @@ static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint
 	return result;
 }
 
-/**
+/*
  * @brief Update the TM1637 display with new BCD digits.
  *
  * @param[in,out] config       TM1637 driver configuration.
@@ -622,7 +622,7 @@ output_result_t tm1637_set_digits(output_driver_t *config,
 	return tm1637_to_output_result(tm_result);
 }
 
-/**
+/*
  * @brief Update an individual LED register on the TM1637 device.
  *
  * @param[in,out] config TM1637 driver configuration.
@@ -676,7 +676,7 @@ tm1637_result_t tm1637_display_off(output_driver_t *config)
 
 tm1637_result_t tm1637_clear(output_driver_t *config)
 {
-    tm1637_result_t result = TM1637_OK;
+	tm1637_result_t result = TM1637_OK;
 
 	// Parameter validation
 	if (NULL == config)
@@ -690,38 +690,38 @@ tm1637_result_t tm1637_clear(output_driver_t *config)
 		(void)memset(config->prep_buffer, 0, TM1637_DISPLAY_BUFFER_SIZE);
 		config->buffer_modified = false;
 
-        // Send clear data to display
-        tm1637_start(config);
-        if (1 == tm1637_write_byte(config, TM1637_CMD_DATA_WRITE))
-        {
-            tm1637_stop(config);
+		// Send clear data to display
+		tm1637_start(config);
+		if (1 == tm1637_write_byte(config, TM1637_CMD_DATA_WRITE))
+		{
+			tm1637_stop(config);
 
-            tm1637_start(config);
-            if (1 == tm1637_write_byte(config, TM1637_CMD_ADDR_BASE))
-            {
-                // Write zeros to clear all 4 digits
-                for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
-                {
-                    if (1 != tm1637_write_byte(config, 0U))
-                    {
-                        result = TM1637_ERR_WRITE;
-                    }
-                }
-            }
-            else
-            {
-                result = TM1637_ERR_WRITE;
-            }
-            tm1637_stop(config);
-        }
-        else
-        {
-            tm1637_stop(config);
-            result = TM1637_ERR_WRITE;
-        }
-    }
+			tm1637_start(config);
+			if (1 == tm1637_write_byte(config, TM1637_CMD_ADDR_BASE))
+			{
+				// Write zeros to clear all 4 digits
+				for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
+				{
+					if (1 != tm1637_write_byte(config, 0U))
+					{
+						result = TM1637_ERR_WRITE;
+					}
+				}
+			}
+			else
+			{
+				result = TM1637_ERR_WRITE;
+			}
+			tm1637_stop(config);
+		}
+		else
+		{
+			tm1637_stop(config);
+			result = TM1637_ERR_WRITE;
+		}
+	}
 
-    return result;
+	return result;
 }
 
 tm1637_result_t tm1637_deinit(output_driver_t *config)
@@ -735,7 +735,7 @@ tm1637_result_t tm1637_deinit(output_driver_t *config)
 	{
 		// Turn off display
 		result = tm1637_display_off(config);
-		
+
 		// Reset GPIO pins to safe state
 		gpio_put(config->dio_pin, 0);
 		gpio_put(config->clk_pin, 0);

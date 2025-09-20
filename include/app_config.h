@@ -105,16 +105,16 @@
  * @brief Enumerates the tasks created in the system.
  */
 typedef enum task_enum_t {
-        CDC_TASK,              /**< TinyUSB CDC device task */
-        CDC_WRITE_TASK,        /**< USB CDC writer task */
-        UART_EVENT_TASK,       /**< Task that reads bytes from TinyUSB */
-        DECODE_RECEPTION_TASK, /**< Task that decodes inbound COBS packets */
-        PROCESS_OUTBOUND_TASK, /**< Task that processes outbound events */
-        ADC_READ_TASK,         /**< ADC reader task */
-        KEYPAD_TASK,           /**< Keypad polling task */
-        ENCODER_READ_TASK,     /**< Rotary encoder task */
-        LED_STATUS_TASK,       /**< System status LED task */
-        NUM_TASKS              /**< Number of tasks in the system */
+	CDC_TASK,              /**< TinyUSB CDC device task */
+	CDC_WRITE_TASK,        /**< USB CDC writer task */
+	UART_EVENT_TASK,       /**< Task that reads bytes from TinyUSB */
+	DECODE_RECEPTION_TASK, /**< Task that decodes inbound COBS packets */
+	PROCESS_OUTBOUND_TASK, /**< Task that processes outbound events */
+	ADC_READ_TASK,         /**< ADC reader task */
+	KEYPAD_TASK,           /**< Keypad polling task */
+	ENCODER_READ_TASK,     /**< Rotary encoder task */
+	LED_STATUS_TASK,       /**< System status LED task */
+	NUM_TASKS              /**< Number of tasks in the system */
 } task_enum_t;
 
 #endif // APP_CONFIG_H

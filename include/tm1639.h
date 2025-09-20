@@ -48,22 +48,22 @@
  * @brief Result codes for TM1639 driver functions.
  */
 typedef enum tm1639_result_t {
-        TM1639_OK = 0,             /**< Operation completed successfully. */
-        TM1639_ERR_SPI_INIT = 1,   /**< SPI initialisation error. */
-        TM1639_ERR_GPIO_INIT = 2,  /**< GPIO initialisation error. */
-        TM1639_ERR_SPI_WRITE = 3,  /**< SPI write failed. */
-        TM1639_ERR_INVALID_PARAM = 4, /**< Invalid parameter provided to function. */
-        TM1639_ERR_ADDRESS_RANGE = 5, /**< Address out of allowed range. */
-        TM1639_ERR_MUTEX_TIMEOUT = 6, /**< Timeout while acquiring mutex. */
-        TM1639_ERR_INVALID_CHAR = 7   /**< Invalid character provided. */
+	TM1639_OK = 0,             /**< Operation completed successfully. */
+	TM1639_ERR_SPI_INIT = 1,   /**< SPI initialisation error. */
+	TM1639_ERR_GPIO_INIT = 2,  /**< GPIO initialisation error. */
+	TM1639_ERR_SPI_WRITE = 3,  /**< SPI write failed. */
+	TM1639_ERR_INVALID_PARAM = 4, /**< Invalid parameter provided to function. */
+	TM1639_ERR_ADDRESS_RANGE = 5, /**< Address out of allowed range. */
+	TM1639_ERR_MUTEX_TIMEOUT = 6, /**< Timeout while acquiring mutex. */
+	TM1639_ERR_INVALID_CHAR = 7   /**< Invalid character provided. */
 } tm1639_result_t;
 
 /**
  * @brief Key scan descriptor returned by @ref tm1639_get_key_states().
  */
 typedef struct tm1639_key_t {
-        uint8_t ks; /**< Key scan line (1-4). */
-        uint8_t k;  /**< Key input line (0-1). */
+	uint8_t ks; /**< Key scan line (1-4). */
+	uint8_t k;  /**< Key input line (0-1). */
 } tm1639_key_t;
 
 /**
@@ -71,7 +71,7 @@ typedef struct tm1639_key_t {
  *
  * The helper initialises the driver bookkeeping structure, clears the display,
  * programs the default brightness level and enables the panel. The returned
- * handle must be released with @ref vPortFree() after calling
+ * handle must be released with @c vPortFree() after calling
  * @ref tm1639_deinit().
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
@@ -233,7 +233,7 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
  * @brief Shutdown the TM1639 driver and place the display into standby.
  *
  * The routine sends a display-off command but does not free the driver storage;
- * the caller remains responsible for invoking @ref vPortFree() on @p config.
+ * the caller remains responsible for invoking @c vPortFree() on @p config.
  *
  * @param[in,out] config Driver handle obtained from @ref tm1639_init().
  *
@@ -255,4 +255,4 @@ tm1639_result_t tm1639_deinit(output_driver_t *config);
  */
 tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
 
-#endif /* TM1639_H */
+#endif // TM1639_H

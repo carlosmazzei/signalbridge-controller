@@ -46,21 +46,21 @@
  * @brief Result codes for TM1637 driver functions.
  */
 typedef enum tm1637_result_t {
-        TM1637_OK = 0,            /**< Operation completed successfully. */
-        TM1637_ERR_GPIO_INIT = 1, /**< GPIO initialisation error. */
-        TM1637_ERR_WRITE = 2,     /**< Error writing data. */
-        TM1637_ERR_INVALID_PARAM = 3, /**< Invalid parameter provided to function. */
-        TM1637_ERR_ADDRESS_RANGE = 4, /**< Address out of allowed range. */
-        TM1637_ERR_INVALID_CHAR = 5,  /**< Invalid character provided. */
-        TM1637_ERR_ACK = 6            /**< Acknowledgment error from device. */
+	TM1637_OK = 0,            /**< Operation completed successfully. */
+	TM1637_ERR_GPIO_INIT = 1, /**< GPIO initialisation error. */
+	TM1637_ERR_WRITE = 2,     /**< Error writing data. */
+	TM1637_ERR_INVALID_PARAM = 3, /**< Invalid parameter provided to function. */
+	TM1637_ERR_ADDRESS_RANGE = 4, /**< Address out of allowed range. */
+	TM1637_ERR_INVALID_CHAR = 5,  /**< Invalid character provided. */
+	TM1637_ERR_ACK = 6            /**< Acknowledgment error from device. */
 } tm1637_result_t;
 
 /**
- * @brief Key scan descriptor returned by @ref tm1637_get_key_states().
+ * @brief Key scan descriptor used by the TM1637 keypad interface.
  */
 typedef struct tm1637_key_t {
-        uint8_t ks; /**< Key scan line (1-4). */
-        uint8_t k;  /**< Key input line (0-1). */
+	uint8_t ks; /**< Key scan line (1-4). */
+	uint8_t k;  /**< Key input line (0-1). */
 } tm1637_key_t;
 
 /**
@@ -69,7 +69,7 @@ typedef struct tm1637_key_t {
  * The helper initialises the driver bookkeeping structure, clears the attached
  * display, programs the default brightness level and enables the panel. The
  * returned handle is owned by the caller and must later be released with
- * @ref vPortFree() after calling @ref tm1637_deinit().
+ * @c vPortFree() after calling @ref tm1637_deinit().
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
  * @param[in] select_interface Callback used to acquire and release the shared
@@ -161,7 +161,7 @@ tm1637_result_t tm1637_display_off(output_driver_t *config);
  *
  * The routine sends a display-off command and returns the dedicated GPIO lines
  * to a safe state. The caller remains responsible for releasing the memory
- * backing @p config with @ref vPortFree().
+ * backing @p config with @c vPortFree().
  *
  * @param[in,out] config Driver handle obtained from @ref tm1637_init().
  *
@@ -170,4 +170,4 @@ tm1637_result_t tm1637_display_off(output_driver_t *config);
  */
 tm1637_result_t tm1637_deinit(output_driver_t *config);
 
-#endif /* TM1637_H */
+#endif // TM1637_H

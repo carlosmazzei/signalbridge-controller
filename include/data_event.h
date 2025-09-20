@@ -19,9 +19,9 @@
  */
 typedef struct data_events_t
 {
-        uint8_t command;                   /**< Command identifier to transmit. */
-        uint8_t data_length;               /**< Number of valid bytes stored in @ref data. */
-        uint8_t data[MAX_DATA_SIZE];       /**< Payload bytes associated with the command. */
+	uint8_t command;                   /**< Command identifier to transmit. */
+	uint8_t data_length;               /**< Number of valid bytes stored in @ref data. */
+	uint8_t data[MAX_DATA_SIZE];       /**< Payload bytes associated with the command. */
 } data_events_t;
 
-#endif /* DATA_EVENT_H */
+#endif // DATA_EVENT_H

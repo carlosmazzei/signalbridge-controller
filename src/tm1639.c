@@ -21,7 +21,7 @@
  #include "outputs.h"
  #include "tm1639.h"
 
-/**
+/*
  * @brief Convert tm1639_result_t to output_result_t
  *
  * This function converts TM1639-specific error codes to generic output error codes
@@ -50,7 +50,7 @@ static output_result_t tm1639_to_output_result(tm1639_result_t tm_result)
 	return result;
 }
 
-/**
+/*
  * @brief Set the display brightness level (0-7).
  *
  * This function sets the brightness level of the TM1639 display. The brightness value
@@ -84,7 +84,7 @@ static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t le
 	return result;
 }
 
-/**
+/*
  * @brief Turn the display on.
  *
  * This function turns the TM1639 display on by setting the display_on flag in the driver
@@ -112,7 +112,7 @@ tm1639_result_t tm1639_display_on(output_driver_t *config)
 	return result;
 }
 
-/**
+/*
  * @brief Initialize the TM1639 output driver.
  * This function allocates and initializes a TM1639 output driver structure.
  */
@@ -189,7 +189,7 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 	return config;
 }
 
-/**
+/*
  * @brief Start a transmission by setting STB low via multiplexer.
  *
  * This function selects the TM1639 chip by setting the strobe (STB) line low
@@ -202,7 +202,7 @@ static inline void tm1639_start(const output_driver_t *config)
 	config->select_interface(config->chip_id, true); // Select the chip (STB low)
 }
 
-/**
+/*
  * @brief End a transmission by setting STB high via multiplexer.
  *
  * This function deselects the TM1639 chip by setting the strobe (STB) line high
@@ -215,7 +215,7 @@ static inline void tm1639_stop(const output_driver_t *config)
 	config->select_interface(config->chip_id, false); // Deselect the chip (STB high)
 }
 
-/**
+/*
  * @brief Write a byte to the TM1639 using SPI.
  *
  * This function sends a single byte to the TM1639 device using the configured SPI hardware.
@@ -232,7 +232,7 @@ static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 	return bytes_written;
 }
 
-/**
+/*
  * @brief Configure GPIO for reading from the DIO pin.
  *
  * This function sets the DIO pin to input mode and disables its SPI function,
@@ -256,7 +256,7 @@ static void tm1639_set_read_mode(const output_driver_t *config)
 	gpio_pull_up(config->clk_pin);
 }
 
-/**
+/*
  * @brief Configure GPIO back to SPI mode for writing.
  *
  * This function restores the DIO and CLK pins to SPI mode,
@@ -271,7 +271,7 @@ static inline void tm1639_set_write_mode(const output_driver_t *config)
 	gpio_set_function(config->clk_pin, GPIO_FUNC_SPI);
 }
 
-/**
+/*
  * @brief Bit-bang read operation for TM1639.
  *
  * This function performs a bit-banged read operation to retrieve bytes from the TM1639 device.
@@ -333,7 +333,7 @@ static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t 
 	return result;
 }
 
-/**
+/*
  * @brief Clear the TM1639 display and turn it off.
  *
  * @param[in,out] config Pointer to the TM1639 driver configuration.
@@ -356,7 +356,7 @@ static tm1639_result_t tm1639_clear_and_off(output_driver_t *config)
 	return result;
 }
 
-/**
+/*
  * @brief Flush the prepared buffer to the TM1639 display.
  *
  * This function copies the preparation buffer to the active buffer, resets the modified flag,
@@ -430,7 +430,7 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 	return result;
 }
 
-/**
+/*
  * @brief Send a command to the TM1639
  */
 tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd)
@@ -457,7 +457,7 @@ tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd)
 	return result;
 }
 
-/**
+/*
  * @brief Set the display memory address (0x00-0x0F).
  */
 tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr)
@@ -483,7 +483,7 @@ tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr)
 	return result;
 }
 
-/**
+/*
  * @brief Write data to a specific address
  */
 tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data)
@@ -533,7 +533,7 @@ tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint
 	return result;
 }
 
-/**
+/*
  * @brief Update a single byte in the preparation buffer.
  *
  * @param[in,out] config Pointer to the TM1639 driver configuration.
@@ -564,7 +564,7 @@ tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint
 	return result;
 }
 
-/**
+/*
  * @brief Write multiple bytes starting at the given address.
  *
  * @param[in,out] config     Pointer to the TM1639 driver configuration.
@@ -618,7 +618,7 @@ tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const u
 	return result;
 }
 
-/**
+/*
  * @brief Read the key scan data from the TM1639 device.
  *
  * This function reads the key scan data (2 bytes) from the TM1639 device into the provided buffer.
@@ -658,7 +658,7 @@ static tm1639_result_t tm1639_read_keys(const output_driver_t *config, uint8_t *
 	return result;
 }
 
-/**
+/*
  * @brief Read key states
  */
 tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys)
@@ -713,7 +713,7 @@ tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_
 	return result;
 }
 
-/**
+/*
  * @brief Turn the display off.
  *
  * @param[in,out] config Pointer to the TM1639 driver configuration.
@@ -735,7 +735,7 @@ tm1639_result_t tm1639_display_off(output_driver_t *config)
 	return result;
 }
 
-/**
+/*
  * @brief Clear the display (set all segments off).
  *
  * @param[in,out] config Pointer to the TM1639 driver configuration.
@@ -800,7 +800,7 @@ tm1639_result_t tm1639_clear(output_driver_t *config)
 	return result;
 }
 
-/**
+/*
  * @brief Update the display with the current preparation buffer contents.
  *
  * This function updates the display with the contents of the preparation buffer
@@ -829,7 +829,7 @@ static tm1639_result_t tm1639_update(output_driver_t *config)
 	return result;
 }
 
-/**
+/*
  * @brief Validate a custom character digit array.
  *
  * @param[in] digits Pointer to the digit array to validate.
@@ -853,7 +853,7 @@ static tm1639_result_t tm1639_validate_custom_array(const uint8_t* digits, const
 	return result;
 }
 
-/**
+/*
  * @brief Validate TM1639 digit update parameters.
  *
  * @param[in] config        TM1639 driver configuration.
@@ -882,7 +882,7 @@ static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
 	return result;
 }
 
-/**
+/*
  * @brief Convert BCD digits into TM1639 segment data.
  *
  * @param[in,out] config      TM1639 driver configuration.
@@ -933,7 +933,7 @@ static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint
 	return result;
 }
 
-/**
+/*
  * @brief Update the TM1639 display with new BCD digits.
  *
  * @param[in,out] config      TM1639 driver configuration.
@@ -974,7 +974,7 @@ output_result_t tm1639_set_digits(output_driver_t *config,
 	return tm1639_to_output_result(tm_result);
 }
 
-/**
+/*
  * @brief Update an individual LED register on the TM1639 device.
  *
  * @param[in,out] config TM1639 driver configuration.
@@ -1011,7 +1011,7 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 	return tm1639_to_output_result(tm_result);
 }
 
-/**
+/*
  * @brief Deinitialize the TM1639 driver and release resources.
  *
  * @param[in,out] config Pointer to the TM1639 driver configuration (can be NULL).

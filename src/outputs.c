@@ -56,7 +56,7 @@ static output_drivers_t output_drivers;
  */
 static output_result_t init_mux(void)
 {
-        tm1639_result_t result = TM1639_OK;
+	tm1639_result_t result = TM1639_OK;
 
 	// Initialize multiplexer pins
 	gpio_init(SPI_MUX_CS);
@@ -109,7 +109,7 @@ static output_result_t init_mux(void)
  */
 static output_result_t select_interface(uint8_t chip_select, bool select)
 {
-        output_result_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 
 	// Check if chip_select is within valid range
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
@@ -147,7 +147,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
  */
 static output_result_t init_driver(void)
 {
-        output_result_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
@@ -204,8 +204,8 @@ static output_result_t init_driver(void)
  */
 static void uart0_init(uint32_t baudrate)
 {
-        // Initialize UART0 hardware
-        uart_init(uart0, baudrate);
+	// Initialize UART0 hardware
+	uart_init(uart0, baudrate);
 
 	// Set GPIO 12 as UART0 TX
 	gpio_set_function(12, GPIO_FUNC_UART);
@@ -217,10 +217,9 @@ static void uart0_init(uint32_t baudrate)
 	uart_set_fifo_enabled(uart0, true);
 }
 
-/** @copydoc output_init */
 output_result_t output_init(void)
 {
-        output_result_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 
 	// Create mutex
 	if (!spi_mutex)
@@ -253,7 +252,7 @@ output_result_t output_init(void)
 	if ((gpio_get_function(PICO_DEFAULT_SPI_SCK_PIN) != GPIO_FUNC_SPI) ||
 	    (gpio_get_function(PICO_DEFAULT_SPI_TX_PIN) != GPIO_FUNC_SPI))
 	{
-        statistics_increment_counter(OUT_INIT_ERROR);
+		statistics_increment_counter(OUT_INIT_ERROR);
 		result =  OUTPUT_ERR_INIT;
 	}
 
@@ -280,10 +279,9 @@ output_result_t output_init(void)
 	return result;
 }
 
-/** @copydoc display_out */
 output_result_t display_out(const uint8_t *payload, uint8_t length)
 {
-        output_result_t result = OUTPUT_OK;
+	output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
 
 	/**
@@ -370,11 +368,10 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	return result;
 }
 
-/** @copydoc led_out */
 output_result_t led_out(const uint8_t *payload, uint8_t length)
 {
-        output_result_t result = OUTPUT_OK;
-        uint8_t physical_cs;
+	output_result_t result = OUTPUT_OK;
+	uint8_t physical_cs;
 
 	/**
 	 * @par Parameter validation
@@ -453,10 +450,9 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	return result;
 }
 
-/** @copydoc set_pwm_duty */
 void set_pwm_duty(uint8_t duty)
 {
-        // Square the fade value to make the LED's brightness appear more linear
-        // Note this range matches with the wrap value
-        pwm_set_gpio_level(PWM_PIN, duty * duty);
+	// Square the fade value to make the LED's brightness appear more linear
+	// Note this range matches with the wrap value
+	pwm_set_gpio_level(PWM_PIN, duty * duty);
 }

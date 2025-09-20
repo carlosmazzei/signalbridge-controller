@@ -34,4 +34,4 @@ void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName);
  */
 void vApplicationTickHook(void);
 
-#endif /* HOOKS_H */
+#endif // HOOKS_H
