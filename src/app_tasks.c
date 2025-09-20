@@ -270,7 +270,7 @@ static void uart_event_task(void *pvParameters)
 		QueueHandle_t queue = app_context_get_encoded_queue();
 		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
 		{
-			if ((queue == NULL) || (xQueueSend(queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE))
+			if ((NULL == queue) || (xQueueSend(queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE))
 			{
 				statistics_increment_counter(QUEUE_SEND_ERROR);
 			}
@@ -313,7 +313,7 @@ static void decode_reception_task(void *pvParameters)
 		update_watchdog_safe();
 
 		QueueHandle_t queue = app_context_get_encoded_queue();
-		if (queue == NULL)
+		if (NULL == queue)
 		{
 			vTaskDelay(pdMS_TO_TICKS(5));
 			continue;
@@ -373,7 +373,7 @@ static void process_outbound_task(void *pvParameters)
 	for (;;)
 	{
 		QueueHandle_t data_queue = app_context_get_data_event_queue();
-		if (data_queue == NULL)
+		if (NULL == data_queue)
 		{
 			vTaskDelay(pdMS_TO_TICKS(5));
 			continue;
