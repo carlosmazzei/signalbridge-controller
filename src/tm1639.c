@@ -223,7 +223,7 @@ static inline void tm1639_stop(const output_driver_t *config)
  * @param[in] config Pointer to the TM1639 output driver configuration structure.
  * @param[in] data   Byte to be written to the TM1639.
  *
- * @return uint8_t Number of bytes written (should be 1 if successful).
+ * @return Number of bytes written (1 on success).
  */
 static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 {
@@ -334,9 +334,11 @@ static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t 
 }
 
 /**
- * @brief Clear display and turn off display
- * @param[in] config Pointer to the TM1639 configuration structure
- * @return TM1639_OK on success, error code otherwise
+ * @brief Clear the TM1639 display and turn it off.
+ *
+ * @param[in,out] config Pointer to the TM1639 driver configuration.
+ *
+ * @return TM1639_OK on success or an error code describing the failure.
  */
 static tm1639_result_t tm1639_clear_and_off(output_driver_t *config)
 {
@@ -532,7 +534,13 @@ tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint
 }
 
 /**
- * @brief Update specific bytes in the preparation buffer
+ * @brief Update a single byte in the preparation buffer.
+ *
+ * @param[in,out] config Pointer to the TM1639 driver configuration.
+ * @param[in]     addr   Display memory address to update (0-15).
+ * @param[in]     data   Segment pattern to store at @p addr.
+ *
+ * @return TM1639_OK on success, error code otherwise.
  */
 tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data)
 {
@@ -558,6 +566,13 @@ tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint
 
 /**
  * @brief Write multiple bytes starting at the given address.
+ *
+ * @param[in,out] config     Pointer to the TM1639 driver configuration.
+ * @param[in]     addr       Start address in display memory (0-15).
+ * @param[in]     data_bytes Pointer to the data to write.
+ * @param[in]     length     Number of bytes provided in @p data_bytes.
+ *
+ * @return TM1639_OK on success, error code otherwise.
  */
 tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length)
 {
@@ -699,7 +714,11 @@ tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_
 }
 
 /**
- * @brief Turn the display off
+ * @brief Turn the display off.
+ *
+ * @param[in,out] config Pointer to the TM1639 driver configuration.
+ *
+ * @return TM1639_OK when the command is accepted, error code otherwise.
  */
 tm1639_result_t tm1639_display_off(output_driver_t *config)
 {
@@ -717,8 +736,11 @@ tm1639_result_t tm1639_display_off(output_driver_t *config)
 }
 
 /**
- * @brief Clear the display (set all segments off)
+ * @brief Clear the display (set all segments off).
  *
+ * @param[in,out] config Pointer to the TM1639 driver configuration.
+ *
+ * @return TM1639_OK when the operation succeeds, error code otherwise.
  */
 tm1639_result_t tm1639_clear(output_driver_t *config)
 {
@@ -779,13 +801,14 @@ tm1639_result_t tm1639_clear(output_driver_t *config)
 }
 
 /**
- * @brief Update the display with the current preparation buffer contents
+ * @brief Update the display with the current preparation buffer contents.
  *
- * This function updates the display with the contents of the prep buffer
- * and swaps the active and prep buffers. Only updates if buffer_modified is true.
+ * This function updates the display with the contents of the preparation buffer
+ * when it has been marked as modified.
  *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
+ * @param[in,out] config TM1639 driver configuration.
+ *
+ * @return TM1639_OK if the display was updated successfully, error code otherwise.
  */
 static tm1639_result_t tm1639_update(output_driver_t *config)
 {
@@ -807,10 +830,12 @@ static tm1639_result_t tm1639_update(output_driver_t *config)
 }
 
 /**
- * @brief Validate custom character digit array
- * @param digits Pointer to custom digit array
- * @param length Number of digits to validate
- * @return TM1639_OK if all digits are valid, error code otherwise
+ * @brief Validate a custom character digit array.
+ *
+ * @param[in] digits Pointer to the digit array to validate.
+ * @param[in] length Number of digits provided in @p digits.
+ *
+ * @return TM1639_OK if every entry is valid, error code otherwise.
  */
 static tm1639_result_t tm1639_validate_custom_array(const uint8_t* digits, const size_t length)
 {
@@ -829,12 +854,14 @@ static tm1639_result_t tm1639_validate_custom_array(const uint8_t* digits, const
 }
 
 /**
- * @brief Validate function parameters
- * @param[in] config Pointer to configuration
- * @param[in] digits Pointer to digit array
- * @param[in] length Array length
- * @param[in] dot_position Decimal point position
- * @return TM1639_OK if all parameters are valid, error code otherwise
+ * @brief Validate TM1639 digit update parameters.
+ *
+ * @param[in] config        TM1639 driver configuration.
+ * @param[in] digits        Pointer to the BCD digit array.
+ * @param[in] length        Number of entries stored in @p digits.
+ * @param[in] dot_position  Decimal point position or TM1639_NO_DECIMAL_POINT.
+ *
+ * @return TM1639_OK if all parameters are valid, error code otherwise.
  */
 static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
                                                   const uint8_t* digits,
@@ -856,11 +883,13 @@ static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
 }
 
 /**
- * @brief Process digits and update preparation buffer
- * @param[in,out] config Pointer to configuration
- * @param[in] digits Pointer to BCD digit array
- * @param[in] dot_position Decimal point position
- * @return TM1639_OK on success, error code otherwise
+ * @brief Convert BCD digits into TM1639 segment data.
+ *
+ * @param[in,out] config      TM1639 driver configuration.
+ * @param[in]     digits      Pointer to the BCD digit array.
+ * @param[in]     dot_position Decimal point position or TM1639_NO_DECIMAL_POINT.
+ *
+ * @return TM1639_OK when the preparation buffer was updated successfully.
  */
 static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t* digits, const uint8_t dot_position)
 {
@@ -905,7 +934,14 @@ static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint
 }
 
 /**
- * @brief Set BCD digits on the display
+ * @brief Update the TM1639 display with new BCD digits.
+ *
+ * @param[in,out] config      TM1639 driver configuration.
+ * @param[in]     digits      Pointer to the BCD digit array.
+ * @param[in]     length      Number of digits stored in @p digits.
+ * @param[in]     dot_position Decimal point position or TM1639_NO_DECIMAL_POINT.
+ *
+ * @return OUTPUT_OK on success or an error code describing the failure.
  */
 output_result_t tm1639_set_digits(output_driver_t *config,
                                   const uint8_t *digits,
@@ -939,7 +975,13 @@ output_result_t tm1639_set_digits(output_driver_t *config,
 }
 
 /**
- * @brief Set LEDs for matrix display
+ * @brief Update an individual LED register on the TM1639 device.
+ *
+ * @param[in,out] config TM1639 driver configuration.
+ * @param[in]     leds   Register index to update.
+ * @param[in]     ledstate Segment pattern to apply.
+ *
+ * @return OUTPUT_OK on success or an error code describing the failure.
  */
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)
 {
@@ -970,7 +1012,11 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 }
 
 /**
- * @brief Deinitialize the TM1639 driver and release resources
+ * @brief Deinitialize the TM1639 driver and release resources.
+ *
+ * @param[in,out] config Pointer to the TM1639 driver configuration (can be NULL).
+ *
+ * @return TM1639_OK on success or an error code when parameters are invalid.
  */
 tm1639_result_t tm1639_deinit(output_driver_t *config)
 {

@@ -16,6 +16,7 @@ static volatile size_t free_heap_size = 0;
 
 //-----------------------------------------------------------
 
+/** @copydoc vApplicationMallocFailedHook */
 void vApplicationMallocFailedHook(void)
 {
 	/* Called if a call to pvPortMalloc() fails because there is insufficient
@@ -38,6 +39,7 @@ void vApplicationMallocFailedHook(void)
 //-----------------------------------------------------------
 
 // FreeRTOS stack overflow - uses busy wait (scheduler may be corrupted)
+/** @copydoc vApplicationStackOverflowHook */
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 {
 	(void)pcTaskName;
@@ -55,13 +57,15 @@ void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 }
 //-----------------------------------------------------------
 
+/** @copydoc vApplicationIdleHook */
 void vApplicationIdleHook(void)
 {
-	free_heap_size = xPortGetFreeHeapSize();
+        free_heap_size = xPortGetFreeHeapSize();
 }
 //-----------------------------------------------------------
 
+/** @copydoc vApplicationTickHook */
 void vApplicationTickHook(void)
 {
-	// Tick hook
+        // Tick hook
 }

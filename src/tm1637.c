@@ -52,6 +52,11 @@ static output_result_t tm1637_to_output_result(tm1637_result_t tm_result)
 
 #define TM1637_DELAY_US (3)
 
+/**
+ * @brief Configure a TM1637 signal for open-drain high state.
+ *
+ * @param[in] pin GPIO number to release.
+ */
 static inline void tm1637_pin_release(uint8_t pin)
 {
     gpio_set_function(pin, GPIO_FUNC_SIO);
@@ -59,6 +64,11 @@ static inline void tm1637_pin_release(uint8_t pin)
     gpio_set_dir(pin, GPIO_IN); // high-Z with pull-up -> logic high
 }
 
+/**
+ * @brief Drive a TM1637 signal low.
+ *
+ * @param[in] pin GPIO number to pull low.
+ */
 static inline void tm1637_pin_low(uint8_t pin)
 {
     gpio_set_function(pin, GPIO_FUNC_SIO);
@@ -66,26 +76,51 @@ static inline void tm1637_pin_low(uint8_t pin)
     gpio_put(pin, 0);
 }
 
+/**
+ * @brief Release the CLK line, allowing the pull-up to drive it high.
+ *
+ * @param[in] config TM1637 driver configuration.
+ */
 static inline void tm1637_clk_high(const output_driver_t *config)
 {
     tm1637_pin_release(config->clk_pin);
 }
 
+/**
+ * @brief Actively drive the CLK line low.
+ *
+ * @param[in] config TM1637 driver configuration.
+ */
 static inline void tm1637_clk_low(const output_driver_t *config)
 {
     tm1637_pin_low(config->clk_pin);
 }
 
+/**
+ * @brief Release the DIO line, allowing the pull-up to drive it high.
+ *
+ * @param[in] config TM1637 driver configuration.
+ */
 static inline void tm1637_dio_high(const output_driver_t *config)
 {
     tm1637_pin_release(config->dio_pin);
 }
 
+/**
+ * @brief Drive the DIO line low.
+ *
+ * @param[in] config TM1637 driver configuration.
+ */
 static inline void tm1637_dio_low(const output_driver_t *config)
 {
     tm1637_pin_low(config->dio_pin);
 }
 
+/**
+ * @brief Restore GPIO functions after bit-banging transactions.
+ *
+ * @param[in] config TM1637 driver configuration.
+ */
 static inline void tm1637_restore_spi_pins(const output_driver_t *config)
 {
     // Restore SPI function so TM1639 (or others) can use the bus
@@ -94,7 +129,9 @@ static inline void tm1637_restore_spi_pins(const output_driver_t *config)
 }
 
 /**
- * @brief Generate START condition and select mux
+ * @brief Generate a TM1637 START condition and select the device.
+ *
+ * @param[in] config TM1637 driver configuration.
  */
 static inline void tm1637_start(const output_driver_t *config)
 {
@@ -114,7 +151,9 @@ static inline void tm1637_start(const output_driver_t *config)
 }
 
 /**
- * @brief Generate STOP condition and deselect mux, then restore SPI function
+ * @brief Generate a TM1637 STOP condition and deselect the device.
+ *
+ * @param[in] config TM1637 driver configuration.
  */
 static inline void tm1637_stop(const output_driver_t *config)
 {
@@ -134,7 +173,12 @@ static inline void tm1637_stop(const output_driver_t *config)
 }
 
 /**
- * @brief Write a byte via bit-banged TM1637 and return 1 on ACK
+ * @brief Transmit one byte using the TM1637 two-wire protocol.
+ *
+ * @param[in] config TM1637 driver configuration.
+ * @param[in] data   Byte to transmit (LSB first).
+ *
+ * @return 1 when an ACK is received from the device, otherwise 0.
  */
 static inline int tm1637_write_byte(const output_driver_t *config, uint8_t data)
 {
@@ -171,7 +215,12 @@ static inline int tm1637_write_byte(const output_driver_t *config, uint8_t data)
 }
 
 /**
- * @brief Send a command to the TM1637
+ * @brief Send a command byte to the TM1637 device.
+ *
+ * @param[in] config TM1637 driver configuration.
+ * @param[in] cmd    Command byte to transmit.
+ *
+ * @return TM1637_OK on success or an error code otherwise.
  */
 static tm1637_result_t tm1637_send_command(const output_driver_t *config, uint8_t cmd)
 {
@@ -408,13 +457,14 @@ static tm1637_result_t tm1637_flush(output_driver_t *config)
 }
 
 /**
- * @brief Update the display with the current preparation buffer contents
+ * @brief Update the display with the current preparation buffer contents.
  *
- * This function updates the display with the contents of the prep buffer.
- * Only updates if buffer_modified is true.
+ * This function updates the display with the contents of the preparation buffer
+ * when it has been marked as modified.
  *
- * @param config Pointer to TM1637 configuration structure
- * @return tm1637_result_t Error code, TM1637_OK if successful
+ * @param[in,out] config TM1637 driver configuration.
+ *
+ * @return TM1637_OK if the display was updated successfully, error code otherwise.
  */
 static tm1637_result_t tm1637_update(output_driver_t *config)
 {
@@ -436,10 +486,12 @@ static tm1637_result_t tm1637_update(output_driver_t *config)
 }
 
 /**
- * @brief Validate custom character digit array
- * @param digits Pointer to custom digit array
- * @param length Number of digits to validate
- * @return TM1637_OK if all digits are valid, error code otherwise
+ * @brief Validate a custom character digit array.
+ *
+ * @param[in] digits Pointer to the digit array to validate.
+ * @param[in] length Number of digits provided in @p digits.
+ *
+ * @return TM1637_OK if every entry is valid, error code otherwise.
  */
 static tm1637_result_t tm1637_validate_custom_array(const uint8_t* digits, const size_t length)
 {
@@ -458,12 +510,14 @@ static tm1637_result_t tm1637_validate_custom_array(const uint8_t* digits, const
 }
 
 /**
- * @brief Validate function parameters
- * @param[in] config Pointer to configuration
- * @param[in] digits Pointer to digit array
- * @param[in] length Array length
- * @param[in] dot_position Decimal point position
- * @return TM1637_OK if all parameters are valid, error code otherwise
+ * @brief Validate TM1637 digit update parameters.
+ *
+ * @param[in] config        TM1637 driver configuration.
+ * @param[in] digits        Pointer to the BCD digit array.
+ * @param[in] length        Number of entries stored in @p digits.
+ * @param[in] dot_position  Decimal point position or TM1637_NO_DECIMAL_POINT.
+ *
+ * @return TM1637_OK if all parameters are valid, error code otherwise.
  */
 static tm1637_result_t tm1637_validate_parameters(const output_driver_t *config,
                                                   const uint8_t* digits,
@@ -485,11 +539,13 @@ static tm1637_result_t tm1637_validate_parameters(const output_driver_t *config,
 }
 
 /**
- * @brief Process digits and update preparation buffer
- * @param[in,out] config Pointer to configuration
- * @param[in] digits Pointer to BCD digit array
- * @param[in] dot_position Decimal point position
- * @return TM1637_OK on success, error code otherwise
+ * @brief Convert BCD digits into TM1637 segment data.
+ *
+ * @param[in,out] config      TM1637 driver configuration.
+ * @param[in]     digits      Pointer to the BCD digit array.
+ * @param[in]     dot_position Decimal point position or TM1637_NO_DECIMAL_POINT.
+ *
+ * @return TM1637_OK when the preparation buffer was updated successfully.
  */
 static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint8_t* digits, const uint8_t dot_position)
 {
@@ -525,6 +581,16 @@ static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint
 	return result;
 }
 
+/**
+ * @brief Update the TM1637 display with new BCD digits.
+ *
+ * @param[in,out] config       TM1637 driver configuration.
+ * @param[in]     digits       Pointer to the BCD digit array.
+ * @param[in]     length       Number of digits stored in @p digits.
+ * @param[in]     dot_position Decimal point position or TM1637_NO_DECIMAL_POINT.
+ *
+ * @return OUTPUT_OK on success or an error code describing the failure.
+ */
 output_result_t tm1637_set_digits(output_driver_t *config,
                                   const uint8_t *digits,
                                   const size_t length,
@@ -556,6 +622,15 @@ output_result_t tm1637_set_digits(output_driver_t *config,
 	return tm1637_to_output_result(tm_result);
 }
 
+/**
+ * @brief Update an individual LED register on the TM1637 device.
+ *
+ * @param[in,out] config TM1637 driver configuration.
+ * @param[in]     leds   Register index to update.
+ * @param[in]     ledstate Segment pattern to apply.
+ *
+ * @return OUTPUT_OK on success or an error code describing the failure.
+ */
 output_result_t tm1637_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)
 {
 	tm1637_result_t tm_result = TM1637_OK;

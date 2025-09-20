@@ -19,6 +19,9 @@
 #include "app_tasks.h"
 #include "error_management.h"
 
+/**
+ * @brief Application entry point initialising hardware and starting FreeRTOS.
+ */
 int main(void)
 {
         setup_watchdog_with_error_detection(5000U);

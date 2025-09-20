@@ -29,54 +29,63 @@ static volatile statistics_counters_t statistics_counters = {
 	.current_error_type = ERROR_NONE
 };
 
+/** @copydoc statistics_increment_counter */
 void statistics_increment_counter(statistics_counter_enum_t index)
 {
-	statistics_counters.counters[index]++;
+        statistics_counters.counters[index]++;
 
 }
 
+/** @copydoc statistics_add_to_counter */
 void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	statistics_counters.counters[index] += value;
+        statistics_counters.counters[index] += value;
 }
 
+/** @copydoc statistics_set_counter */
 void statistics_set_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	statistics_counters.counters[index] = value;
+        statistics_counters.counters[index] = value;
 }
 
+/** @copydoc statistics_get_counter */
 uint32_t statistics_get_counter(statistics_counter_enum_t index)
 {
-	return statistics_counters.counters[index];
+        return statistics_counters.counters[index];
 }
 
+/** @copydoc statistics_reset_all_counters */
 void statistics_reset_all_counters(void)
 {
-	for (uint32_t i = 0; i < NUM_STATISTICS_COUNTERS; i++)
-	{
-		statistics_counters.counters[i] = 0;
-	}
+        for (uint32_t i = 0; i < NUM_STATISTICS_COUNTERS; i++)
+        {
+                statistics_counters.counters[i] = 0;
+        }
 }
 
+/** @copydoc statistics_is_error_state */
 bool statistics_is_error_state(void)
 {
-	return statistics_counters.error_state;
+        return statistics_counters.error_state;
 }
 
+/** @copydoc statistics_get_error_type */
 error_type_t statistics_get_error_type(void)
 {
-	return statistics_counters.current_error_type;
+        return statistics_counters.current_error_type;
 }
 
+/** @copydoc statistics_clear_error */
 void statistics_clear_error(void)
 {
-	statistics_counters.error_state = false;
-	statistics_counters.current_error_type = ERROR_NONE;
+        statistics_counters.error_state = false;
+        statistics_counters.current_error_type = ERROR_NONE;
 }
 
+/** @copydoc show_error_pattern_blocking */
 void show_error_pattern_blocking(error_type_t error_type)
 {
-	uint8_t blink_count = (uint8_t)error_type;
+        uint8_t blink_count = (uint8_t)error_type;
 
 	// Show the blink pattern
 	for (uint8_t i = 0; i < blink_count; i++) {
@@ -95,6 +104,7 @@ void show_error_pattern_blocking(error_type_t error_type)
 	busy_wait_ms(PATTERN_PAUSE_MS);
 }
 
+/** @copydoc show_error_for_duration_ms */
 void show_error_for_duration_ms(uint32_t duration_ms)
 {
     // Display the current error pattern repeatedly for a bounded duration,
@@ -113,10 +123,13 @@ void show_error_for_duration_ms(uint32_t duration_ms)
  * @brief Check the previous error state from the watchdog registers.
  *
  */
+/**
+ * @brief Inspect watchdog scratch registers to recover previous error state.
+ */
 static void check_previous_error_state(void)
 {
-	uint32_t boot_magic = watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG];
-	uint32_t error_type = watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG];
+        uint32_t boot_magic = watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG];
+        uint32_t error_type = watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG];
 
 	// Only check for errors if we have a valid magic value
 	if (ERROR_MAGIC_VALUE == boot_magic) // Only check if explicitly set by set_error_state_persistent()
@@ -153,10 +166,11 @@ static void check_previous_error_state(void)
 	watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG] = CLEAN_BOOT_MAGIC;
 }
 
+/** @copydoc set_error_state_persistent */
 void set_error_state_persistent(error_type_t type)
 {
-	watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG] = type;
-	watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG] = ERROR_MAGIC_VALUE;
+        watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG] = type;
+        watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG] = ERROR_MAGIC_VALUE;
 
 	statistics_counters.current_error_type = type;
 	statistics_counters.error_state = true;
@@ -166,10 +180,11 @@ void set_error_state_persistent(error_type_t type)
 	watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG] = count + 1;
 }
 
+/** @copydoc setup_watchdog_with_error_detection */
 void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 {
-	// Initialize LED
-	gpio_init(ERROR_LED_PIN);
+        // Initialize LED
+        gpio_init(ERROR_LED_PIN);
 	gpio_set_dir(ERROR_LED_PIN, GPIO_OUT);
 	gpio_put(ERROR_LED_PIN, 0);
 
@@ -180,9 +195,10 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 	watchdog_enable(timeout_ms, 1);
 }
 
+/** @copydoc update_watchdog_safe */
 void update_watchdog_safe(void)
 {
-	static uint32_t error_start_time = 0;
+        static uint32_t error_start_time = 0;
 
 	if (false == statistics_counters.error_state)
 	{
@@ -213,9 +229,12 @@ void update_watchdog_safe(void)
 /**
  * @brief Panic handler for critical errors.
  */
+/**
+ * @brief Panic handler for critical errors.
+ */
 void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
 {
-	(void)fmt;
+        (void)fmt;
 
 	set_error_state_persistent(ERROR_PICO_SDK_PANIC);
 

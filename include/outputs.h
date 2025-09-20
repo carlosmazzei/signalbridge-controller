@@ -1,226 +1,188 @@
 #ifndef OUTPUTS_H
 #define OUTPUTS_H
 
-#include <stdint.h>
+/**
+ * @file outputs.h
+ * @brief Interfaces for controlling LED, display and PWM output devices.
+ *
+ * The outputs subsystem coordinates SPI-attached LED controllers (TM1639) and
+ * bit-banged TM1637 displays while providing helper routines to update PWM
+ * brightness channels and individual annunciators.  Payloads received from the
+ * host are validated, decoded and passed to the concrete driver instances
+ * initialised by @ref output_init().
+ */
+
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hardware/spi.h"
 
-/** @def SPI_FREQUENCY
- * @brief SPI frequency for communication with devices.
+/**
+ * @defgroup outputs Outputs subsystem
+ * @brief Configuration constants and APIs for driving panel outputs.
+ * @{
  */
+
+/**
+ * @name SPI fabric configuration
+ * @{
+ */
+/** Nominal SPI bus frequency used for TM1639 devices (500 kHz). */
 #define SPI_FREQUENCY (500U * 1000U)
+/** Total number of logical SPI interfaces exposed through the multiplexer. */
+#define MAX_SPI_INTERFACES 8U
+/** Number of GPIOs exposed by the RP2040 package. */
+#define NUM_GPIO 30U
+/** @} */
 
-/** @def PWM_PIN
- * @brief Pin used for PWM output.
- * This pin is used to control the brightness of the LEDs.
+/**
+ * @name Multiplexer GPIO assignments
+ * @{
  */
-#define PWM_PIN 28
+/** Multiplexer select bit 0 for SPI device routing. */
+#define SPI_MUX_A_PIN 10U
+/** Multiplexer select bit 1 for SPI device routing. */
+#define SPI_MUX_B_PIN 14U
+/** Multiplexer select bit 2 for SPI device routing. */
+#define SPI_MUX_C_PIN 15U
+/** Multiplexer enable pin (active high). */
+#define SPI_MUX_CS 27U
+/** @} */
 
-/** @defgroup mux_pins Multiplexer Pins
- *  @brief Macros for multiplexer control pins.
- *  @{
+/**
+ * @name PWM configuration
+ * @{
  */
-/** @def SPI_MUX_A_PIN
- * @brief Multiplexer control pin A.
- */
-#define SPI_MUX_A_PIN 10
-/** @def SPI_MUX_B_PIN
- * @brief Multiplexer control pin B.
- */
-#define SPI_MUX_B_PIN 14
-/** @def SPI_MUX_C_PIN
- * @brief Multiplexer control pin C.
- */
-#define SPI_MUX_C_PIN 15
-/** @def SPI_MUX_CS
- * @brief Multiplexer enable pin.
- * This pin is used to enable the multiplexer for chip selection.
- */
-#define SPI_MUX_CS 27
-/** @} */ // end of mux_pins
+/** GPIO used for the global PWM brightness channel. */
+#define PWM_PIN 28U
+/** @} */
 
-/** @def MAX_SPI_INTERFACES
- * @brief Maximum number of SPI interfaces supported.
- * This defines the maximum number of SPI interfaces that can be used in the system.
+/**
+ * @name Logical device identifiers
+ * @{
  */
-#define MAX_SPI_INTERFACES 8
+/** No device is fitted for the given slot. */
+#define DEVICE_NONE 0U
+/** Generic LED sink without a dedicated driver. */
+#define DEVICE_GENERIC_LED 1U
+/** Generic seven-segment digit controller. */
+#define DEVICE_GENERIC_DIGIT 2U
+/** TM1639 LED matrix using the SPI fabric. */
+#define DEVICE_TM1639_LED 3U
+/** TM1639 seven-segment digit controller. */
+#define DEVICE_TM1639_DIGIT 4U
+/** TM1637 LED matrix driven through bit-banging. */
+#define DEVICE_TM1637_LED 5U
+/** TM1637 seven-segment digit controller. */
+#define DEVICE_TM1637_DIGIT 6U
+/** @} */
 
-/** @def NUM_GPIO
- * @brief Number of GPIO pins available.
- * This defines the total number of GPIO pins available on the Raspberry Pi Pico.
- */
-#define NUM_GPIO 30
-
-/** @defgroup device_types Device Types
- *  @brief Macros representing the types of devices connected to the SPI interface.
- *  @{
- */
-
-/** @def DEVICE_NONE
- * @brief No device connected to the SPI interface.
- */
-#define DEVICE_NONE           0
-
-/** @def DEVICE_GENERIC_LED
- * @brief Generic LED device connected to the SPI interface.
- */
-#define DEVICE_GENERIC_LED    1
-
-/** @def DEVICE_GENERIC_DIGIT
- * @brief Generic digit display device connected to the SPI interface.
- */
-#define DEVICE_GENERIC_DIGIT  2
-
-/** @def DEVICE_TM1639_LED
- * @brief TM1639-based LED device connected to the SPI interface.
- */
-#define DEVICE_TM1639_LED     3
-
-/** @def DEVICE_TM1639_DIGIT
- * @brief TM1639-based digit display device connected to the SPI interface.
- */
-#define DEVICE_TM1639_DIGIT   4
-
-/** @def DEVICE_TM1637_LED
- * @brief TM1637-based LED device using GPIO bit-banging.
- */
-#define DEVICE_TM1637_LED     5
-
-/** @def DEVICE_TM1637_DIGIT
- * @brief TM1637-based digit display device using GPIO bit-banging.
- */
-#define DEVICE_TM1637_DIGIT   6
-
-/** @} */ // end of device_types
-
-/** @def DEVICE_CONFIG
- * @brief Device configuration map for SPI interfaces.
+/**
+ * @brief Compile-time device assignment for each controller slot.
  *
- * This macro defines the device type for each interface.
- * Each entry corresponds to a controller ID (0-7), and the value specifies the device type
- * (e.g., DEVICE_TM1639_DIGIT, DEVICE_TM1637_DIGIT, or DEVICE_NONE).
- *
- * Example usage:
- * @code
- * const uint8_t config[] = DEVICE_CONFIG;
- * @endcode
- *
- * - Device 0-2: TM1639 digit controllers (SPI)
- * - Device   3: TM1639 led controller (SPI)
- * - Device 4-7: Available for TM1637 or other devices
+ * The table is indexed by the 1-based controller identifier received from the
+ * host (minus one) and selects the driver implementation that should handle a
+ * given payload.
  */
 #define DEVICE_CONFIG { \
-		DEVICE_TM1639_DIGIT, /* Device 0 */ \
-		DEVICE_TM1637_DIGIT, /* Device 1 */ \
-		DEVICE_TM1639_DIGIT, /* Device 2 */ \
-		DEVICE_TM1639_LED, /* Device 3 */ \
-		DEVICE_NONE, /* Device 4 */ \
-		DEVICE_NONE, /* Device 5 */ \
-		DEVICE_NONE, /* Device 6 */ \
-		DEVICE_NONE /* Device 7 */ \
+        DEVICE_TM1639_DIGIT, /* Device 0 */ \
+        DEVICE_TM1637_DIGIT, /* Device 1 */ \
+        DEVICE_TM1639_DIGIT, /* Device 2 */ \
+        DEVICE_TM1639_LED,   /* Device 3 */ \
+        DEVICE_NONE,         /* Device 4 */ \
+        DEVICE_NONE,         /* Device 5 */ \
+        DEVICE_NONE,         /* Device 6 */ \
+        DEVICE_NONE          /* Device 7 */ \
 }
 
 /**
- * @brief Output result codes.
- * Defines generic result codes returned by output functions.
+ * @brief Result codes returned by output helpers.
  */
 typedef enum output_result_t {
-	OUTPUT_OK = 0,
-	OUTPUT_ERR_INIT = 1,
-	OUTPUT_ERR_DISPLAY_OUT = 2,
-	OUTPUT_ERR_INVALID_PARAM = 3,
-	OUTPUT_ERR_SEMAPHORE = 4,
+        OUTPUT_OK = 0,             /**< Operation completed successfully. */
+        OUTPUT_ERR_INIT = 1,       /**< Hardware initialisation failed. */
+        OUTPUT_ERR_DISPLAY_OUT = 2,/**< Display or LED driver rejected the payload. */
+        OUTPUT_ERR_INVALID_PARAM = 3, /**< Payload validation failed. */
+        OUTPUT_ERR_SEMAPHORE = 4   /**< Failed to acquire the SPI mutex. */
 } output_result_t;
 
-/** --- Statistics Structures --- */
-
-
-
-
-// --- Driver Structures ---
-
-/** @struct output_driver_t
- * @brief Holds the configuration for an output device.
+/**
+ * @brief Forward declaration for the polymorphic output driver structure.
  */
 struct output_driver_t;
 typedef struct output_driver_t output_driver_t;
 
+/**
+ * @brief Abstraction around a concrete display or LED driver instance.
+ */
 struct output_driver_t {
-	// Chip ID (0-7)
-	uint8_t chip_id;
-
-	// Function pointer for chip selection (true = select/stb low, false = deselect/stb high)
-	output_result_t (*select_interface)(uint8_t chip_id, bool select);
-	output_result_t (*set_digits)(output_driver_t *config, const uint8_t* digits, const size_t length, const uint8_t dot_position);
-	output_result_t (*set_leds)(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
-
-	// SPI instance
-	spi_inst_t *spi;
-	uint8_t dio_pin;
-	uint8_t clk_pin;
-
-	// SPI buffer
-	uint8_t active_buffer[16]; // Active display buffer
-	uint8_t prep_buffer[16]; // Preparation buffer for double buffering
-	bool buffer_modified;    // Flag indicating if the prep buffer has changed
-	uint8_t brightness;      // Brightness level (0-7)
-	bool display_on;         // Display on/off
+        uint8_t chip_id; /**< Logical identifier mapped to the multiplexer select lines. */
+        output_result_t (*select_interface)(uint8_t chip_id, bool select); /**< Mux control callback. */
+        output_result_t (*set_digits)(output_driver_t *config, const uint8_t *digits, size_t length, uint8_t dot_position); /**< Digit update callback. */
+        output_result_t (*set_leds)(output_driver_t *config, uint8_t leds, uint8_t ledstate); /**< LED update callback. */
+        spi_inst_t *spi; /**< SPI instance used by the device (if applicable). */
+        uint8_t dio_pin; /**< GPIO pin used as DIO for TM1637 bit-banging. */
+        uint8_t clk_pin; /**< GPIO pin used as CLK for TM1637 bit-banging. */
+        uint8_t active_buffer[16]; /**< Snapshot of the last committed frame. */
+        uint8_t prep_buffer[16];   /**< Staging buffer used before flushing to hardware. */
+        bool buffer_modified;      /**< Indicates that @ref prep_buffer needs flushing. */
+        uint8_t brightness;        /**< Driver brightness level (0-7). */
+        bool display_on;           /**< Current display state. */
 };
 
-/** @struct output_drivers_t
- * @brief Manages a set of output drivers.
+/**
+ * @brief Container for every driver handle managed by @ref outputs.c.
  */
 typedef struct output_drivers_t {
-	output_driver_t *driver_handles[MAX_SPI_INTERFACES];
+        output_driver_t *driver_handles[MAX_SPI_INTERFACES]; /**< Pointer table indexed by chip ID. */
 } output_drivers_t;
 
+/** @} */
 
 /**
- * Function Prototypes
- */
-
-/**
- * @brief Sends LED state information to the appropriate output driver.
+ * @brief Initialise the SPI bus, PWM slice and driver backends.
  *
- * The expected payload format is:
- * - Byte 0: Controller ID (1-based)
- * - Byte 1: LED index
- * - Byte 2: LED state (0-255)
+ * Configures the SPI fabric, routes the multiplexer control GPIOs, initialises
+ * the PWM brightness channel and creates the low-level driver instances defined
+ * by @ref DEVICE_CONFIG.
  *
- * @param[in] payload Pointer to the payload buffer.
- * @param[in] length  Length of the payload buffer (should be at least 3).
- * @return OUTPUT_OK on success, or an error code on failure.
- */
-output_result_t led_out(const uint8_t *payload, uint8_t length);
-
-/** @brief Initialize the outputs.
- *
- * Initialize all the outputs needed for the application: SPI, LEDs, PWM.
- *
- * @return Error code.
- * @note This function initializes the SPI bus, sets up the multiplexer for chip selection,
- *
+ * @retval OUTPUT_OK         The subsystem is ready to accept payloads.
+ * @retval OUTPUT_ERR_INIT   At least one hardware block failed to initialise.
  */
 output_result_t output_init(void);
 
 /**
- * @brief Sends a BCD-encoded digit payload to the appropriate output driver.
+ * @brief Dispatch a display update payload to the matching driver.
  *
- * The expected payload format is:
- * - Byte 0: Controller ID (1-based)
- * - Bytes 1-4: Packed BCD digits (2 digits per byte, lower and upper nibble)
- * - Byte 5: Dot position
+ * @param[in] payload Encoded BCD digit stream received from the host.
+ * @param[in] length  Number of bytes available in @p payload.
  *
- * @param[in] payload Pointer to the payload buffer.
- * @param[in] length  Length of the payload buffer (should be at least 6).
- * @return OUTPUT_OK on success, or an error code on failure.
+ * @retval OUTPUT_OK            The update was queued successfully.
+ * @retval OUTPUT_ERR_INVALID_PARAM The payload failed validation.
+ * @retval OUTPUT_ERR_DISPLAY_OUT   Driver rejected the update request.
+ * @retval OUTPUT_ERR_SEMAPHORE     SPI bus could not be locked.
  */
 output_result_t display_out(const uint8_t *payload, uint8_t length);
 
-/** @brief Set PWM duty cycle
+/**
+ * @brief Dispatch an LED update payload to the matching driver.
  *
- * @param duty The duty cycle to set.
+ * @param[in] payload Encoded LED controller update received from the host.
+ * @param[in] length  Number of bytes available in @p payload.
+ *
+ * @retval OUTPUT_OK            The update was queued successfully.
+ * @retval OUTPUT_ERR_INVALID_PARAM The payload failed validation.
+ * @retval OUTPUT_ERR_DISPLAY_OUT   Driver rejected the update request.
+ * @retval OUTPUT_ERR_SEMAPHORE     SPI bus could not be locked.
+ */
+output_result_t led_out(const uint8_t *payload, uint8_t length);
+
+/**
+ * @brief Update the PWM duty cycle that controls the LED brightness rail.
+ *
+ * @param[in] duty 8-bit duty value, squared internally for perceptual linearity.
  */
 void set_pwm_duty(uint8_t duty);
 
-#endif
+#endif /* OUTPUTS_H */

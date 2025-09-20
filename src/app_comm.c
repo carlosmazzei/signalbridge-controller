@@ -145,6 +145,7 @@ static void send_heap_status(uint8_t index)
         }
 }
 
+/** @copydoc app_comm_send_packet */
 void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
 {
         uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
@@ -205,6 +206,7 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
         }
 }
 
+/** @copydoc app_comm_process_inbound */
 void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 {
         bool done = false;
