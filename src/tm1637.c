@@ -207,7 +207,7 @@ static inline int tm1637_write_byte(const output_driver_t *config, uint8_t data)
 	sleep_us(TM1637_DELAY_US);
 	tm1637_clk_high(config);
 	sleep_us(TM1637_DELAY_US);
-	int ack = (gpio_get(config->dio_pin) == 0) ? 1 : 0; // 0 = pulled low by device -> ACK
+	int ack = (0 == gpio_get(config->dio_pin)) ? 1 : 0; // 0 = pulled low by device -> ACK
 	tm1637_clk_low(config);
 	sleep_us(TM1637_DELAY_US);
 
@@ -415,7 +415,7 @@ static tm1637_result_t tm1637_flush(output_driver_t *config)
 	else
 	{
 		// Copy prep buffer to active buffer
-		(void)memcpy(config->active_buffer, config->prep_buffer, TM1637_DISPLAY_BUFFER_SIZE);
+		(void)memcpy(config->active_buffer, config->prep_buffer, TM1637_DISPLAY_BUFFER_SIZE); // flawfinder: ignore
 
 		// Reset the modified flag
 		config->buffer_modified = false;

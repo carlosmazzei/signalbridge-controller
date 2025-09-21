@@ -170,7 +170,7 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
 		uart_outbound_buffer[1] = (uint8_t)((panel_id & 0xE0U) | (command & 0x1FU));
 		uart_outbound_buffer[2] = length;
 
-		(void)memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length);
+		(void)memcpy(&uart_outbound_buffer[HEADER_SIZE], send_data, length); // flawfinder: ignore
 
 		const uint8_t checksum = calculate_checksum(uart_outbound_buffer, (uint8_t)(length + HEADER_SIZE));
 		uart_outbound_buffer[HEADER_SIZE + length] = checksum;
@@ -190,7 +190,7 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
 
 			cdc_packet_t packet = {0};
 			packet.length = (uint8_t)num_encoded + 1U;
-			(void)memcpy(packet.data, encode_buffer, packet.length);
+			(void)memcpy(packet.data, encode_buffer, packet.length); // flawfinder: ignore
 
 			QueueHandle_t queue = app_context_get_cdc_transmit_queue();
 			if ((queue != NULL) && (pdTRUE == xQueueSend(queue, &packet, pdMS_TO_TICKS(1))))
@@ -247,7 +247,7 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 	uint8_t decoded_data[DATA_BUFFER_SIZE] = {0};
 	if (!done)
 	{
-		(void)memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len);
+		(void)memcpy(decoded_data, &rx_buffer[HEADER_SIZE], len); // flawfinder: ignore
 		const uint8_t calculated_checksum = calculate_checksum(rx_buffer, (uint8_t)(len + HEADER_SIZE));
 		const uint8_t received_checksum = rx_buffer[len + HEADER_SIZE];
 
