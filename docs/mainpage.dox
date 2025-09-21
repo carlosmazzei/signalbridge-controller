@@ -44,16 +44,11 @@
  * | ---- | -------------- |
  * | `cdc_task` | Services TinyUSB and pumps the device stack. |
  * | `uart_event_task` | Buffers inbound CDC bytes and feeds the COBS decoder. |
- * | `decode_reception_task` | Reconstructs packets and hands them to
- *   @ref app_comm_process_inbound(). |
- * | `process_outbound_task` | Converts queued @ref data_events_t into CDC
- *   packets. |
- * | `cdc_write_task` | Streams encoded frames to the host while honouring flow
- *   control. |
- * | `keypad_task`, `adc_read_task`, `encoder_read_task` | Scan the keypad
- *   matrix, ADC channels and rotary encoders respectively. |
- * | `led_status_task` | Provides visual feedback for the current error state
- *   and USB link status. |
+ * | `decode_reception_task` | Reconstructs packets and hands them to @ref app_comm_process_inbound(). |
+ * | `process_outbound_task` | Converts queued @ref data_events_t into CDC packets. |
+ * | `cdc_write_task` | Streams encoded frames to the host while honouring flow control. |
+ * | `keypad_task`, `adc_read_task`, `encoder_read_task` | Scan the keypad matrix, ADC channels and rotary encoders respectively. |
+ * | `led_status_task` | Provides visual feedback for the current error state and USB link status. |
  *
  * @section diagnostics Diagnostics and watchdog
  * The firmware mirrors critical error conditions to a dedicated LED pattern,
