@@ -203,6 +203,10 @@ export JAVA_HOME="/usr/lib/jvm/java-openjdk-arm64"
 | `DISPLAY_OUT_ERROR` | Display driver errors |
 | `LED_OUT_ERROR` | LED driver errors |
 | `WATCHDOG_ERROR` | Watchdog updates missed |
+| `RECOVERY_ATTEMPTS_EXCEEDED` | Recovery aborted after exceeding the retry limit |
+| `RECOVERY_HEAP_ERROR` | Recovery halted due to insufficient heap memory |
+| `INPUT_QUEUE_INIT_ERROR` | Failed to allocate the input event queue |
+| `INPUT_INIT_ERROR` | Input driver initialisation failed |
 | `MSG_MALFORMED_ERROR` | Malformed USB messages |
 | `COBS_DECODE_ERROR` | COBS decoding failures |
 | `RECEIVE_BUFFER_OVERFLOW_ERROR` | USB receive buffer overflow |

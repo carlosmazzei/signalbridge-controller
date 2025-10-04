@@ -15,8 +15,10 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#include "app_setup.h"
+#include "app_context.h"
+#include "app_inputs.h"
 #include "app_tasks.h"
+#include "app_outputs.h"
 #include "error_management.h"
 
 /**
@@ -24,7 +26,10 @@
  */
 int main(void)
 {
-	setup_watchdog_with_error_detection(5000U);
+	board_init();
+	stdio_init_all();
+
+	setup_watchdog_with_error_detection(WATCHDOG_GRACE_PERIOD_MS);
 
 	if (statistics_is_error_state())
 	{
@@ -45,34 +50,45 @@ int main(void)
 		statistics_clear_error();
 	}
 
-	board_init();
+	app_context_reset_queues();
+	app_context_reset_line_state();
+	app_context_reset_task_props();
+	statistics_reset_all_counters();
 
+	// Initialize TinyUSB
 	if (!tud_init(BOARD_TUD_RHPORT))
 	{
-		set_error_state_persistent(ERROR_RESOURCE_ALLOCATION);
+		fatal_halt(ERROR_USB_INIT);
 	}
 
-	const bool hardware_ready = app_setup_hardware();
-	if (!hardware_ready)
+	// Initialize communication subsystem
+	if (!app_tasks_create_comm())
 	{
-		set_error_state_persistent(ERROR_RESOURCE_ALLOCATION);
+		fatal_halt(ERROR_USB_INIT);
 	}
 
-	const bool tasks_ready = app_tasks_create_all();
+	// Initialize outputs
+	const output_result_t output_status = output_init();
+	if (output_status != OUTPUT_OK)
+	{
+		statistics_increment_counter(OUT_INIT_ERROR);
+	}
+
+	// Initialize inputs
+	input_init();
+	const bool tasks_ready = app_tasks_create_application();
+
+	//if (!(inputs_ready && tasks_ready))
 	if (!tasks_ready)
 	{
-		set_error_state_persistent(ERROR_RESOURCE_ALLOCATION);
+		if (!statistics_is_error_state())
+		{
+			error_management_record_recoverable(ERROR_RESOURCE_ALLOCATION);
+		}
 	}
 
 	vTaskStartScheduler();
-
-	set_error_state_persistent(ERROR_SCHEDULER_FAILED);
-
-	while (true)
-	{
-		show_error_pattern_blocking(ERROR_SCHEDULER_FAILED);
-		update_watchdog_safe();
-	}
+	fatal_halt(ERROR_SCHEDULER_FAILED);
 
 	return 0;
 }

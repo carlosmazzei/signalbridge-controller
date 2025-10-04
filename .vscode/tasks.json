@@ -375,6 +375,107 @@
             },
             "problemMatcher": [],
             "detail": "Format all C/C++ files in src/ and include/ directories with uncrustify"
+        },
+        {
+            "label": "Run Cppcheck (Full Analysis)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/run_cppcheck.sh",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "cppcheck",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+)?: (error|warning|info|note): (.*)\\s+\\[(.*)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "detail": "Run comprehensive cppcheck analysis with MISRA C:2012 addon"
+        },
+        {
+            "label": "Run Cppcheck (Quick Check)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/cppcheck_simple.sh",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "cppcheck",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+)?: (error|warning|info|note): (.*)\\s+\\[(.*)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "detail": "Run simplified cppcheck analysis with basic MISRA rules"
+        },
+        {
+            "label": "Run Cppcheck (Single File)",
+            "type": "shell",
+            "command": "cppcheck",
+            "args": [
+                "--std=c11",
+                "--enable=all",
+                "--force",
+                "--template={file}:{line}: {severity}: {message} [{id}]",
+                "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions.txt",
+                "--addon=${workspaceFolder}/misra.json",
+                "-DportBYTE_ALIGNMENT=8",
+                "-DRP2040=1",
+                "-D__ARM_ARCH_6M__=1",
+                "-DconfigNUM_CORES=2",
+                "-I${workspaceFolder}/include",
+                "-I${workspaceFolder}/lib/pico-sdk/src/common/pico_stdlib/include",
+                "-I${workspaceFolder}/lib/FreeRTOS-Kernel/include",
+                "--force-include=${workspaceFolder}/include/FreeRTOSConfig.h",
+                "${file}"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "cppcheck",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+)?: (error|warning|info|note): (.*)\\s+\\[(.*)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "detail": "Run cppcheck on the currently open file"
         }
     ]
 }

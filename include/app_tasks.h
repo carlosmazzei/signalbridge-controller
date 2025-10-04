@@ -9,11 +9,19 @@
 #include <stdbool.h>
 
 /**
- * @brief Create all application tasks and supporting queues.
- *
- * @return `true` if every task and queue was created successfully.
+ * @brief Create the USB CDC communication subsystem tasks and queues.
  */
-bool app_tasks_create_all(void);
+bool app_tasks_create_comm(void);
+
+/**
+ * @brief Create the application tasks and queues that depend on I/O drivers.
+ */
+bool app_tasks_create_application(void);
+
+/**
+ * @brief Delete non-communication tasks and queues.
+ */
+void app_tasks_cleanup_application(void);
 
 /**
  * @brief Delete all application tasks and destroy associated queues.

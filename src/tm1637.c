@@ -15,7 +15,7 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 
-#include "outputs.h"
+#include "app_outputs.h"
 #include "tm1637.h"
 
 /**

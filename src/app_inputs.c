@@ -1,5 +1,5 @@
 /**
- * @file inputs.c
+ * @file app_inputs.c
  * @brief Implementation of keypad, ADC, and rotary encoder input handling for the A320 Pico Controller (FreeRTOS).
  * @author
  *   Carlos Mazzei <carlos.mazzei@gmail.com>
@@ -14,17 +14,27 @@
 
 #include <string.h>
 
-#include "inputs.h"
+#include "app_inputs.h"
 #include "commands.h"
 #include "data_event.h"
 #include "error_management.h"
 #include "hardware/watchdog.h"
 #include "task_props.h"
+#include "app_context.h"
 
 /**
  * @brief Input configuration instance (module scope).
  */
-static input_config_t input_config;
+static input_config_t input_config = {
+	.columns                  = 8,
+	.rows                     = 8,
+	.key_settling_time_ms     = 20,
+	.input_event_queue        = NULL,
+	.adc_channels             = 16,
+	.adc_settling_time_ms     = 100,
+	.encoder_settling_time_ms = 10,
+	.encoder_mask             = { [7] = true }
+};
 
 /**
  * @brief State array for each key in the keypad matrix.
@@ -34,9 +44,25 @@ static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 /** @brief ADC filter state exported for use by the ADC task. */
 adc_states_t adc_states;
 
-input_result_t input_init(const input_config_t *config)
+input_result_t input_init(void)
 {
 	input_result_t result = INPUT_OK;
+
+	QueueHandle_t existing_queue = app_context_get_data_event_queue();
+	if (existing_queue != NULL)
+	{
+		vQueueDelete(existing_queue);
+		input_config.input_event_queue = NULL;
+	}
+
+	QueueHandle_t data_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t));
+	if (NULL == data_queue)
+	{
+		statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
+	}
+	input_config.input_event_queue = data_queue;
+
+	const input_config_t *config = &input_config;
 
 	if ((config->columns > KEYPAD_MAX_COLS) ||
 	    (config->rows > KEYPAD_MAX_ROWS) ||
@@ -50,23 +76,8 @@ input_result_t input_init(const input_config_t *config)
 	}
 	else
 	{
-		// Initialize ADC configuration
-		input_config.adc_channels = config->adc_channels;
-		input_config.adc_settling_time_ms = config->adc_settling_time_ms;
-
 		// Initialize keypad configuration
-		input_config.rows = config->rows;
-		input_config.columns = config->columns;
 		(void)memset(keypad_state, 0, sizeof(keypad_state));
-		input_config.key_settling_time_ms = config->key_settling_time_ms;
-		input_config.input_event_queue = config->input_event_queue;
-
-		// Initialize encoder configuration
-		for (uint8_t i = 0U; i < MAX_NUM_ENCODERS; i++)
-		{
-			input_config.encoder_mask[i] = config->encoder_mask[i];
-		}
-		input_config.encoder_settling_time_ms = config->encoder_settling_time_ms;
 
 		// Setup IO pins using gpio_init_mask to configure multiple pins at once
 		uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
@@ -90,7 +101,6 @@ input_result_t input_init(const input_config_t *config)
 
 		adc_init(); // ADC init
 		adc_gpio_init(26); // Make sure GPIO is high-impedance, no pullups etc
-
 	}
 
 	return result;

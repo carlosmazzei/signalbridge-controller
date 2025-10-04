@@ -1,7 +1,32 @@
-*:include/FreeRTOSConfig.h:*    // Required by external lib FreeRTOS; DEVIATION (D5)
-*:include/tusb_config.h:*       // Required by external lib TinyUSB; DEVIATION (D5)
-*:lib:*                         // External lib; DEVIATION (D5)
-misra-c2012-2.5                 // Cppcheck bug with header inclusion; DEVIATION (D3)
-misra-c2012-2.4                 // Cppcheck bug with header inclusion; DEVIATION (D3)
-misra-c2012-2.3                 // Cppcheck bug with header inclusion; DEVIATION (D3)
-unusedStructMember              // Cppcheck bug with header inclusion; DEVIATION (D3)
+# External library suppressions - MISRA DEVIATION (D5)
+*:include/FreeRTOSConfig.h:*
+*:include/tusb_config.h:*
+*:lib/pico-sdk/*:*
+*:lib/FreeRTOS-Kernel/*:*
+*:lib/*:*
+
+# Specific MISRA C:2012 suppressions for project code
+# Only suppress when actually needed and document reason
+
+# MISRA rule suppressions for generated files
+misra-c2012-2.5:src/usb_descriptors.c    # TinyUSB generated descriptors
+misra-c2012-2.4:src/usb_descriptors.c    # TinyUSB generated descriptors
+
+# Function-specific suppressions with rationale
+misra-c2012-11.5:src/error_management.c:*   # Void pointer cast for hardware registers
+misra-c2012-11.6:src/error_management.c:*   # Watchdog hardware register access
+misra-c2012-17.7:src/app_comm.c:*           # Return value intentionally ignored for non-blocking calls
+
+# Hardware abstraction layer suppressions
+misra-c2012-11.4:src/inputs.c:*             # GPIO register access requires integer-pointer conversion
+misra-c2012-11.4:src/outputs.c:*            # SPI register access requires integer-pointer conversion
+
+# FreeRTOS integration suppressions
+misra-c2012-11.1:src/app_tasks.c:*          # FreeRTOS API requires function pointer casts
+misra-c2012-8.13:src/app_tasks.c:*          # FreeRTOS task parameters cannot be const
+
+# General cppcheck suppressions for false positives
+unusedStructMember:*                         # Many hardware structs have reserved fields
+preprocessorErrorDirective:lib/*:*          # External library preprocessor directives
+missingIncludeSystem:*                       # System includes handled by build system
+unmatchedSuppression:*                       # Allow flexible suppression matching

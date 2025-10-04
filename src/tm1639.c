@@ -18,7 +18,6 @@
  #include "FreeRTOS.h"
  #include "semphr.h"
 
- #include "outputs.h"
  #include "tm1639.h"
 
 /*

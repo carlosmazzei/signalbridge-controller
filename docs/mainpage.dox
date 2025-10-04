@@ -12,11 +12,12 @@
  * Overhead Byte Stuffing (COBS).
  *
  * @section architecture Firmware architecture
- * - @ref app_setup_hardware() prepares the hardware peripherals, instantiates
- *   the shared application context and configures the multiplexer front-ends
- *   that fan signals across the keypad, encoder and ADC banks.
- * - @ref app_tasks_create_all() launches the FreeRTOS tasks that scan inputs,
- *   service TinyUSB, marshal outbound events and refresh the various display
+ * - @ref output_init() prepares the display and LED drivers, while
+ *   @ref input_init() configures the keypad/encoder multiplexers and the
+ *   shared data-event queue used by the input scanning tasks.
+ * - @ref app_tasks_create_comm() spins up the TinyUSB CDC workers; once they
+ *   are alive, @ref app_tasks_create_application() launches the FreeRTOS tasks
+ *   that scan inputs, marshal outbound events and refresh the various display
  *   controllers.
  * - The @ref app_comm_send_packet() helper encodes responses and telemetries
  *   with COBS and enqueues them on the TinyUSB CDC transmit queue, while
@@ -33,7 +34,7 @@
  * @section data_flow Data flow
  * 1. Host commands arrive through TinyUSB and are framed as COBS packets.
  * 2. @ref app_tasks.c decodes the packets and dispatches requests to
- *    @ref outputs.c or internal services.
+ *    @ref app_outputs.c or internal services.
  * 3. Input tasks generate events in the @ref data_events_t format which are
  *    encoded by @ref app_comm_send_packet() and sent back to the simulator.
  * 4. Error counters and runtime telemetry are exposed over dedicated commands
@@ -62,7 +63,7 @@
  * implementations in `src/`.  Each subsystem exposes a focused set of
  * functions documented with detailed parameter, return and error conditions so
  * new hardware drivers or control panels can be integrated with minimal
- * friction.  Refer to the documentation of @ref outputs.h and @ref inputs.h for
+ * friction.  Refer to the documentation of @ref app_outputs.h and @ref app_inputs.h for
  * examples of how payloads are structured and queues are used to exchange data
  * between tasks.
  */

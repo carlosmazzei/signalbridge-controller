@@ -59,6 +59,15 @@ if [ ! -d "build" ]; then
     mkdir -p build
 fi
 
+# Install MISRA addon for cppcheck
+echo "Installing MISRA C:2012 addon for cppcheck..."
+if [ -f ".devcontainer/install_misra_addon.sh" ]; then
+    chmod +x .devcontainer/install_misra_addon.sh
+    .devcontainer/install_misra_addon.sh
+else
+    echo "⚠️  MISRA addon installation script not found"
+fi
+
 # Verify VS Code configuration files
 echo "Verifying VS Code configuration..."
 

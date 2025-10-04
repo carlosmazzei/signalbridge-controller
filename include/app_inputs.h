@@ -1,5 +1,5 @@
 /**
- * @file inputs.h
+ * @file app_inputs.h
  * @brief Input subsystem configuration and task interfaces.
  *
  * The module multiplexes a large keypad matrix, a bank of ADC channels and a
@@ -26,7 +26,7 @@
  *
  * The definitions in this group describe the multiplexed keypad, ADC and
  * encoder front-ends that feed the firmware.  They are shared by
- * @ref inputs.c and consumers that need to reason about the generated
+ * @ref app_inputs.c and consumers that need to reason about the generated
  * @ref data_events_t payloads.
  * @{
  */
@@ -155,13 +155,11 @@ typedef struct encoder_states_t
  * state machines.  On success, the calling code can start the keypad, ADC and
  * encoder tasks which will make use of the cached settings.
  *
- * @param[in] config Pointer to a populated configuration structure.
- *
  * @retval INPUT_OK             Configuration accepted and hardware initialised.
  * @retval INPUT_INVALID_CONFIG One or more parameters are outside the
  *                              supported range.
  */
-input_result_t input_init(const input_config_t *config);
+input_result_t input_init(void);
 
 /**
  * @brief FreeRTOS task that scans the keypad matrix and generates key events.

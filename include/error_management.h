@@ -15,6 +15,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Watchdog timer delay
+#define WATCHDOG_GRACE_PERIOD_MS 5000U
+
 // Error LED configuration
 #define ERROR_LED_PIN PICO_DEFAULT_LED_PIN
 
@@ -27,12 +30,7 @@
 #define ERROR_DISPLAY_BEFORE_TENTATIVE_RESTART_MS 12000
 
 // Watchdog scratch register usage
-#define WATCHDOG_ERROR_TYPE_REG    0
-#define WATCHDOG_ERROR_COUNT_REG   1
-#define WATCHDOG_BOOT_MAGIC_REG    2
-
-#define ERROR_MAGIC_VALUE     0xDEADBEEF
-#define CLEAN_BOOT_MAGIC      0x600DC0DE
+#define WATCHDOG_ERROR_COUNT_REG       0
 
 /**
  * @enum error_type_t
@@ -44,8 +42,20 @@ typedef enum {
 	ERROR_FREERTOS_STACK = 2,
 	ERROR_PICO_SDK_PANIC = 3,
 	ERROR_SCHEDULER_FAILED = 4,
-	ERROR_RESOURCE_ALLOCATION = 5
+	ERROR_RESOURCE_ALLOCATION = 5,
+	ERROR_USB_INIT = 6,
 } error_type_t;
+
+/**
+ * @enum recovery_state_t
+ * @brief Tracks the outcome of the most recent automatic recovery.
+ */
+typedef enum {
+	RECOVERY_STATE_CLEAN = 0,
+	RECOVERY_STATE_IN_PROGRESS = 1,
+	RECOVERY_STATE_FAILED = 2,
+	RECOVERY_STATE_SUCCEEDED = 3
+} recovery_state_t;
 
 /**
  * @enum statistics_counter_enum_t
@@ -68,11 +78,19 @@ typedef enum statistics_counter_enum_t {
 	BYTES_SENT,
 	BYTES_RECEIVED,
 
+	// Recovery-related enums
+	RECOVERY_ATTEMPTS_EXCEEDED,
+	RECOVERY_HEAP_ERROR,
+
 	// Output error enums
 	OUT_CONTROLLER_ID_ERROR,
 	OUT_INIT_ERROR,
 	OUT_DRIVER_INIT_ERROR,
 	OUT_INVALID_PARAM_ERROR,
+
+	// Input error enums
+	INPUT_QUEUE_INIT_ERROR,
+	INPUT_INIT_ERROR,
 
 	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
 } statistics_counter_enum_t;
@@ -85,6 +103,7 @@ typedef struct statistics_counters_t {
 	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
 	bool error_state;                  /**< Flag indicating critical error state */
 	error_type_t current_error_type;
+	recovery_state_t recovery_state;   /**< Recovery outcome captured across resets */
 } statistics_counters_t;
 
 /**
@@ -143,11 +162,32 @@ error_type_t statistics_get_error_type(void);
 void statistics_clear_error(void);
 
 /**
- * @brief Set the error state persistently in the watchdog registers.
+ * @brief Record a recoverable error for diagnostics.
  *
- * @param[in] type The type of error to set.
+ * @param[in] type Recoverable error type being raised.
  */
-void set_error_state_persistent(error_type_t type);
+void error_management_record_recoverable(error_type_t type);
+
+/**
+ * @brief Record a fatal error without entering recovery mode.
+ *
+ * @param[in] type Fatal error type to persist for diagnostics.
+ */
+void error_management_record_fatal(error_type_t type);
+
+/**
+ * @brief Immediately halt execution and display a fatal error pattern.
+ *
+ * This function does not return. It disables interrupts and enters
+ * an infinite loop displaying the error pattern for the specified error type.
+ *
+ */
+void __attribute__((noreturn)) fatal_halt(error_type_t type);
+
+/**
+ * @brief Check if an error type supports automatic recovery.
+ */
+bool error_management_is_recoverable(error_type_t type);
 
 /**
  * @brief Show a blinking error pattern on the error LED.
@@ -176,9 +216,25 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms);
 
 /**
  * @brief Update the watchdog timer safely.
- *
- * This function updates the watchdog timer only if the system is not in an error state.
  */
 void update_watchdog_safe(void);
+
+/**
+ * @brief Retrieve the most recent recovery outcome recorded across resets.
+ */
+recovery_state_t error_management_get_recovery_state(void);
+
+/**
+ * @brief Initiate a graceful system reboot after error recovery attempts.
+ *
+ * This function performs an orderly shutdown sequence:
+ * 1. Saves error state to persistent storage
+ * 2. Allows brief time for final error reporting
+ * 3. Initiates watchdog-triggered reset
+ *
+ * @param[in] error_type The error type that triggered the reboot
+ * @param[in] delay_ms Delay in milliseconds before reboot (max 5000ms)
+ */
+void error_management_graceful_reboot(error_type_t error_type, uint32_t delay_ms);
 
 #endif // ERROR_MANAGEMENT_H

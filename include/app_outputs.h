@@ -2,7 +2,7 @@
 #define OUTPUTS_H
 
 /**
- * @file outputs.h
+ * @file app_outputs.h
  * @brief Interfaces for controlling LED, display and PWM output devices.
  *
  * The outputs subsystem coordinates SPI-attached LED controllers (TM1639) and
@@ -132,7 +132,7 @@ struct output_driver_t {
 };
 
 /**
- * @brief Container for every driver handle managed by @ref outputs.c.
+ * @brief Container for every driver handle managed by @ref app_outputs.c.
  */
 typedef struct output_drivers_t {
 	output_driver_t *driver_handles[MAX_SPI_INTERFACES]; /**< Pointer table indexed by chip ID. */

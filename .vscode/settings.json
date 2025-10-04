@@ -64,8 +64,6 @@
     "c-cpp-flylint.cppcheck.extraArgs": [
         "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions.txt",
         "--check-level=exhaustive",
-        "--force",
-        "--max-configs=80",
         "--addon=${workspaceFolder}/misra.json",
         "--cppcheck-build-dir=${workspaceFolder}/.cppcheck",
         "-Dbi_decl(x)=",

@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #include "FreeRTOS.h"
-#include "outputs.h"
+#include "app_outputs.h"
 #include "pico/stdlib.h"
 #include "semphr.h"
 

@@ -13,13 +13,23 @@
 
 #include "tusb.h"
 
+#include <stddef.h>
+
 #include "cobs.h"
 #include "app_comm.h"
 #include "app_config.h"
 #include "app_context.h"
+#include "app_inputs.h"
 #include "data_event.h"
 #include "error_management.h"
-#include "inputs.h"
+
+static void uart_event_task(void *pvParameters);
+static void cdc_task(void *pvParameters);
+static void decode_reception_task(void *pvParameters);
+static void process_outbound_task(void *pvParameters);
+static void cdc_write_task(void *pvParameters);
+static void led_status_task(void *pvParameters);
+static void cleanup_comm_subsystem(void);
 
 /**
  * @brief Helper to create a task and set its core affinity.
@@ -31,6 +41,7 @@
  * @param[in] priority      Task priority.
  * @param[in] task_id       Identifier used to store the task properties.
  * @param[in] affinity_mask Core affinity mask for the task.
+ * @param[in] failure_type  Error type to flag on allocation failure.
  * @return `true` when the task was created successfully.
  */
 static inline bool create_task_with_affinity(TaskFunction_t function,
@@ -39,7 +50,8 @@ static inline bool create_task_with_affinity(TaskFunction_t function,
                                              void *params,
                                              UBaseType_t priority,
                                              task_enum_t task_id,
-                                             UBaseType_t affinity_mask)
+                                             UBaseType_t affinity_mask,
+                                             error_type_t failure_type)
 {
 	task_props_t *const props = app_context_task_props(task_id);
 	const BaseType_t result = xTaskCreate(function,
@@ -48,15 +60,28 @@ static inline bool create_task_with_affinity(TaskFunction_t function,
 	                                      params,
 	                                      priority,
 	                                      &props->task_handle);
+	bool success = false;
+
 	if (pdPASS == result)
 	{
 		vTaskCoreAffinitySet(props->task_handle, affinity_mask);
-		return true;
+		success = true;
+	}
+	else
+	{
+		props->task_handle = NULL;
+
+		if (error_management_is_recoverable(failure_type))
+		{
+			error_management_record_recoverable(failure_type);
+		}
+		else
+		{
+			error_management_record_fatal(failure_type);
+		}
 	}
 
-	props->task_handle = NULL;
-	set_error_state_persistent(ERROR_FREERTOS_STACK);
-	return false;
+	return success;
 }
 
 /**
@@ -64,183 +89,231 @@ static inline bool create_task_with_affinity(TaskFunction_t function,
  *
  * @param[in] length    Queue length.
  * @param[in] item_size Size of each item.
+ * @param[in] failure_type Error type to flag on allocation failure.
  * @return The queue handle or `NULL` when allocation fails.
  */
-static inline QueueHandle_t create_queue_or_flag(UBaseType_t length, UBaseType_t item_size)
+static inline QueueHandle_t create_queue_or_flag(UBaseType_t length, UBaseType_t item_size, error_type_t failure_type)
 {
 	QueueHandle_t queue = xQueueCreate(length, item_size);
 	if (NULL == queue)
 	{
-		set_error_state_persistent(ERROR_FREERTOS_STACK);
+		if (error_management_is_recoverable(failure_type))
+		{
+			error_management_record_recoverable(failure_type);
+		}
+		else
+		{
+			error_management_record_fatal(failure_type);
+		}
 	}
 	return queue;
 }
 
-static void uart_event_task(void *pvParameters);
-static void cdc_task(void *pvParameters);
-static void decode_reception_task(void *pvParameters);
-static void process_outbound_task(void *pvParameters);
-static void cdc_write_task(void *pvParameters);
-static void led_status_task(void *pvParameters);
+static void delete_task_if_exists(task_enum_t task_id)
+{
+	task_props_t *props = app_context_task_props(task_id);
+	if (props->task_handle != NULL)
+	{
+		vTaskDelete(props->task_handle);
+		props->task_handle = NULL;
+	}
+	props->high_watermark = 0U;
+}
 
-bool app_tasks_create_all(void)
+bool app_tasks_create_application(void)
 {
 	bool success = true;
 
-	task_props_t *cdc_props = app_context_task_props(CDC_TASK);
-	if (!create_task_with_affinity(cdc_task,
-	                               "cdc_task",
-	                               CDC_STACK_SIZE,
-	                               (void *)cdc_props,
-	                               mainCDC_TASK_PRIORITY,
-	                               CDC_TASK,
-	                               CDC_TASK_CORE_AFFINITY))
+	if (success)
 	{
-		success = false;
+		success = create_task_with_affinity(process_outbound_task,
+		                                    "process_outbound_task",
+		                                    PROCESS_OUTBOUND_STACK_SIZE,
+		                                    (void *)app_context_task_props(PROCESS_OUTBOUND_TASK),
+		                                    mainPROCESS_QUEUE_TASK_PRIORITY,
+		                                    PROCESS_OUTBOUND_TASK,
+		                                    PROCESS_OUTBOUND_TASK_CORE_AFFINITY,
+		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
-	QueueHandle_t encoded_queue = create_queue_or_flag(ENCODED_QUEUE_SIZE, sizeof(uint8_t));
-	app_context_set_encoded_queue(encoded_queue);
-	if (encoded_queue != NULL)
+	if (success)
 	{
-		if (!create_task_with_affinity(uart_event_task,
-		                               "uart_event_task",
-		                               UART_EVENT_STACK_SIZE,
-		                               (void *)app_context_task_props(UART_EVENT_TASK),
-		                               mainUART_TASK_PRIORITY,
-		                               UART_EVENT_TASK,
-		                               UART_EVENT_TASK_CORE_AFFINITY))
-		{
-			success = false;
-		}
-
-		if (!create_task_with_affinity(decode_reception_task,
-		                               "decode_reception_task",
-		                               DECODE_RECEPTION_STACK_SIZE,
-		                               (void *)app_context_task_props(DECODE_RECEPTION_TASK),
-		                               mainDECODE_TASK_PRIORITY,
-		                               DECODE_RECEPTION_TASK,
-		                               DECODE_RECEPTION_TASK_CORE_AFFINITY))
-		{
-			success = false;
-		}
-	}
-	else
-	{
-		success = false;
+		success = create_task_with_affinity(adc_read_task,
+		                                    "adc_read_task",
+		                                    ADC_READ_STACK_SIZE,
+		                                    (void *)app_context_task_props(ADC_READ_TASK),
+		                                    mainADC_TASK_PRIORITY,
+		                                    ADC_READ_TASK,
+		                                    ADC_READ_TASK_CORE_AFFINITY,
+		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
-	QueueHandle_t transmit_queue = create_queue_or_flag(CDC_TRANSMIT_QUEUE_SIZE, sizeof(cdc_packet_t));
-	app_context_set_cdc_transmit_queue(transmit_queue);
-	if (transmit_queue != NULL)
+	if (success)
 	{
-		if (!create_task_with_affinity(cdc_write_task,
-		                               "cdc_write_task",
-		                               CDC_STACK_SIZE,
-		                               (void *)app_context_task_props(CDC_WRITE_TASK),
-		                               mainCDC_TASK_PRIORITY,
-		                               CDC_WRITE_TASK,
-		                               CDC_TASK_CORE_AFFINITY))
-		{
-			success = false;
-		}
-	}
-	else
-	{
-		success = false;
+		success = create_task_with_affinity(keypad_task,
+		                                    "keypad_task",
+		                                    KEYPAD_STACK_SIZE,
+		                                    (void *)app_context_task_props(KEYPAD_TASK),
+		                                    mainKEY_TASK_PRIORITY,
+		                                    KEYPAD_TASK,
+		                                    KEYPAD_TASK_CORE_AFFINITY,
+		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
-	if (!create_task_with_affinity(process_outbound_task,
-	                               "process_outbound_task",
-	                               PROCESS_OUTBOUND_STACK_SIZE,
-	                               (void *)app_context_task_props(PROCESS_OUTBOUND_TASK),
-	                               mainPROCESS_QUEUE_TASK_PRIORITY,
-	                               PROCESS_OUTBOUND_TASK,
-	                               PROCESS_OUTBOUND_TASK_CORE_AFFINITY))
+	if (success)
 	{
-		success = false;
+		success = create_task_with_affinity(encoder_read_task,
+		                                    "encoder_task",
+		                                    ENCODER_READ_STACK_SIZE,
+		                                    (void *)app_context_task_props(ENCODER_READ_TASK),
+		                                    mainENCODER_TASK_PRIORITY,
+		                                    ENCODER_READ_TASK,
+		                                    ENCODER_READ_TASK_CORE_AFFINITY,
+		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
-	if (!create_task_with_affinity(adc_read_task,
-	                               "adc_read_task",
-	                               ADC_READ_STACK_SIZE,
-	                               (void *)app_context_task_props(ADC_READ_TASK),
-	                               mainADC_TASK_PRIORITY,
-	                               ADC_READ_TASK,
-	                               ADC_READ_TASK_CORE_AFFINITY))
+	if (success)
 	{
-		success = false;
-	}
-
-	if (!create_task_with_affinity(keypad_task,
-	                               "keypad_task",
-	                               KEYPAD_STACK_SIZE,
-	                               (void *)app_context_task_props(KEYPAD_TASK),
-	                               mainKEY_TASK_PRIORITY,
-	                               KEYPAD_TASK,
-	                               KEYPAD_TASK_CORE_AFFINITY))
-	{
-		success = false;
-	}
-
-	if (!create_task_with_affinity(encoder_read_task,
-	                               "encoder_task",
-	                               ENCODER_READ_STACK_SIZE,
-	                               (void *)app_context_task_props(ENCODER_READ_TASK),
-	                               mainENCODER_TASK_PRIORITY,
-	                               ENCODER_READ_TASK,
-	                               ENCODER_READ_TASK_CORE_AFFINITY))
-	{
-		success = false;
-	}
-
-	if (!create_task_with_affinity(led_status_task,
-	                               "led_status_task",
-	                               LED_STATUS_STACK_SIZE,
-	                               (void *)app_context_task_props(LED_STATUS_TASK),
-	                               mainLED_STATUS_TASK_PRIORITY,
-	                               LED_STATUS_TASK,
-	                               LED_STATUS_TASK_CORE_AFFINITY))
-	{
-		success = false;
+		success = create_task_with_affinity(led_status_task,
+		                                    "led_status_task",
+		                                    LED_STATUS_STACK_SIZE,
+		                                    (void *)app_context_task_props(LED_STATUS_TASK),
+		                                    mainLED_STATUS_TASK_PRIORITY,
+		                                    LED_STATUS_TASK,
+		                                    LED_STATUS_TASK_CORE_AFFINITY,
+		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
 	return success;
 }
 
-void app_tasks_cleanup(void)
+bool app_tasks_create_comm(void)
+{
+	bool success = true;
+	QueueHandle_t encoded_queue = NULL;
+	QueueHandle_t transmit_queue = NULL;
+
+	if (success)
+	{
+		success = create_task_with_affinity(cdc_task,
+		                                    "cdc_task",
+		                                    CDC_STACK_SIZE,
+		                                    (void *)app_context_task_props(CDC_TASK),
+		                                    mainCDC_TASK_PRIORITY,
+		                                    CDC_TASK,
+		                                    CDC_TASK_CORE_AFFINITY,
+		                                    ERROR_USB_INIT);
+	}
+
+	if (success)
+	{
+		encoded_queue = create_queue_or_flag(ENCODED_QUEUE_SIZE, sizeof(uint8_t), ERROR_USB_INIT);
+		app_context_set_encoded_queue(encoded_queue);
+		if (NULL == encoded_queue)
+		{
+			success = false;
+		}
+	}
+
+	if (success)
+	{
+		success = create_task_with_affinity(uart_event_task,
+		                                    "uart_event_task",
+		                                    UART_EVENT_STACK_SIZE,
+		                                    (void *)app_context_task_props(UART_EVENT_TASK),
+		                                    mainUART_TASK_PRIORITY,
+		                                    UART_EVENT_TASK,
+		                                    UART_EVENT_TASK_CORE_AFFINITY,
+		                                    ERROR_USB_INIT);
+	}
+
+	if (success)
+	{
+		success = create_task_with_affinity(decode_reception_task,
+		                                    "decode_reception_task",
+		                                    DECODE_RECEPTION_STACK_SIZE,
+		                                    (void *)app_context_task_props(DECODE_RECEPTION_TASK),
+		                                    mainDECODE_TASK_PRIORITY,
+		                                    DECODE_RECEPTION_TASK,
+		                                    DECODE_RECEPTION_TASK_CORE_AFFINITY,
+		                                    ERROR_USB_INIT);
+	}
+
+	if (success)
+	{
+		transmit_queue = create_queue_or_flag(CDC_TRANSMIT_QUEUE_SIZE, sizeof(cdc_packet_t), ERROR_USB_INIT);
+		app_context_set_cdc_transmit_queue(transmit_queue);
+		if (NULL == transmit_queue)
+		{
+			success = false;
+		}
+	}
+
+	if (success)
+	{
+		success = create_task_with_affinity(cdc_write_task,
+		                                    "cdc_write_task",
+		                                    CDC_STACK_SIZE,
+		                                    (void *)app_context_task_props(CDC_WRITE_TASK),
+		                                    mainCDC_TASK_PRIORITY,
+		                                    CDC_WRITE_TASK,
+		                                    CDC_TASK_CORE_AFFINITY,
+		                                    ERROR_USB_INIT);
+	}
+
+	if (!success)
+	{
+		cleanup_comm_subsystem();
+	}
+
+	return success;
+}
+
+void app_tasks_cleanup_application(void)
+{
+	QueueHandle_t queue = app_context_get_data_event_queue();
+	if (queue != NULL)
+	{
+		vQueueDelete(queue);
+	}
+	app_context_set_data_event_queue(NULL);
+
+	delete_task_if_exists(PROCESS_OUTBOUND_TASK);
+	delete_task_if_exists(ADC_READ_TASK);
+	delete_task_if_exists(KEYPAD_TASK);
+	delete_task_if_exists(ENCODER_READ_TASK);
+	delete_task_if_exists(LED_STATUS_TASK);
+}
+
+static void cleanup_comm_subsystem(void)
 {
 	QueueHandle_t queue = app_context_get_encoded_queue();
 	if (queue != NULL)
 	{
 		vQueueDelete(queue);
 	}
-
-	queue = app_context_get_data_event_queue();
-	if (queue != NULL)
-	{
-		vQueueDelete(queue);
-	}
+	app_context_set_encoded_queue(NULL);
 
 	queue = app_context_get_cdc_transmit_queue();
 	if (queue != NULL)
 	{
 		vQueueDelete(queue);
 	}
+	app_context_set_cdc_transmit_queue(NULL);
 
+	delete_task_if_exists(CDC_TASK);
+	delete_task_if_exists(UART_EVENT_TASK);
+	delete_task_if_exists(DECODE_RECEPTION_TASK);
+	delete_task_if_exists(CDC_WRITE_TASK);
+}
+
+void app_tasks_cleanup(void)
+{
+	app_tasks_cleanup_application();
+	cleanup_comm_subsystem();
 	app_context_reset_queues();
 	app_context_reset_line_state();
-
-	for (uint32_t id = 0; id < (uint32_t)NUM_TASKS; id++)
-	{
-		task_props_t *props = app_context_task_props((task_enum_t)id);
-		if (props->task_handle != NULL)
-		{
-			vTaskDelete(props->task_handle);
-			props->task_handle = NULL;
-		}
-		props->high_watermark = 0U;
-	}
+	app_context_reset_task_props();
 }
 
 /**
@@ -312,6 +385,7 @@ static void decode_reception_task(void *pvParameters)
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		update_watchdog_safe();
 
+		// Get queue handle and wait if not created yet
 		QueueHandle_t queue = app_context_get_encoded_queue();
 		if (NULL == queue)
 		{
@@ -319,6 +393,7 @@ static void decode_reception_task(void *pvParameters)
 			continue;
 		}
 
+		// Wait indefinitely for data
 		uint8_t data = 0U;
 		if (pdFALSE == xQueueReceive(queue, &data, portMAX_DELAY))
 		{
@@ -384,14 +459,6 @@ static void process_outbound_task(void *pvParameters)
 		if (pdPASS == result)
 		{
 			app_comm_send_packet(BOARD_ID, data_event.command, data_event.data, data_event.data_length);
-		}
-		else if (errQUEUE_EMPTY == result)
-		{
-			// No action required.
-		}
-		else
-		{
-			statistics_increment_counter(QUEUE_RECEIVE_ERROR);
 		}
 
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);

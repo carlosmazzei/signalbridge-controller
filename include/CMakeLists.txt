@@ -3,10 +3,11 @@ set(HEADER_FILES
     data_event.h
     FreeRTOSConfig.h
     hooks.h
-    inputs.h
-    outputs.h
+    app_outputs.h
+    app_inputs.h
     commands.h
     task_props.h
+    tm1637.h
     tm1639.h
     tusb_config.h
     error_management.h

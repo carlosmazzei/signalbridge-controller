@@ -15,7 +15,7 @@
 #include "cobs.h"
 #include "commands.h"
 #include "error_management.h"
-#include "outputs.h"
+#include "app_outputs.h"
 
 #include "app_config.h"
 #include "app_context.h"

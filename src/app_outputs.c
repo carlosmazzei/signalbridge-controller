@@ -1,5 +1,5 @@
 /**
- * @file outputs.c
+ * @file app_outputs.c
  * @brief Implementation of output control functions: LEDs, PWM, and 7-segment displays.
  * @author
  *   Carlos Mazzei <carlos.mazzei@gmail.com>
@@ -25,7 +25,7 @@
 
 #include "tm1639.h"
 #include "tm1637.h"
-#include "outputs.h"
+#include "app_outputs.h"
 #include "error_management.h"
 
 /**
@@ -190,7 +190,6 @@ static output_result_t init_driver(void)
 		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
 			// Initialize generic driver (if needed)
-			/** @todo: initialize generic devices with generic drivers */
 		}
 	}
 
@@ -237,7 +236,6 @@ output_result_t output_init(void)
 	if (result_mux != OUTPUT_OK)
 	{
 		statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
-		//result = OUTPUT_ERR_INIT; // Do not trigger init error on mux failure
 	}
 
 	// Initialize SPI
@@ -272,8 +270,7 @@ output_result_t output_init(void)
 	output_result_t result_init = init_driver();
 	if (result_init != OUTPUT_OK)
 	{
-		statistics_increment_counter(OUT_INIT_ERROR);
-		//result = OUTPUT_ERR_INIT; // Do not trigger init error on driver failure
+		statistics_increment_counter(OUT_DRIVER_INIT_ERROR);
 	}
 
 	return result;
