@@ -75,18 +75,20 @@ int main(void)
 	}
 
 	// Initialize inputs
-	input_init();
-	const bool tasks_ready = app_tasks_create_application();
+	const input_result_t input_status = input_init();
+    if (input_status != INPUT_OK)
+    {
+        statistics_increment_counter(INPUT_INIT_ERROR);
+    }
 
-	//if (!(inputs_ready && tasks_ready))
+    // Initialize application tasks
+	const bool tasks_ready = app_tasks_create_application();
 	if (!tasks_ready)
 	{
-		if (!statistics_is_error_state())
-		{
-			error_management_record_recoverable(ERROR_RESOURCE_ALLOCATION);
-		}
+		error_management_record_recoverable(ERROR_RESOURCE_ALLOCATION);
 	}
 
+    // Initialize task scheduler
 	vTaskStartScheduler();
 	fatal_halt(ERROR_SCHEDULER_FAILED);
 

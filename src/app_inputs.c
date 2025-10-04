@@ -59,6 +59,7 @@ input_result_t input_init(void)
 	if (NULL == data_queue)
 	{
 		statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
+        result = INPUT_ERROR;
 	}
 	input_config.input_event_queue = data_queue;
 
