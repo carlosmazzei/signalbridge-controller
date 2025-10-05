@@ -47,17 +47,6 @@ typedef enum {
 } error_type_t;
 
 /**
- * @enum recovery_state_t
- * @brief Tracks the outcome of the most recent automatic recovery.
- */
-typedef enum {
-	RECOVERY_STATE_CLEAN = 0,
-	RECOVERY_STATE_IN_PROGRESS = 1,
-	RECOVERY_STATE_FAILED = 2,
-	RECOVERY_STATE_SUCCEEDED = 3
-} recovery_state_t;
-
-/**
  * @enum statistics_counter_enum_t
  * @brief Enumerates different error types in the system.
  */
