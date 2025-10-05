@@ -15,13 +15,14 @@ add_unit_test(test_cobs
 add_unit_test(test_inputs
     test_inputs.c
     hardware_mocks.c
+    WRAP_FUNCTIONS xQueueGenericCreate vQueueDelete
 )
 
 # Test for outputs module (constant validation and simple behavior)
 add_unit_test(test_outputs
     test_outputs.c
     hardware_mocks.c
-    WRAP_FUNCTIONS pwm_set_gpio_level
+    WRAP_FUNCTIONS pwm_set_gpio_level tm1639_init tm1637_init xQueueCreateMutex xQueueSemaphoreTake xQueueGenericSend
 )
 
 # Test for tm1639 module (constant validation)

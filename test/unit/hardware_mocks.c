@@ -17,6 +17,13 @@ typedef struct {
 static watchdog_hw_t mock_watchdog_instance = {0};
 watchdog_hw_t *watchdog_hw = &mock_watchdog_instance;
 
+static bool mock_watchdog_reboot_flag = false;
+
+void mock_watchdog_set_reboot_flag(bool flag)
+{
+    mock_watchdog_reboot_flag = flag;
+}
+
 // GPIO functions
 void gpio_init(uint32_t gpio) { (void)gpio; }
 void gpio_set_dir(uint32_t gpio, bool out) { (void)gpio; (void)out; }
@@ -28,13 +35,30 @@ void gpio_put_masked(uint32_t gpio_mask, uint32_t value) { (void)gpio_mask; (voi
 void gpio_deinit(uint32_t gpio) { (void)gpio; }
 
 // Time functions
+static uint32_t mock_time_current = 0;
+static uint32_t mock_time_step = 0;
+
+void mock_time_config(uint32_t initial_value, uint32_t step)
+{
+    mock_time_current = initial_value;
+    mock_time_step = step;
+}
+
 void busy_wait_ms(uint32_t ms) { (void)ms; }
-uint32_t time_us_32(void) { return 0; }
+uint32_t time_us_32(void)
+{
+    uint32_t now = mock_time_current;
+    mock_time_current += mock_time_step;
+    return now;
+}
 
 // Watchdog functions
 void watchdog_enable(uint32_t timeout_ms, int pause) { (void)timeout_ms; (void)pause; }
 void watchdog_update(void) {}
-bool watchdog_caused_reboot(void) { return false; }
+bool watchdog_caused_reboot(void)
+{
+    return mock_watchdog_reboot_flag;
+}
 
 // Interrupt functions
 uint32_t save_and_disable_interrupts(void) { return 0; }

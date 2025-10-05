@@ -13,9 +13,11 @@ endif()
 # Ensure output directory exists
 file(MAKE_DIRECTORY "${COVERAGE_DIR}")
 
-# Capture coverage data
+# Capture coverage data for both core library and unit test objects
+get_filename_component(_binary_root "${WORK_DIR}" DIRECTORY)
+
 execute_process(
-  COMMAND "${LCOV_PATH}" --directory . --capture --output-file coverage.info
+  COMMAND "${LCOV_PATH}" --ignore-errors source --directory "${_binary_root}" --capture --output-file coverage.info
   WORKING_DIRECTORY "${WORK_DIR}"
   RESULT_VARIABLE _lcov_capture_rv
 )
@@ -44,4 +46,3 @@ if(NOT _genhtml_rv EQUAL 0)
 endif()
 
 message(STATUS "Coverage report generated in ${COVERAGE_DIR}/index.html")
-
