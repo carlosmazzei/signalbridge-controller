@@ -19,11 +19,25 @@ mkdir -p "$DUMP_DIR"
 exec > >(tee "$LOG_FILE") 2>&1
 
 collect_dumps() {
-    [ -d "$PROJECT_ROOT/src" ] || return 0
-    find "$PROJECT_ROOT/src" -type f -name '*.dump' \
+    [ -d "$PROJECT_ROOT" ] || return 0
+
+    local git_available=false
+    if command -v git >/dev/null 2>&1 && git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git_available=true
+    fi
+
+    find "$PROJECT_ROOT" -type f -name '*.dump' \
+        -not -path "$PROJECT_ROOT/.git/*" \
+        -not -path "$PROJECT_ROOT/lib/*" \
         -not -path "$DUMP_DIR/*" \
         -print0 | while IFS= read -r -d '' dumpfile; do
             rel_path="${dumpfile#$PROJECT_ROOT/}"
+
+            if [ "$git_available" = true ] && git -C "$PROJECT_ROOT" ls-files --error-unmatch "$rel_path" >/dev/null 2>&1; then
+                # Leave tracked dump artefacts (e.g. checked-in vendor files) untouched
+                continue
+            fi
+
             dest="$DUMP_DIR/$rel_path"
             mkdir -p "$(dirname "$dest")"
             mv -f "$dumpfile" "$dest" || true

@@ -83,10 +83,10 @@ typedef enum statistics_counter_enum_t {
 	RECOVERY_HEAP_ERROR,
 
 	// Output error enums
-	OUT_CONTROLLER_ID_ERROR,
-	OUT_INIT_ERROR,
-	OUT_DRIVER_INIT_ERROR,
-	OUT_INVALID_PARAM_ERROR,
+	OUTPUT_CONTROLLER_ID_ERROR,
+	OUTPUT_INIT_ERROR,
+	OUTPUT_DRIVER_INIT_ERROR,
+	OUTPUT_INVALID_PARAM_ERROR,
 
 	// Input error enums
 	INPUT_QUEUE_INIT_ERROR,
@@ -103,7 +103,6 @@ typedef struct statistics_counters_t {
 	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
 	bool error_state;                  /**< Flag indicating critical error state */
 	error_type_t current_error_type;
-	recovery_state_t recovery_state;   /**< Recovery outcome captured across resets */
 } statistics_counters_t;
 
 /**
@@ -213,28 +212,5 @@ void show_error_for_duration_ms(uint32_t duration_ms);
  * @param[in] timeout_ms Timeout value in milliseconds
  */
 void setup_watchdog_with_error_detection(uint32_t timeout_ms);
-
-/**
- * @brief Update the watchdog timer safely.
- */
-void update_watchdog_safe(void);
-
-/**
- * @brief Retrieve the most recent recovery outcome recorded across resets.
- */
-recovery_state_t error_management_get_recovery_state(void);
-
-/**
- * @brief Initiate a graceful system reboot after error recovery attempts.
- *
- * This function performs an orderly shutdown sequence:
- * 1. Saves error state to persistent storage
- * 2. Allows brief time for final error reporting
- * 3. Initiates watchdog-triggered reset
- *
- * @param[in] error_type The error type that triggered the reboot
- * @param[in] delay_ms Delay in milliseconds before reboot (max 5000ms)
- */
-void error_management_graceful_reboot(error_type_t error_type, uint32_t delay_ms);
 
 #endif // ERROR_MANAGEMENT_H

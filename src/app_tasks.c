@@ -10,6 +10,7 @@
 #include "task.h"
 
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 
 #include "tusb.h"
 
@@ -329,7 +330,7 @@ static void uart_event_task(void *pvParameters)
 	for (;;)
 	{
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
+		watchdog_update();
 
 		if (!tud_cdc_n_available(0))
 		{
@@ -347,7 +348,7 @@ static void uart_event_task(void *pvParameters)
 			{
 				statistics_increment_counter(QUEUE_SEND_ERROR);
 			}
-			update_watchdog_safe();
+			watchdog_update();
 		}
 	}
 }
@@ -364,7 +365,7 @@ static void cdc_task(void *pvParameters)
 	{
 		tud_task();
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
+		watchdog_update();
 		taskYIELD();
 	}
 }
@@ -383,7 +384,7 @@ static void decode_reception_task(void *pvParameters)
 	for (;;)
 	{
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
+		watchdog_update();
 
 		// Get queue handle and wait if not created yet
 		QueueHandle_t queue = app_context_get_encoded_queue();
@@ -462,7 +463,7 @@ static void process_outbound_task(void *pvParameters)
 		}
 
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
+		watchdog_update();
 	}
 }
 
@@ -507,7 +508,7 @@ static void cdc_write_task(void *pvParameters)
 			tud_cdc_write_flush();
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
+		watchdog_update();
 	}
 }
 
@@ -554,7 +555,7 @@ static void led_status_task(void *pvParameters)
 			vTaskDelay(pdMS_TO_TICKS(100));
 		}
 
-		update_watchdog_safe();
+		watchdog_update();
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 	}
 }

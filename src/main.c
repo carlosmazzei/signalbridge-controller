@@ -29,31 +29,13 @@ int main(void)
 	board_init();
 	stdio_init_all();
 
-	setup_watchdog_with_error_detection(WATCHDOG_GRACE_PERIOD_MS);
-
-	if (statistics_is_error_state())
-	{
-		show_error_for_duration_ms(ERROR_DISPLAY_BEFORE_TENTATIVE_RESTART_MS);
-
-		const uint32_t error_count = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
-		statistics_set_counter(WATCHDOG_ERROR, error_count);
-		if (error_count > 5U)
-		{
-			while (true)
-			{
-				show_error_pattern_blocking(statistics_get_error_type());
-				update_watchdog_safe();
-			}
-		}
-
-		app_tasks_cleanup();
-		statistics_clear_error();
-	}
-
+    app_tasks_cleanup_application();
 	app_context_reset_queues();
 	app_context_reset_line_state();
 	app_context_reset_task_props();
 	statistics_reset_all_counters();
+
+    setup_watchdog_with_error_detection(WATCHDOG_GRACE_PERIOD_MS);
 
 	// Initialize TinyUSB
 	if (!tud_init(BOARD_TUD_RHPORT))
@@ -71,7 +53,7 @@ int main(void)
 	const output_result_t output_status = output_init();
 	if (output_status != OUTPUT_OK)
 	{
-		statistics_increment_counter(OUT_INIT_ERROR);
+		statistics_increment_counter(OUTPUT_INIT_ERROR);
 	}
 
 	// Initialize inputs

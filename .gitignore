@@ -9,3 +9,4 @@ build**
 *.pdf
 *.code-workspace
 compile_commands.json
+*.dump

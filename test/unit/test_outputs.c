@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "outputs.h"
+#include "app_outputs.h"
 #include "hardware/pwm.h"
 
 // No hardware calls in these tests; rely on headers only
@@ -85,7 +85,7 @@ static void test_device_config_valid_values(void **state)
     // Test that all device config values are valid device types
     const uint8_t device_config_map[] = DEVICE_CONFIG;
     
-    for (int i = 0; i < MAX_SPI_INTERFACES; i++) {
+    for (size_t i = 0; i < MAX_SPI_INTERFACES; i++) {
         uint8_t device_type = device_config_map[i];
         
         // Each device type should be one of the defined constants

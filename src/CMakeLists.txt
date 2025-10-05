@@ -4,6 +4,7 @@ add_library(signalbridge_core STATIC
     error_management.c
     app_outputs.c
     app_inputs.c
+    app_context.c
     tm1639.c
     tm1637.c
 )

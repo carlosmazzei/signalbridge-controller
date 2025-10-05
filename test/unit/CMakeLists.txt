@@ -15,7 +15,6 @@ add_unit_test(test_cobs
 add_unit_test(test_inputs
     test_inputs.c
     hardware_mocks.c
-    WRAP_FUNCTIONS gpio_put
 )
 
 # Test for outputs module (constant validation and simple behavior)

@@ -44,6 +44,31 @@ static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 /** @brief ADC filter state exported for use by the ADC task. */
 adc_states_t adc_states;
 
+/** 
+ * @brief Check configuration parameters
+ * 
+ * @param[in] config Input configuration structure
+ * 
+ * @return Return true if all parameters are ok otherwise return false
+ */
+static bool check_config_params(const input_config_t *config) 
+{
+    bool result = true;
+
+    if ((config->columns > KEYPAD_MAX_COLS) ||
+	    (config->rows > KEYPAD_MAX_ROWS) ||
+	    (config->adc_channels > 16U) ||
+	    (0U == config->key_settling_time_ms) ||
+	    (0U == config->adc_settling_time_ms) ||
+	    (0U == config->encoder_settling_time_ms) ||
+	    (NULL == config->input_event_queue))
+	{
+		result = false;
+	}
+
+    return result;
+}
+
 input_result_t input_init(void)
 {
 	input_result_t result = INPUT_OK;
@@ -63,18 +88,10 @@ input_result_t input_init(void)
 	}
 	input_config.input_event_queue = data_queue;
 
-	const input_config_t *config = &input_config;
-
-	if ((config->columns > KEYPAD_MAX_COLS) ||
-	    (config->rows > KEYPAD_MAX_ROWS) ||
-	    (config->adc_channels > 16U) ||
-	    (0U == config->key_settling_time_ms) ||
-	    (0U == config->adc_settling_time_ms) ||
-	    (0U == config->encoder_settling_time_ms) ||
-	    (NULL == config->input_event_queue))
-	{
-		result = INPUT_INVALID_CONFIG;
-	}
+    if (!check_config_params(&input_config))
+    {
+        result = INPUT_INVALID_CONFIG;
+    }
 	else
 	{
 		// Initialize keypad configuration
@@ -140,6 +157,52 @@ static inline uint8_t keypad_index(uint8_t row, uint8_t column)
 	return (uint8_t)(column * input_config.rows) + row;
 }
 
+/**
+ * @brief Update the active column selection on the keypad multiplexer.
+ *
+ * @param[in] columns Column index to present on the multiplexer outputs.
+ */
+static void keypad_set_columns(uint8_t columns)
+{
+	// Set the columns of the keypad (multiplexer control)
+	gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
+	gpio_put(KEYPAD_COL_MUX_B, (columns & 0x02U) != 0U);
+	gpio_put(KEYPAD_COL_MUX_C, (columns & 0x04U) != 0U);
+}
+
+/**
+ * @brief Update the active row selection on the keypad multiplexer.
+ *
+ * @param[in] rows Row index to present on the multiplexer outputs.
+ */
+static void keypad_set_rows(uint8_t rows)
+{
+	// Set the rows of the keypad (multiplexer control)
+	gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
+	gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
+	gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
+}
+
+/**
+ * @brief Enqueue a keypad event describing the transition of a single key.
+ *
+ * @param[in] row    Keypad row index that changed state.
+ * @param[in] column Keypad column index that changed state.
+ * @param[in] state  New key state, see @ref KEY_PRESSED and @ref KEY_RELEASED.
+ */
+static void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
+{
+	if (NULL != input_config.input_event_queue)
+	{
+		data_events_t key_event;
+		key_event.command = PC_KEY_CMD;
+		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU;
+		key_event.data[0] |= state;
+		key_event.data_length = 1;
+		xQueueSend(input_config.input_event_queue, &key_event, portMAX_DELAY);
+	}
+}
+
 void keypad_task(void *pvParameters)
 {
 	task_props_t * task_props = (task_props_t*) pvParameters;
@@ -184,36 +247,7 @@ void keypad_task(void *pvParameters)
 		}
 
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
-	}
-}
-
-void keypad_set_columns(uint8_t columns)
-{
-	// Set the columns of the keypad (multiplexer control)
-	gpio_put(KEYPAD_COL_MUX_A, (columns & 0x01U) != 0U);
-	gpio_put(KEYPAD_COL_MUX_B, (columns & 0x02U) != 0U);
-	gpio_put(KEYPAD_COL_MUX_C, (columns & 0x04U) != 0U);
-}
-
-void keypad_set_rows(uint8_t rows)
-{
-	// Set the rows of the keypad (multiplexer control)
-	gpio_put(KEYPAD_ROW_MUX_A, (rows & 0x01U) != 0U);
-	gpio_put(KEYPAD_ROW_MUX_B, (rows & 0x02U) != 0U);
-	gpio_put(KEYPAD_ROW_MUX_C, (rows & 0x04U) != 0U);
-}
-
-void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
-{
-	if (NULL != input_config.input_event_queue)
-	{
-		data_events_t key_event;
-		key_event.command = PC_KEY_CMD;
-		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU;
-		key_event.data[0] |= state;
-		key_event.data_length = 1;
-		xQueueSend(input_config.input_event_queue, &key_event, portMAX_DELAY);
+		watchdog_update();
 	}
 }
 
@@ -267,6 +301,20 @@ static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16
 	return (uint16_t)(padc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
 }
 
+/**
+ * @brief Present a new channel selection on the ADC multiplexer.
+ *
+ * @param[in] channel Channel index to route to the ADC core.
+ */
+static void adc_mux_select(uint8_t channel)
+{
+	// Select the ADC channel via multiplexer
+	gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
+	gpio_put(ADC_MUX_B, (channel & 0x02U) != 0U);
+	gpio_put(ADC_MUX_C, (channel & 0x04U) != 0U);
+	gpio_put(ADC_MUX_D, (channel & 0x08U) != 0U);
+}
+
 void adc_read_task(void *pvParameters)
 {
 	task_props_t * task_props = (task_props_t*) pvParameters;
@@ -310,17 +358,29 @@ void adc_read_task(void *pvParameters)
 		adc_mux_select(0);
 
 		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		update_watchdog_safe();
+		watchdog_update();
 	}
 }
 
-void adc_mux_select(uint8_t channel)
+/**
+ * @brief Enqueue a rotary encoder event with the detected direction.
+ *
+ * @param[in] rotary Encoder identifier (0-based index).
+ * @param[in] direction Direction flag (`1` clockwise, `0` counter-clockwise).
+ */
+static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 {
-	// Select the ADC channel via multiplexer
-	gpio_put(ADC_MUX_A, (channel & 0x01U) != 0U);
-	gpio_put(ADC_MUX_B, (channel & 0x02U) != 0U);
-	gpio_put(ADC_MUX_C, (channel & 0x04U) != 0U);
-	gpio_put(ADC_MUX_D, (channel & 0x08U) != 0U);
+	if (NULL != input_config.input_event_queue)
+	{
+		data_events_t encoder_event;
+		encoder_event.data[0] = 0;
+		encoder_event.data[1] = 0;
+		encoder_event.command = PC_ROTARY_CMD;
+		encoder_event.data[0] |= rotary << 4;
+		encoder_event.data[1] |= direction;
+		encoder_event.data_length = 2;
+		xQueueSend(input_config.input_event_queue, &encoder_event, portMAX_DELAY);
+	}
 }
 
 void encoder_read_task(void *pvParameters)
@@ -389,23 +449,7 @@ void encoder_read_task(void *pvParameters)
 
 		// Get free heap for the task
 		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
-		// Update watchdog timer
-		update_watchdog_safe();
-	}
-}
-
-void encoder_generate_event(uint8_t rotary, uint16_t direction)
-{
-	if (NULL != input_config.input_event_queue)
-	{
-		data_events_t encoder_event;
-		encoder_event.data[0] = 0;
-		encoder_event.data[1] = 0;
-		encoder_event.command = PC_ROTARY_CMD;
-		encoder_event.data[0] |= rotary << 4;
-		encoder_event.data[1] |= direction;
-		encoder_event.data_length = 2;
-		xQueueSend(input_config.input_event_queue, &encoder_event, portMAX_DELAY);
+		watchdog_update();
 	}
 }
 

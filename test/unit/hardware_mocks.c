@@ -34,6 +34,7 @@ uint32_t time_us_32(void) { return 0; }
 // Watchdog functions
 void watchdog_enable(uint32_t timeout_ms, int pause) { (void)timeout_ms; (void)pause; }
 void watchdog_update(void) {}
+bool watchdog_caused_reboot(void) { return false; }
 
 // Interrupt functions
 uint32_t save_and_disable_interrupts(void) { return 0; }

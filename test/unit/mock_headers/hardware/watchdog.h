@@ -4,6 +4,7 @@
 
 void watchdog_enable(uint32_t delay_ms, bool pause_on_debug);
 void watchdog_update(void);
+bool watchdog_caused_reboot(void);
 
 // Mock watchdog hardware structure
 typedef struct {

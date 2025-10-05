@@ -169,29 +169,6 @@ input_result_t input_init(void);
 void keypad_task(void *pvParameters);
 
 /**
- * @brief Update the active row selection on the keypad multiplexer.
- *
- * @param[in] rows Row index to present on the multiplexer outputs.
- */
-void keypad_set_rows(uint8_t rows);
-
-/**
- * @brief Update the active column selection on the keypad multiplexer.
- *
- * @param[in] columns Column index to present on the multiplexer outputs.
- */
-void keypad_set_columns(uint8_t columns);
-
-/**
- * @brief Enqueue a keypad event describing the transition of a single key.
- *
- * @param[in] row    Keypad row index that changed state.
- * @param[in] column Keypad column index that changed state.
- * @param[in] state  New key state, see @ref KEY_PRESSED and @ref KEY_RELEASED.
- */
-void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state);
-
-/**
  * @brief FreeRTOS task that samples the ADC multiplexer and reports changes.
  *
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
@@ -199,25 +176,10 @@ void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state);
 void adc_read_task(void *pvParameters);
 
 /**
- * @brief Present a new channel selection on the ADC multiplexer.
- *
- * @param[in] channel Channel index to route to the ADC core.
- */
-void adc_mux_select(uint8_t channel);
-
-/**
  * @brief FreeRTOS task that decodes rotary encoder transitions.
  *
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void encoder_read_task(void *pvParameters);
-
-/**
- * @brief Enqueue a rotary encoder event with the detected direction.
- *
- * @param[in] rotary Encoder identifier (0-based index).
- * @param[in] direction Direction flag (`1` clockwise, `0` counter-clockwise).
- */
-void encoder_generate_event(uint8_t rotary, uint16_t direction);
 
 #endif // KEYPAD_H
