@@ -10,8 +10,8 @@
 
 #include <string.h>
 
-#include "pico/stdlib.h"
-#include "hardware/gpio.h"
+#include <pico/stdlib.h>
+#include <hardware/gpio.h>
 #include "FreeRTOS.h"
 #include "semphr.h"
 

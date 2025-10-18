@@ -26,9 +26,6 @@
 #define BLINK_OFF_MS     150     // Time between blinks in pattern
 #define PATTERN_PAUSE_MS 2000    // Pause between pattern repeats
 
-// Duration to show error before a tentative restart (must be < watchdog grace)
-#define ERROR_DISPLAY_BEFORE_TENTATIVE_RESTART_MS 12000
-
 // Watchdog scratch register usage
 #define WATCHDOG_ERROR_COUNT_REG       0
 
@@ -79,6 +76,7 @@ typedef enum statistics_counter_enum_t {
 
 	// Input error enums
 	INPUT_QUEUE_INIT_ERROR,
+    INPUT_QUEUE_FULL_ERROR,
 	INPUT_INIT_ERROR,
 
 	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
@@ -145,11 +143,6 @@ bool statistics_is_error_state(void);
 error_type_t statistics_get_error_type(void);
 
 /**
- * @brief Clear the error state and set error type to ERROR_NONE.
- */
-void statistics_clear_error(void);
-
-/**
  * @brief Record a recoverable error for diagnostics.
  *
  * @param[in] type Recoverable error type being raised.
@@ -183,17 +176,6 @@ bool error_management_is_recoverable(error_type_t type);
  * @param[in] error_type The type of error to display.
  */
 void show_error_pattern_blocking(error_type_t error_type);
-
-/**
- * @brief Show error pattern for a bounded duration while servicing watchdog.
- *
- * Repeats the current error LED pattern and calls `update_watchdog_safe()`
- * until `duration_ms` elapses. Use a value comfortably below the watchdog
- * error grace in `update_watchdog_safe()` (currently 15000 ms).
- *
- * @param[in] duration_ms Duration to display the pattern, in milliseconds.
- */
-void show_error_for_duration_ms(uint32_t duration_ms);
 
 /**
  * @brief Set the up watchdog with error detection object

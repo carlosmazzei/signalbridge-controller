@@ -18,7 +18,7 @@
 #include "commands.h"
 #include "data_event.h"
 #include "error_management.h"
-#include "hardware/watchdog.h"
+#include <hardware/watchdog.h>
 #include "task_props.h"
 #include "app_context.h"
 
@@ -41,8 +41,10 @@ static input_config_t input_config = {
  */
 static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 
-/** @brief ADC filter state exported for use by the ADC task. */
-adc_states_t adc_states;
+/** 
+ * @brief ADC filter state exported for use by the ADC task. 
+ */
+static adc_states_t adc_states;
 
 /** 
  * @brief Check configuration parameters
@@ -199,7 +201,10 @@ static void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU;
 		key_event.data[0] |= state;
 		key_event.data_length = 1;
-		xQueueSend(input_config.input_event_queue, &key_event, portMAX_DELAY);
+		if (pdPASS != xQueueSend(input_config.input_event_queue, &key_event, portMAX_DELAY))
+		{
+			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+		}
 	}
 }
 
@@ -270,7 +275,10 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
 		adc_event.data[1] = (value & 0xFF00U) >> 8;
 		adc_event.data[2] = value & 0x00FFU;
 		adc_event.data_length = 3;
-		xQueueSend(input_config.input_event_queue, &adc_event, portMAX_DELAY);
+		if (pdPASS != xQueueSend(input_config.input_event_queue, &adc_event, portMAX_DELAY))
+        {
+            statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+        }
 	}
 }
 
@@ -320,13 +328,13 @@ void adc_read_task(void *pvParameters)
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	// Initialize the ADC states
-	for (int i = 0; i < ADC_CHANNELS; i++)
+	for (uint8_t i = 0; i < ADC_CHANNELS; i++)
 	{
 		adc_states.adc_previous_value[i] = 0;
 		adc_states.adc_sum_values[i] = 0;
 		adc_states.samples_index[i] = 0;
 
-		for (int j = 0; j < ADC_NUM_TAPS; j++)
+		for (uint8_t j = 0; j < ADC_NUM_TAPS; j++)
 		{
 			adc_states.adc_sample_value[i][j] = 0;
 		}
@@ -379,7 +387,10 @@ static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 		encoder_event.data[0] |= rotary << 4;
 		encoder_event.data[1] |= direction;
 		encoder_event.data_length = 2;
-		xQueueSend(input_config.input_event_queue, &encoder_event, portMAX_DELAY);
+		if (pdPASS != xQueueSend(input_config.input_event_queue, &encoder_event, portMAX_DELAY))
+        {
+            statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+        }
 	}
 }
 
@@ -436,7 +447,7 @@ void encoder_read_task(void *pvParameters)
 				{
 					encoder_generate_event(encoder_base, 1);
 				}                                  // then the index for enc_states
-				else if (encoder_state[encoder_base].count_encoder == -4)
+				if (-4 == encoder_state[encoder_base].count_encoder)
 				{
 					encoder_generate_event(encoder_base, 0);
 				}

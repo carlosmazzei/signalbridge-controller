@@ -9,8 +9,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#include "hardware/watchdog.h"
-#include "pico/stdlib.h"
+#include <hardware/watchdog.h>
+#include <pico/stdlib.h>
 
 #include "bsp/board.h"
 #include "tusb.h"

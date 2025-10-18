@@ -9,8 +9,8 @@
 #include "queue.h"
 #include "task.h"
 
-#include "pico/stdlib.h"
-#include "hardware/watchdog.h"
+#include <pico/stdlib.h>
+#include <hardware/watchdog.h>
 
 #include "tusb.h"
 
@@ -308,15 +308,6 @@ static void cleanup_comm_subsystem(void)
 	delete_task_if_exists(CDC_WRITE_TASK);
 }
 
-void app_tasks_cleanup(void)
-{
-	app_tasks_cleanup_application();
-	cleanup_comm_subsystem();
-	app_context_reset_queues();
-	app_context_reset_line_state();
-	app_context_reset_task_props();
-}
-
 /**
  * @brief Task that reads raw CDC bytes and enqueues them for decoding.
  *
@@ -496,16 +487,17 @@ static void cdc_write_task(void *pvParameters)
 
 				if (to_write > 0U)
 				{
-					tud_cdc_n_write(0, &packet.data[total_written], to_write);
-					total_written += to_write;
+					uint32_t written = tud_cdc_n_write(0, &packet.data[total_written], to_write);
+					total_written += written;
 				}
 
 				tud_task();
 				taskYIELD();
 			}
-
+            
+            uint32_t flushed = tud_cdc_write_flush();
+            total_written += flushed;
 			statistics_add_to_counter(BYTES_SENT, (uint32_t)total_written);
-			tud_cdc_write_flush();
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();

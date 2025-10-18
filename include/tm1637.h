@@ -12,7 +12,7 @@
 
 #include "FreeRTOS.h"
 #include "app_outputs.h"
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 #include "semphr.h"
 
 /**

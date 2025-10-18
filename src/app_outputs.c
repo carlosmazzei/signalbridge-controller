@@ -15,10 +15,10 @@
 
 #include <string.h>
 
-#include "hardware/pwm.h"
-#include "hardware/spi.h"
-#include "pico/binary_info.h"
-#include "pico/stdlib.h"
+#include <hardware/pwm.h>
+#include <hardware/spi.h>
+#include <pico/binary_info.h>
+#include <pico/stdlib.h>
 
 #include "FreeRTOS.h"
 #include "semphr.h"

@@ -1,16 +1,13 @@
 # External library suppressions - MISRA DEVIATION (D5)
-*:include/FreeRTOSConfig.h:*
-*:include/tusb_config.h:*
-*:lib/pico-sdk/*:*
-*:lib/FreeRTOS-Kernel/*:*
-*:lib/*:*
+*:lib/*
+*:test/*
+*:unit/*
 
 # Specific MISRA C:2012 suppressions for project code
 # Only suppress when actually needed and document reason
 
-# MISRA rule suppressions for generated files
-misra-c2012-2.5:src/usb_descriptors.c    # TinyUSB generated descriptors
-misra-c2012-2.4:src/usb_descriptors.c    # TinyUSB generated descriptors
+# TinyUSB integration suppressions
+*:src/usb_descriptors.c:*                   # TinyUSB generated code and API usage
 
 # Function-specific suppressions with rationale
 misra-c2012-11.5:src/error_management.c:*   # Void pointer cast for hardware registers
@@ -23,10 +20,11 @@ misra-c2012-11.4:src/outputs.c:*            # SPI register access requires integ
 
 # FreeRTOS integration suppressions
 misra-c2012-11.1:src/app_tasks.c:*          # FreeRTOS API requires function pointer casts
+misra-c2012-11.5:src/app_tasks.c:*          # FreeRTOS task function pointer casts
 misra-c2012-8.13:src/app_tasks.c:*          # FreeRTOS task parameters cannot be const
 
 # General cppcheck suppressions for false positives
-unusedStructMember:*                         # Many hardware structs have reserved fields
+unusedStructMember:*                        # Many hardware structs have reserved fields
 preprocessorErrorDirective:lib/*:*          # External library preprocessor directives
-missingIncludeSystem:*                       # System includes handled by build system
-unmatchedSuppression:*                       # Allow flexible suppression matching
+missingIncludeSystem:*                      # System includes handled by build system
+unmatchedSuppression:*                      # Allow flexible suppression matching

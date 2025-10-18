@@ -14,9 +14,9 @@
 #include <stdint.h>
 
 #include "FreeRTOS.h"
-#include "hardware/adc.h"
-#include "hardware/gpio.h"
-#include "pico/stdlib.h"
+#include <hardware/adc.h>
+#include <hardware/gpio.h>
+#include <pico/stdlib.h>
 #include "queue.h"
 #include "task.h"
 

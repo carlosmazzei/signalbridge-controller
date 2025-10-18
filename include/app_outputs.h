@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hardware/spi.h"
+#include <hardware/spi.h>
 
 /**
  * @defgroup outputs Outputs subsystem

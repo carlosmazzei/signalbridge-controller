@@ -61,14 +61,14 @@
 /**
  * @brief Task priorities.
  */
-#define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
-#define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + 1)
-#define mainLED_STATUS_TASK_PRIORITY    (tskIDLE_PRIORITY + 1)
-#define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + 1)
-#define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
-#define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
-#define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + 1)
-#define mainENCODER_TASK_PRIORITY       (tskIDLE_PRIORITY + 1)
+#define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainLED_STATUS_TASK_PRIORITY    (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+#define mainENCODER_TASK_PRIORITY       (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 
 /**
  * @brief FreeRTOS stack sizes for the tasks.

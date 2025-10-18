@@ -23,9 +23,4 @@ bool app_tasks_create_application(void);
  */
 void app_tasks_cleanup_application(void);
 
-/**
- * @brief Delete all application tasks and destroy associated queues.
- */
-void app_tasks_cleanup(void);
-
 #endif // APP_TASKS_H
