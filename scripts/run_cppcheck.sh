@@ -216,7 +216,7 @@ if [ "$USE_COMPILE_DB" = true ]; then
         echo "⚠️  Cppcheck analysis completed with warnings/errors (exit code: $EXIT_CODE)"
         echo ""
         echo "💡 Tips for resolving issues:"
-        echo "   - Check .cppcheck_suppressions.txt for known suppressions"
+        echo "   - Check .cppcheck_suppressions for known suppressions"
         echo "   - For MISRA violations, add appropriate suppressions with justification"
         echo "   - External library issues should be suppressed with DEVIATION (D5)"
         exit $EXIT_CODE
@@ -231,6 +231,29 @@ else
             CPPCHECK_CMD+=("$line")
         fi
     done < "$CONFIG_FILE"
+
+    # Provide include paths for the in-tree headers when the compilation
+    # database is unavailable.  This keeps cppcheck focused on project sources
+    # without requiring local stub copies of external SDKs.
+    MANUAL_INCLUDE_PATHS=(
+        "-I$PROJECT_ROOT/include"
+        "-I$PROJECT_ROOT/lib/FreeRTOS-Kernel/include"
+        "-I$PROJECT_ROOT/lib/FreeRTOS-Kernel/portable/GCC/ARM_CM0"
+        "-I$PROJECT_ROOT/lib/pico-sdk/src/common/pico_base_headers/include"
+        "-I$PROJECT_ROOT/lib/pico-sdk/src/rp2_common/hardware_gpio/include"
+        "-I$PROJECT_ROOT/test/unit/mock_headers"
+        "-I$PROJECT_ROOT/test/unit/mock_headers/hardware"
+        "-I$PROJECT_ROOT/test/unit/mock_headers/pico"
+    )
+    CPPCHECK_CMD+=("${MANUAL_INCLUDE_PATHS[@]}")
+
+    # When we cannot rely on the compile database, external SDK headers may
+    # legitimately be unavailable.  Suppress the corresponding diagnostics so
+    # that analysis of the project code can proceed without local stub copies.
+    CPPCHECK_CMD+=(
+        --suppress=missingInclude
+        --suppress=missingIncludeSystem
+    )
 
     # Add source files to analyze
     SOURCE_FILES=($(find src -name "*.c" -not -path "*/build/*" | sort))
@@ -270,7 +293,7 @@ else
         echo "⚠️  Cppcheck analysis completed with warnings/errors (exit code: $EXIT_CODE)"
         echo ""
         echo "💡 Tips for resolving issues:"
-        echo "   - Check .cppcheck_suppressions.txt for known suppressions"
+        echo "   - Check .cppcheck_suppressions for known suppressions"
         echo "   - Verify include paths in .cppcheck_config"
         echo "   - For MISRA violations, add appropriate suppressions with justification"
         echo "   - External library issues should be suppressed with DEVIATION (D5)"

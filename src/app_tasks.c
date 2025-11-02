@@ -190,9 +190,7 @@ bool app_tasks_create_application(void)
 
 bool app_tasks_create_comm(void)
 {
-	bool success = true;
-	QueueHandle_t encoded_queue = NULL;
-	QueueHandle_t transmit_queue = NULL;
+        bool success = true;
 
 	if (success)
 	{
@@ -206,15 +204,20 @@ bool app_tasks_create_comm(void)
 		                                    ERROR_USB_INIT);
 	}
 
-	if (success)
-	{
-		encoded_queue = create_queue_or_flag(ENCODED_QUEUE_SIZE, sizeof(uint8_t), ERROR_USB_INIT);
-		app_context_set_encoded_queue(encoded_queue);
-		if (NULL == encoded_queue)
-		{
-			success = false;
-		}
-	}
+        if (success)
+        {
+                QueueHandle_t const encoded_queue =
+                    create_queue_or_flag(ENCODED_QUEUE_SIZE, sizeof(uint8_t), ERROR_USB_INIT);
+                if (NULL == encoded_queue)
+                {
+                        success = false;
+                        app_context_set_encoded_queue(NULL);
+                }
+                else
+                {
+                        app_context_set_encoded_queue(encoded_queue);
+                }
+        }
 
 	if (success)
 	{
@@ -240,15 +243,20 @@ bool app_tasks_create_comm(void)
 		                                    ERROR_USB_INIT);
 	}
 
-	if (success)
-	{
-		transmit_queue = create_queue_or_flag(CDC_TRANSMIT_QUEUE_SIZE, sizeof(cdc_packet_t), ERROR_USB_INIT);
-		app_context_set_cdc_transmit_queue(transmit_queue);
-		if (NULL == transmit_queue)
-		{
-			success = false;
-		}
-	}
+        if (success)
+        {
+                QueueHandle_t const transmit_queue =
+                    create_queue_or_flag(CDC_TRANSMIT_QUEUE_SIZE, sizeof(cdc_packet_t), ERROR_USB_INIT);
+                if (NULL == transmit_queue)
+                {
+                        success = false;
+                        app_context_set_cdc_transmit_queue(NULL);
+                }
+                else
+                {
+                        app_context_set_cdc_transmit_queue(transmit_queue);
+                }
+        }
 
 	if (success)
 	{

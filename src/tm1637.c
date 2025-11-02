@@ -549,36 +549,31 @@ static tm1637_result_t tm1637_validate_parameters(const output_driver_t *config,
  */
 static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint8_t* digits, const uint8_t dot_position)
 {
-	// Segment patterns for custom character set
-	// Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
-	static const uint8_t tm1637_custom_patterns[16] = {
-		0x3FU, 0x06U, 0x5BU, 0x4FU, // 0x00-0x03: 0, 1, 2, 3
-		0x66U, 0x6DU, 0x7DU, 0x07U, // 0x04-0x07: 4, 5, 6, 7
-		0x7FU, 0x6FU, 0x6DU, 0x1CU, // 0x08-0x0B: 8, 9, S, t
-		0x5EU, 0x40U, 0x08U, 0x00U // 0x0C-0x0F: d, -, _, (blank)
-	};
+        // Segment patterns for custom character set
+        // Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
+        static const uint8_t tm1637_custom_patterns[16] = {
+                0x3FU, 0x06U, 0x5BU, 0x4FU, // 0x00-0x03: 0, 1, 2, 3
+                0x66U, 0x6DU, 0x7DU, 0x07U, // 0x04-0x07: 4, 5, 6, 7
+                0x7FU, 0x6FU, 0x6DU, 0x1CU, // 0x08-0x0B: 8, 9, S, t
+                0x5EU, 0x40U, 0x08U, 0x00U // 0x0C-0x0F: d, -, _, (blank)
+        };
 
-	tm1637_result_t result = TM1637_OK;
+        for (uint8_t i = 0U; i < TM1637_DIGIT_COUNT; i++)
+        {
+                // Extract BCD digit and get pattern
+                uint8_t bcd_digit = digits[i] & 0x0FU;
+                uint8_t segment_data = tm1637_custom_patterns[bcd_digit];
 
-	for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
-	{
-		// Extract BCD digit and get pattern
-		uint8_t bcd_digit = digits[i] & 0x0FU;
-		uint8_t segment_data = tm1637_custom_patterns[bcd_digit];
+                // Add decimal point using conditional expression (no if-statement)
+                segment_data |= (i == dot_position) ? TM1637_DECIMAL_POINT_MASK : 0U;
 
-		// Add decimal point using conditional expression (no if-statement)
-		segment_data |= (i == dot_position) ? TM1637_DECIMAL_POINT_MASK : 0U;
+                // Store in prep buffer
+                config->prep_buffer[i] = segment_data;
+        }
 
-		// Store in prep buffer
-		config->prep_buffer[i] = segment_data;
-	}
+        config->buffer_modified = true;
 
-	if (TM1637_OK == result)
-	{
-		config->buffer_modified = true;
-	}
-
-	return result;
+        return TM1637_OK;
 }
 
 /*
