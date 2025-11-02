@@ -251,7 +251,7 @@ jobs:
 
       # Store build artifacts
       - name: Store Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pico-build
           path: |
@@ -294,7 +294,7 @@ jobs:
         run: cmake --build --preset host-tests-coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: build-tests/coverage
@@ -316,7 +316,7 @@ jobs:
     steps:
       # Download artifacts from build job
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: pico-build
           path: artifacts
