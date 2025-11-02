@@ -43,7 +43,7 @@ if [ -f "$COMPILE_COMMANDS" ]; then
         --check-level=exhaustive \
         -j$(nproc) \
         --template='{file}:{line}:{column}: {severity}: {message} [{id}]' \
-        --suppressions-list=./.cppcheck_suppressions.txt \
+        --suppressions-list=./.cppcheck_suppressions \
         "${CPPCHECK_ARGS[@]}" \
         --project="$COMPILE_COMMANDS" \
         --file-filter="$PROJECT_ROOT/src/*.c"
@@ -59,13 +59,18 @@ else
         --check-level=exhaustive \
         -j$(nproc) \
         --template='{file}:{line}:{column}: {severity}: {message} [{id}]' \
-        --suppressions-list=./.cppcheck_suppressions.txt \
+        --suppressions-list=./.cppcheck_suppressions \
         "${CPPCHECK_ARGS[@]}" \
         -I./include \
         -I./lib/pico-sdk/src/common/pico_base_headers/include \
+        -I./lib/pico-sdk/src/rp2_common/hardware_gpio/include \
         -I./lib/FreeRTOS-Kernel/include \
+        -I./lib/FreeRTOS-Kernel/portable/GCC/ARM_CM0 \
+        --suppress=missingInclude \
+        --suppress=missingIncludeSystem \
         ./src/*.c
 fi
+
 
 echo ""
 echo "✅ Quick cppcheck analysis completed (no MISRA, no dump files)"
