@@ -316,7 +316,7 @@ jobs:
     steps:
       # Download artifacts from build job
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: pico-build
           path: artifacts
