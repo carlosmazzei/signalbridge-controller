@@ -7,7 +7,7 @@
 # Only suppress when actually needed and document reason
 
 # TinyUSB integration suppressions
-*:src/usb_descriptors.c:*                   # TinyUSB generated code and API usage
+*:*/usb_descriptors.c                   # TinyUSB generated code and API usage
 
 # Function-specific suppressions with rationale
 misra-c2012-11.5:src/error_management.c:*   # Void pointer cast for hardware registers
