@@ -176,8 +176,7 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
 {
-	statistics_counters.current_error_type = type;
-	statistics_counters.error_state = false;
+    watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
 	while (true)
 	{
 		show_error_pattern_blocking(type);

@@ -28,6 +28,7 @@
 
 // Watchdog scratch register usage
 #define WATCHDOG_ERROR_COUNT_REG       0
+#define WATCHDOG_ERROR_LAST_TYPE_REG   1
 
 /**
  * @enum error_type_t
