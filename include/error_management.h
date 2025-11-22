@@ -63,10 +63,7 @@ typedef enum statistics_counter_enum_t {
 	UNKNOWN_CMD_ERROR,
 	BYTES_SENT,
 	BYTES_RECEIVED,
-
-	// Recovery-related enums
-	RECOVERY_ATTEMPTS_EXCEEDED,
-	RECOVERY_HEAP_ERROR,
+	RESOURCE_ALLOCATION_ERROR,
 
 	// Output error enums
 	OUTPUT_CONTROLLER_ID_ERROR,
@@ -147,14 +144,7 @@ error_type_t statistics_get_error_type(void);
  *
  * @param[in] type Recoverable error type being raised.
  */
-void error_management_record_recoverable(error_type_t type);
-
-/**
- * @brief Record a fatal error without entering recovery mode.
- *
- * @param[in] type Fatal error type to persist for diagnostics.
- */
-void error_management_record_fatal(error_type_t type);
+void error_management_set_error_state(error_type_t type);
 
 /**
  * @brief Immediately halt execution and display a fatal error pattern.
@@ -168,7 +158,7 @@ void __attribute__((noreturn)) fatal_halt(error_type_t type);
 /**
  * @brief Check if an error type supports automatic recovery.
  */
-bool error_management_is_recoverable(error_type_t type);
+bool error_management_is_fatal(error_type_t type);
 
 /**
  * @brief Show a blinking error pattern on the error LED.

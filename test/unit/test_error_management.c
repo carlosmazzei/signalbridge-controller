@@ -103,7 +103,7 @@ static void test_error_management_record_recoverable_sets_state(void **state)
 {
     (void) state;
 
-    error_management_record_recoverable(ERROR_WATCHDOG_TIMEOUT);
+    error_management_set_error_state(ERROR_WATCHDOG_TIMEOUT);
 
     assert_true(statistics_is_error_state());
     assert_int_equal(ERROR_WATCHDOG_TIMEOUT, statistics_get_error_type());
@@ -114,10 +114,10 @@ static void test_error_management_record_recoverable_heap_counter(void **state)
 {
     (void) state;
 
-    error_management_record_recoverable(ERROR_RESOURCE_ALLOCATION);
+    error_management_set_error_state(ERROR_RESOURCE_ALLOCATION);
 
     assert_true(statistics_is_error_state());
-    assert_int_equal(1, statistics_get_counter(RECOVERY_HEAP_ERROR));
+    assert_int_equal(1, statistics_get_counter(RESOURCE_ALLOCATION_ERROR));
     assert_int_equal(ERROR_RESOURCE_ALLOCATION, statistics_get_error_type());
 }
 
@@ -125,7 +125,7 @@ static void test_error_management_record_fatal_clears_state(void **state)
 {
     (void) state;
 
-    error_management_record_recoverable(ERROR_WATCHDOG_TIMEOUT);
+    error_management_set_error_state(ERROR_WATCHDOG_TIMEOUT);
     assert_true(statistics_is_error_state());
 
     error_management_record_fatal(ERROR_FREERTOS_STACK);
@@ -138,17 +138,17 @@ static void test_error_management_is_recoverable_matrix(void **state)
 {
     (void) state;
 
-    assert_true(error_management_is_recoverable(ERROR_WATCHDOG_TIMEOUT));
-    assert_true(error_management_is_recoverable(ERROR_RESOURCE_ALLOCATION));
-    assert_false(error_management_is_recoverable(ERROR_PICO_SDK_PANIC));
-    assert_false(error_management_is_recoverable(ERROR_SCHEDULER_FAILED));
+    assert_true(error_management_is_fatal(ERROR_WATCHDOG_TIMEOUT));
+    assert_true(error_management_is_fatal(ERROR_RESOURCE_ALLOCATION));
+    assert_false(error_management_is_fatal(ERROR_PICO_SDK_PANIC));
+    assert_false(error_management_is_fatal(ERROR_SCHEDULER_FAILED));
 }
 
 static void test_show_error_for_duration_advances_time(void **state)
 {
     (void) state;
 
-    error_management_record_recoverable(ERROR_WATCHDOG_TIMEOUT);
+    error_management_set_error_state(ERROR_WATCHDOG_TIMEOUT);
     mock_time_config(0, 5000U);
 
     show_error_for_duration_ms(10U);

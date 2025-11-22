@@ -72,13 +72,13 @@ static inline bool create_task_with_affinity(TaskFunction_t function,
 	{
 		props->task_handle = NULL;
 
-		if (error_management_is_recoverable(failure_type))
+		if (error_management_is_fatal(failure_type))
 		{
-			error_management_record_recoverable(failure_type);
+            fatal_halt(failure_type);
 		}
 		else
 		{
-			error_management_record_fatal(failure_type);
+			error_management_set_error_state(failure_type);
 		}
 	}
 
@@ -98,13 +98,13 @@ static inline QueueHandle_t create_queue_or_flag(UBaseType_t length, UBaseType_t
 	QueueHandle_t queue = xQueueCreate(length, item_size);
 	if (NULL == queue)
 	{
-		if (error_management_is_recoverable(failure_type))
+		if (error_management_is_fatal(failure_type))
 		{
-			error_management_record_recoverable(failure_type);
+            fatal_halt(failure_type);
 		}
 		else
 		{
-			error_management_record_fatal(failure_type);
+			error_management_set_error_state(failure_type);
 		}
 	}
 	return queue;
@@ -525,7 +525,7 @@ static void led_status_task(void *pvParameters)
 				vTaskDelay(pdMS_TO_TICKS(BLINK_ON_MS));
 				gpio_put(ERROR_LED_PIN, 0);
 
-				if (i + 1U < blink_count)
+				if ((i + 1U) < blink_count)
 				{
 					vTaskDelay(pdMS_TO_TICKS(BLINK_OFF_MS));
 				}

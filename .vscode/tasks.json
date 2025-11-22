@@ -222,7 +222,7 @@
                 "--enable=all",
                 "--force",
                 "--template={file}:{line}: {severity}: {message} [{id}]",
-                "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions.txt",
+                "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions",
                 "--addon=${workspaceFolder}/misra.json",
                 "-DportBYTE_ALIGNMENT=8",
                 "-DRP2040=1",

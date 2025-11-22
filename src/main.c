@@ -64,11 +64,7 @@ int main(void)
     }
 
     // Initialize application tasks
-	const bool tasks_ready = app_tasks_create_application();
-	if (!tasks_ready)
-	{
-		error_management_record_recoverable(ERROR_RESOURCE_ALLOCATION);
-	}
+	(void)app_tasks_create_application();
 
     // Initialize task scheduler
 	vTaskStartScheduler();

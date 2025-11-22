@@ -147,7 +147,7 @@ if [ -f "$PROJECT_TEST_FILE" ]; then
     PROJECT_OUTPUT=$(cppcheck \
         --addon=./misra.json \
         --template='{file}:{line}: {message} [{id}]' \
-        --suppressions-list=./.cppcheck_suppressions.txt \
+        --suppressions-list=./.cppcheck_suppressions \
         -DportBYTE_ALIGNMENT=8 \
         -DRP2040=1 \
         -I./include \
@@ -185,4 +185,4 @@ echo "🔧 If issues persist:"
 echo "  1. Rebuild DevContainer to ensure installation"
 echo "  2. Check .devcontainer/install_misra_addon.sh output"
 echo "  3. Verify misra.txt file contains rule definitions"
-echo "  4. Update suppressions in .cppcheck_suppressions.txt"
+echo "  4. Update suppressions in .cppcheck_suppressions"

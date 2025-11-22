@@ -216,7 +216,7 @@ if [ "$USE_COMPILE_DB" = true ]; then
         echo "⚠️  Cppcheck analysis completed with warnings/errors (exit code: $EXIT_CODE)"
         echo ""
         echo "💡 Tips for resolving issues:"
-        echo "   - Check .cppcheck_suppressions.txt for known suppressions"
+        echo "   - Check .cppcheck_suppressions for known suppressions"
         echo "   - For MISRA violations, add appropriate suppressions with justification"
         echo "   - External library issues should be suppressed with DEVIATION (D5)"
         exit $EXIT_CODE
@@ -270,7 +270,7 @@ else
         echo "⚠️  Cppcheck analysis completed with warnings/errors (exit code: $EXIT_CODE)"
         echo ""
         echo "💡 Tips for resolving issues:"
-        echo "   - Check .cppcheck_suppressions.txt for known suppressions"
+        echo "   - Check .cppcheck_suppressions for known suppressions"
         echo "   - Verify include paths in .cppcheck_config"
         echo "   - For MISRA violations, add appropriate suppressions with justification"
         echo "   - External library issues should be suppressed with DEVIATION (D5)"

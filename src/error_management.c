@@ -31,7 +31,7 @@ static volatile statistics_counters_t statistics_counters = {
 	.current_error_type = ERROR_NONE
 };
 
-static bool error_type_allows_recovery(error_type_t type)
+static bool error_type_non_fatal(error_type_t type)
 {
     bool result = false;
 	switch (type)
@@ -47,9 +47,9 @@ static bool error_type_allows_recovery(error_type_t type)
 	return result;
 }
 
-bool error_management_is_recoverable(error_type_t type)
+bool error_management_is_fatal(error_type_t type)
 {
-	return error_type_allows_recovery(type);
+	return !error_type_non_fatal(type);
 }
 
 void statistics_increment_counter(statistics_counter_enum_t index)
@@ -120,7 +120,7 @@ void show_error_pattern_blocking(error_type_t error_type)
 	}
 }
 
-void error_management_record_recoverable(error_type_t type)
+void error_management_set_error_state(error_type_t type)
 {
 	statistics_counters.current_error_type = type;
 	statistics_counters.error_state = true;
@@ -131,14 +131,8 @@ void error_management_record_recoverable(error_type_t type)
 	}
 	else if (type == ERROR_RESOURCE_ALLOCATION)
 	{
-		statistics_increment_counter(RECOVERY_HEAP_ERROR);
+		statistics_increment_counter(RESOURCE_ALLOCATION_ERROR);
 	}
-}
-
-void error_management_record_fatal(error_type_t type)
-{
-	statistics_counters.current_error_type = type;
-	statistics_counters.error_state = false;
 }
 
 void setup_watchdog_with_error_detection(uint32_t timeout_ms)
@@ -182,7 +176,8 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
 {
-	error_management_record_fatal(type);
+	statistics_counters.current_error_type = type;
+	statistics_counters.error_state = false;
 	while (true)
 	{
 		show_error_pattern_blocking(type);

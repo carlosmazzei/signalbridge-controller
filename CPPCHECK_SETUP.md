@@ -31,7 +31,7 @@ Contains all preprocessor definitions and include paths required for proper anal
 - Critical `portBYTE_ALIGNMENT=8` definition
 - All necessary include paths
 
-### `.cppcheck_suppressions.txt`
+### `.cppcheck_suppressions`
 Manages suppression of known issues:
 - External library suppressions (MISRA DEVIATION D5)
 - Hardware abstraction layer exceptions
@@ -148,7 +148,7 @@ Add to `.cppcheck_config`:
 ```
 
 #### New Suppression Rules
-Add to `.cppcheck_suppressions.txt`:
+Add to `.cppcheck_suppressions`:
 ```
 misra-c2012-X.Y:src/specific_file.c:function_name  # Specific rationale
 ```
