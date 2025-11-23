@@ -29,13 +29,13 @@ int main(void)
 	board_init();
 	stdio_init_all();
 
-    app_tasks_cleanup_application();
+	app_tasks_cleanup_application();
 	app_context_reset_queues();
 	app_context_reset_line_state();
 	app_context_reset_task_props();
 	statistics_reset_all_counters();
 
-    setup_watchdog_with_error_detection(WATCHDOG_GRACE_PERIOD_MS);
+	setup_watchdog_with_error_detection(WATCHDOG_GRACE_PERIOD_MS);
 
 	// Initialize TinyUSB
 	if (!tud_init(BOARD_TUD_RHPORT))
@@ -58,15 +58,15 @@ int main(void)
 
 	// Initialize inputs
 	const input_result_t input_status = input_init();
-    if (input_status != INPUT_OK)
-    {
-        statistics_increment_counter(INPUT_INIT_ERROR);
-    }
+	if (input_status != INPUT_OK)
+	{
+		statistics_increment_counter(INPUT_INIT_ERROR);
+	}
 
-    // Initialize application tasks
+	// Initialize application tasks
 	(void)app_tasks_create_application();
 
-    // Initialize task scheduler
+	// Initialize task scheduler
 	vTaskStartScheduler();
 	fatal_halt(ERROR_SCHEDULER_FAILED);
 

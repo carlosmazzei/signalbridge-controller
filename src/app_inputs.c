@@ -40,18 +40,18 @@ static input_config_t input_config = {
  */
 static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
 
-/** 
+/**
  * @brief Check configuration parameters
- * 
+ *
  * @param[in] config Input configuration structure
- * 
+ *
  * @return Return true if all parameters are ok otherwise return false
  */
-static bool check_config_params(const input_config_t *config) 
+static bool check_config_params(const input_config_t *config)
 {
-    bool result = true;
+	bool result = true;
 
-    if ((config->columns > KEYPAD_MAX_COLS) ||
+	if ((config->columns > KEYPAD_MAX_COLS) ||
 	    (config->rows > KEYPAD_MAX_ROWS) ||
 	    (config->adc_channels > 16U) ||
 	    (0U == config->key_settling_time_ms) ||
@@ -61,7 +61,7 @@ static bool check_config_params(const input_config_t *config)
 		result = false;
 	}
 
-    return result;
+	return result;
 }
 
 input_result_t input_init(void)
@@ -72,21 +72,21 @@ input_result_t input_init(void)
 	if (existing_queue != NULL)
 	{
 		vQueueDelete(existing_queue);
-        app_context_set_data_event_queue(NULL);
+		app_context_set_data_event_queue(NULL);
 	}
 
 	QueueHandle_t data_queue = xQueueCreate(DATA_EVENT_QUEUE_SIZE, sizeof(data_events_t));
 	if (NULL == data_queue)
 	{
 		statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
-        result = INPUT_ERROR;
+		result = INPUT_ERROR;
 	}
-    app_context_set_data_event_queue(data_queue);
+	app_context_set_data_event_queue(data_queue);
 
-    if (!check_config_params(&input_config))
-    {
-        result = INPUT_INVALID_CONFIG;
-    }
+	if (!check_config_params(&input_config))
+	{
+		result = INPUT_INVALID_CONFIG;
+	}
 	else
 	{
 		// Initialize keypad configuration
@@ -269,9 +269,9 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
 		adc_event.data[2] = value & 0x00FFU;
 		adc_event.data_length = 3;
 		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &adc_event, pdMS_TO_TICKS(1000)))
-        {
-            statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
-        }
+		{
+			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+		}
 	}
 }
 
@@ -318,10 +318,10 @@ static void adc_mux_select(uint8_t channel)
 
 void adc_read_task(void *pvParameters)
 {
-    /** 
-    * @brief ADC filter state exported for use by the ADC task. 
-    */
-    static adc_states_t adc_states;
+	/**
+	 * @brief ADC filter state exported for use by the ADC task.
+	 */
+	static adc_states_t adc_states;
 
 	// cppcheck-suppress [misra-c2012-11.5] - FreeRTOS task parameter requires void* to task_props_t* cast
 	task_props_t * task_props = (task_props_t*) pvParameters;
@@ -387,9 +387,9 @@ static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 		encoder_event.data[1] |= direction;
 		encoder_event.data_length = 2;
 		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, pdMS_TO_TICKS(1000)))
-        {
-            statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
-        }
+		{
+			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+		}
 	}
 }
 

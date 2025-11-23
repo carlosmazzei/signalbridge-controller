@@ -228,7 +228,7 @@ output_result_t output_init(void)
 		if (!spi_mutex)
 		{
 			result = OUTPUT_ERR_INIT;
-            statistics_increment_counter(OUTPUT_INIT_ERROR);
+			statistics_increment_counter(OUTPUT_INIT_ERROR);
 		}
 	}
 

@@ -256,7 +256,7 @@ static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t 
 	return result;
 }
 
-/** 
+/**
  * @brief Clear the TM1639 display and turn it off.
  *
  * @param[in,out] config Pointer to the TM1639 driver configuration.

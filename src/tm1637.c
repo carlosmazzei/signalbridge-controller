@@ -574,7 +574,7 @@ static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint
 		config->prep_buffer[i] = segment_data;
 	}
 
-    config->buffer_modified = true;
+	config->buffer_modified = true;
 
 	return result;
 }

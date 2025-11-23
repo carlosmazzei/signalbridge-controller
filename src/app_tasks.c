@@ -74,7 +74,7 @@ static inline bool create_task_with_affinity(TaskFunction_t function,
 
 		if (error_management_is_fatal(failure_type))
 		{
-            fatal_halt(failure_type);
+			fatal_halt(failure_type);
 		}
 		else
 		{
@@ -100,7 +100,7 @@ static inline QueueHandle_t create_queue_or_flag(UBaseType_t length, UBaseType_t
 	{
 		if (error_management_is_fatal(failure_type))
 		{
-            fatal_halt(failure_type);
+			fatal_halt(failure_type);
 		}
 		else
 		{
@@ -125,7 +125,7 @@ bool app_tasks_create_application(void)
 {
 	bool success = true;
 
-    if (success)
+	if (success)
 	{
 		success = create_task_with_affinity(led_status_task,
 		                                    "led_status_task",
@@ -136,7 +136,7 @@ bool app_tasks_create_application(void)
 		                                    LED_STATUS_TASK_CORE_AFFINITY,
 		                                    ERROR_RESOURCE_ALLOCATION);
 	}
-    
+
 	if (success)
 	{
 		success = create_task_with_affinity(process_outbound_task,
@@ -439,14 +439,14 @@ static void process_outbound_task(void *pvParameters)
 
 	for (;;)
 	{
-        task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
 		QueueHandle_t data_queue = app_context_get_data_event_queue();
 		if (NULL == data_queue)
 		{
 			vTaskDelay(pdMS_TO_TICKS(5));
-            statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
+			statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
 			continue;
 		}
 
@@ -495,9 +495,9 @@ static void cdc_write_task(void *pvParameters)
 				tud_task();
 				taskYIELD();
 			}
-            
-            uint32_t flushed = tud_cdc_write_flush();
-            total_written += flushed;
+
+			uint32_t flushed = tud_cdc_write_flush();
+			total_written += flushed;
 			statistics_add_to_counter(BYTES_SENT, (uint32_t)total_written);
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);

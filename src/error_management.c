@@ -33,16 +33,16 @@ static volatile statistics_counters_t statistics_counters = {
 
 static bool error_type_non_fatal(error_type_t type)
 {
-    bool result = false;
+	bool result = false;
 	switch (type)
 	{
 	case ERROR_WATCHDOG_TIMEOUT:
 	case ERROR_RESOURCE_ALLOCATION:
 		result = true;
 		break;
-    default:
-        result = false;
-        break;
+	default:
+		result = false;
+		break;
 	}
 	return result;
 }
@@ -98,25 +98,25 @@ void show_error_pattern_blocking(error_type_t error_type)
 	// Prevent nested error pattern calls
 	if (!error_display_active)
 	{
-        error_display_active = true;
-        uint8_t blink_count = (uint8_t)error_type;
+		error_display_active = true;
+		uint8_t blink_count = (uint8_t)error_type;
 
-        // Show the blink pattern
-        for (uint8_t i = 0; i < blink_count; i++) {
-            gpio_put(ERROR_LED_PIN, 1);
-            busy_wait_ms(BLINK_ON_MS);
-            gpio_put(ERROR_LED_PIN, 0);
+		// Show the blink pattern
+		for (uint8_t i = 0; i < blink_count; i++) {
+			gpio_put(ERROR_LED_PIN, 1);
+			busy_wait_ms(BLINK_ON_MS);
+			gpio_put(ERROR_LED_PIN, 0);
 
-            if (i < (blink_count - 1U))
-            {
-                // Short pause between blinks (except after last blink)
-                busy_wait_ms(BLINK_OFF_MS);
-            }
-        }
+			if (i < (blink_count - 1U))
+			{
+				// Short pause between blinks (except after last blink)
+				busy_wait_ms(BLINK_OFF_MS);
+			}
+		}
 
-        // Long pause after pattern
-        busy_wait_ms(PATTERN_PAUSE_MS);
-        error_display_active = false;	
+		// Long pause after pattern
+		busy_wait_ms(PATTERN_PAUSE_MS);
+		error_display_active = false;
 	}
 }
 
@@ -147,11 +147,11 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 	{
 		watchdog_resets++;
 	}
-    // check for overflow
-    if (0xFFFFFFFFU == watchdog_resets)
-    {
-        watchdog_resets = 0;
-    }
+	// check for overflow
+	if (0xFFFFFFFFU == watchdog_resets)
+	{
+		watchdog_resets = 0;
+	}
 	watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG] = watchdog_resets;
 	statistics_set_counter(WATCHDOG_ERROR, watchdog_resets);
 
@@ -176,7 +176,7 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
 {
-    watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
+	watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
 	while (true)
 	{
 		show_error_pattern_blocking(type);
