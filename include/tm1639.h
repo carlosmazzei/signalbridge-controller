@@ -11,9 +11,9 @@
 #include <stdint.h>
 
 #include "FreeRTOS.h"
-#include "hardware/spi.h"
+#include <hardware/spi.h>
 #include "app_outputs.h"
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 #include "semphr.h"
 
 /**
@@ -89,76 +89,6 @@ output_driver_t *tm1639_init(uint8_t chip_id,
                              spi_inst_t *spi,
                              uint8_t dio_pin,
                              uint8_t clk_pin);
-
-/**
- * @brief Transmit a raw command to the TM1639 controller.
- *
- * @param[in] config Driver handle obtained from @ref tm1639_init().
- * @param[in] cmd    Encoded command byte to be written on the bus.
- *
- * @retval TM1639_OK              The command was accepted by the controller.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1639_ERR_SPI_WRITE   The byte transfer failed.
- */
-tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd);
-
-/**
- * @brief Select the TM1639 display memory address for subsequent writes.
- *
- * @param[in] config Driver handle obtained from @ref tm1639_init().
- * @param[in] addr   Address in the range 0-15 to program on the device.
- *
- * @retval TM1639_OK              The address command was accepted.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1639_ERR_ADDRESS_RANGE The address exceeds the valid range.
- * @retval TM1639_ERR_SPI_WRITE   The command write failed.
- */
-tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr);
-
-/**
- * @brief Write a single byte to a fixed TM1639 display register.
- *
- * @param[in,out] config Driver handle obtained from @ref tm1639_init().
- * @param[in]     addr   Display memory address to update (0-15).
- * @param[in]     data   Segment pattern to store at @p addr.
- *
- * @retval TM1639_OK              The byte was written successfully.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1639_ERR_ADDRESS_RANGE The address exceeds the valid range.
- * @retval TM1639_ERR_SPI_WRITE   The underlying SPI transaction failed.
- */
-tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data);
-
-/**
- * @brief Write multiple bytes to the TM1639 using auto-increment mode.
- *
- * @param[in,out] config     Driver handle obtained from @ref tm1639_init().
- * @param[in]     addr       Start address in display memory (0-15).
- * @param[in]     data_bytes Pointer to the data block to send.
- * @param[in]     length     Number of bytes contained in @p data_bytes.
- *
- * @retval TM1639_OK              The transfer completed successfully.
- * @retval TM1639_ERR_INVALID_PARAM One or more arguments are invalid.
- * @retval TM1639_ERR_ADDRESS_RANGE The address and length exceed the buffer size.
- * @retval TM1639_ERR_SPI_WRITE   The SPI transaction failed.
- */
-tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length);
-
-/**
- * @brief Decode the pressed key states reported by the TM1639.
- *
- * The caller must provide storage for four @ref tm1639_key_t entries. The
- * driver populates the array sequentially with any active key scans and leaves
- * unused entries unchanged.
- *
- * @param[in]  config Driver handle obtained from @ref tm1639_init().
- * @param[out] keys   Array that receives the decoded key descriptors.
- *
- * @retval TM1639_OK              Key data was retrieved successfully.
- * @retval TM1639_ERR_INVALID_PARAM @p config or @p keys is NULL.
- * @retval TM1639_ERR_SPI_WRITE   The read transaction failed.
- */
-tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys);
 
 /**
  * @brief Enable the TM1639 display at the configured brightness level.
@@ -241,18 +171,5 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
  * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
  */
 tm1639_result_t tm1639_deinit(output_driver_t *config);
-
-/**
- * @brief Update a single byte in the TM1639 preparation buffer.
- *
- * @param[in,out] config Driver handle obtained from @ref tm1639_init().
- * @param[in]     addr   Display memory address to update (0-15).
- * @param[in]     data   Segment pattern to cache at @p addr.
- *
- * @retval TM1639_OK              The cache entry was updated successfully.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1639_ERR_ADDRESS_RANGE The address exceeds the valid range.
- */
-tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
 
 #endif // TM1639_H

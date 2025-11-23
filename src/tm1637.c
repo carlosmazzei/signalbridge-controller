@@ -305,6 +305,7 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 	output_driver_t *config = NULL;
 	uint8_t valid = 1U;
 
+	// cppcheck-suppress [misra-c2012-11.5] - FreeRTOS pvPortMalloc returns void* that must be cast
 	config = pvPortMalloc(sizeof(output_driver_t));
 	if (NULL == config)
 	{
@@ -560,7 +561,7 @@ static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint
 
 	tm1637_result_t result = TM1637_OK;
 
-	for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
+	for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT); i++)
 	{
 		// Extract BCD digit and get pattern
 		uint8_t bcd_digit = digits[i] & 0x0FU;
@@ -573,10 +574,7 @@ static tm1637_result_t tm1637_process_digits(output_driver_t *config, const uint
 		config->prep_buffer[i] = segment_data;
 	}
 
-	if (TM1637_OK == result)
-	{
-		config->buffer_modified = true;
-	}
+    config->buffer_modified = true;
 
 	return result;
 }

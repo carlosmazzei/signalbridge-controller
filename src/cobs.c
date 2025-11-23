@@ -28,6 +28,7 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 	encode++; // Output code pointer
 	uint8_t code = 1; // Code value
 
+	// cppcheck-suppress [misra-c2012-11.5] - COBS algorithm requires void* to uint8_t* cast for generic data
 	for (const uint8_t *byte = (const uint8_t *)data; length--; ++byte)
 	{
 		if (*byte != 0) // Byte not zero, write it
@@ -63,6 +64,7 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
 {
 	const uint8_t *byte = buffer; // Encoded input byte pointer
+	// cppcheck-suppress [misra-c2012-11.5] - COBS algorithm requires void* to uint8_t* cast for generic data
 	uint8_t *decode = (uint8_t *)data; // Decoded output byte pointer
 
 	for (uint8_t code = 0xff, block = 0; byte < buffer + length; --block)
@@ -79,5 +81,6 @@ size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
 		}
 	}
 
+	// cppcheck-suppress [misra-c2012-11.5] - COBS algorithm requires void* to uint8_t* cast for pointer arithmetic
 	return (size_t)(decode - (uint8_t *)data);
 }

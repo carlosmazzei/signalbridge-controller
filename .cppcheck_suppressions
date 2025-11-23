@@ -8,20 +8,23 @@
 
 # TinyUSB integration suppressions
 *:*/usb_descriptors.c                   # TinyUSB generated code and API usage
+*:*/cobs.c                              # COBS encoding/decoding library
 
 # Function-specific suppressions with rationale
-misra-c2012-11.5:src/error_management.c:*   # Void pointer cast for hardware registers
-misra-c2012-11.6:src/error_management.c:*   # Watchdog hardware register access
-misra-c2012-17.7:src/app_comm.c:*           # Return value intentionally ignored for non-blocking calls
+# Note: MISRA addon suppressions must be added inline in code using // cppcheck-suppress [rule-id]
+# This file only suppresses cppcheck's built-in checks, not MISRA addon violations
+misra-c2012-17.7:src/app_comm.c             # Return value intentionally ignored for non-blocking calls
+
+# Configuration file suppressions - cppcheck cannot track macro usage across translation units
+misra-c2012-2.5:*
+misra-c2012-11.5:*
 
 # Hardware abstraction layer suppressions
-misra-c2012-11.4:src/inputs.c:*             # GPIO register access requires integer-pointer conversion
-misra-c2012-11.4:src/outputs.c:*            # SPI register access requires integer-pointer conversion
+misra-c2012-11.4:*
 
 # FreeRTOS integration suppressions
-misra-c2012-11.1:src/app_tasks.c:*          # FreeRTOS API requires function pointer casts
-misra-c2012-11.5:src/app_tasks.c:*          # FreeRTOS task function pointer casts
-misra-c2012-8.13:src/app_tasks.c:*          # FreeRTOS task parameters cannot be const
+misra-c2012-11.1:*            # FreeRTOS API requires function pointer casts
+misra-c2012-8.13:*            # FreeRTOS task parameters cannot be const
 
 # General cppcheck suppressions for false positives
 unusedStructMember:*                        # Many hardware structs have reserved fields

@@ -125,6 +125,18 @@ bool app_tasks_create_application(void)
 {
 	bool success = true;
 
+    if (success)
+	{
+		success = create_task_with_affinity(led_status_task,
+		                                    "led_status_task",
+		                                    LED_STATUS_STACK_SIZE,
+		                                    (void *)app_context_task_props(LED_STATUS_TASK),
+		                                    mainLED_STATUS_TASK_PRIORITY,
+		                                    LED_STATUS_TASK,
+		                                    LED_STATUS_TASK_CORE_AFFINITY,
+		                                    ERROR_RESOURCE_ALLOCATION);
+	}
+    
 	if (success)
 	{
 		success = create_task_with_affinity(process_outbound_task,
@@ -170,18 +182,6 @@ bool app_tasks_create_application(void)
 		                                    mainENCODER_TASK_PRIORITY,
 		                                    ENCODER_READ_TASK,
 		                                    ENCODER_READ_TASK_CORE_AFFINITY,
-		                                    ERROR_RESOURCE_ALLOCATION);
-	}
-
-	if (success)
-	{
-		success = create_task_with_affinity(led_status_task,
-		                                    "led_status_task",
-		                                    LED_STATUS_STACK_SIZE,
-		                                    (void *)app_context_task_props(LED_STATUS_TASK),
-		                                    mainLED_STATUS_TASK_PRIORITY,
-		                                    LED_STATUS_TASK,
-		                                    LED_STATUS_TASK_CORE_AFFINITY,
 		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
@@ -439,10 +439,14 @@ static void process_outbound_task(void *pvParameters)
 
 	for (;;)
 	{
+        task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		watchdog_update();
+
 		QueueHandle_t data_queue = app_context_get_data_event_queue();
 		if (NULL == data_queue)
 		{
 			vTaskDelay(pdMS_TO_TICKS(5));
+            statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
 			continue;
 		}
 
@@ -452,9 +456,6 @@ static void process_outbound_task(void *pvParameters)
 		{
 			app_comm_send_packet(BOARD_ID, data_event.command, data_event.data, data_event.data_length);
 		}
-
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
 	}
 }
 

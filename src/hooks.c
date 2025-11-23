@@ -12,8 +12,6 @@
 #include "hooks.h"
 #include "error_management.h"
 
-static volatile size_t free_heap_size = 0;
-
 //-----------------------------------------------------------
 
 void vApplicationMallocFailedHook(void)
@@ -44,6 +42,7 @@ void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) // NOS
 
 void vApplicationIdleHook(void)
 {
+    static volatile size_t free_heap_size = 0;
 	free_heap_size = xPortGetFreeHeapSize();
 }
 //-----------------------------------------------------------
