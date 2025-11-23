@@ -16,7 +16,6 @@
 #include <pico/stdlib.h>
 #include <hardware/gpio.h>
 #include <hardware/watchdog.h>
-#include <hardware/timer.h>
 
 #include "FreeRTOS.h"
 #include "task.h"

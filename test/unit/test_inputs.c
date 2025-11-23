@@ -66,7 +66,6 @@ static int setup(void **state)
 
     reset_queue_state();
     statistics_reset_all_counters();
-    statistics_clear_error();
     app_context_reset_queues();
 
     return 0;
@@ -123,7 +122,7 @@ static void test_input_init_reports_queue_creation_failure(void **state)
     assert_int_equal(0U, statistics_get_counter(INPUT_QUEUE_INIT_ERROR));
 
     input_result_t result = input_init();
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
+    assert_int_equal(INPUT_ERROR, result);
     assert_int_equal(1U, statistics_get_counter(INPUT_QUEUE_INIT_ERROR));
     assert_null(app_context_get_data_event_queue());
 }

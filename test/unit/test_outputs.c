@@ -211,7 +211,6 @@ static int setup(void **state)
 
     reset_mock_state();
     statistics_reset_all_counters();
-    statistics_clear_error();
 
     (void)output_init();
     statistics_reset_all_counters();
