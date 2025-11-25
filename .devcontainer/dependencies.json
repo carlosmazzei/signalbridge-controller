@@ -8,7 +8,7 @@
     "flawfinder": "2.0.19-1.1",
     "gcc-arm-none-eabi": "15:14.2.rel1-1",
     "gdb-multiarch": "16.3-1",
-    "gh": "2.46.0-3",
+    "gpg": "2.4.5-3",
     "openocd": "0.12.0-3+b2",
     "git": "1:2.47.3-0+deb13u1",
     "libnewlib-arm-none-eabi": "4.5.0.20241231-1",
