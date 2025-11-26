@@ -44,6 +44,26 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/dependencies.json
 
+# Install SonarQube scanner CLI for local, offline scans
+ARG SONAR_SCANNER_VERSION=6.2.1.4610
+ENV SONAR_SCANNER_HOME=/opt/sonar-scanner
+ENV PATH="${SONAR_SCANNER_HOME}/bin:${PATH}"
+
+RUN set -euo pipefail && \
+    SCANNER_ZIP="/tmp/sonar-scanner.zip" && \
+    curl -sSLo "${SCANNER_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip" && \
+    python3 - <<'PY'
+import os
+import zipfile
+
+zip_path = os.environ["SCANNER_ZIP"]
+with zipfile.ZipFile(zip_path) as zf:
+    zf.extractall("/tmp")
+PY
+    mv "/tmp/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64" "${SONAR_SCANNER_HOME}" && \
+    ln -sf "${SONAR_SCANNER_HOME}/bin/sonar-scanner" /usr/local/bin/sonar-scanner && \
+    rm -f "${SCANNER_ZIP}"
+
 # Configuration for the development user inside the container
 ARG USERNAME=vscode
 ARG USER_UID=1000
