@@ -27,7 +27,7 @@ RUN apt-get update && \
     jq -r 'to_entries | .[] | "  - " + .key + " (version: " + .value + ")"' /tmp/dependencies.json && \
     echo "Starting installation..." && \
     # Install packages - try with version, fallback to package name only
-    jq -r 'keys[]' /tmp/dependencies.json | while read package; do \
+    jq -r 'keys[] | select(. != "sonar-scanner-cli")' /tmp/dependencies.json | while read package; do \
         version=$(jq -r --arg pkg "$package" '.[$pkg]' /tmp/dependencies.json); \
         echo "Installing $package..."; \
         if [ -n "$version" ] && [ "$version" != "" ] && [ "$version" != "null" ]; then \
@@ -42,16 +42,25 @@ RUN apt-get update && \
     echo "Package installation completed" && \
     # Clean up
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/dependencies.json
+    rm -rf /var/lib/apt/lists/* /var/tmp/*
 
-# Install SonarQube scanner CLI for local, offline scans
-ARG SONAR_SCANNER_VERSION=6.2.1.4610
+# Install SonarQube scanner CLI for local, offline scans based on dependencies.json
+ARG SONAR_SCANNER_VERSION
 ENV SONAR_SCANNER_HOME=/opt/sonar-scanner
 ENV PATH="${SONAR_SCANNER_HOME}/bin:${PATH}"
 
 RUN set -euo pipefail && \
+    DEP_FILE=/tmp/dependencies.json && \
+    SCANNER_VERSION="${SONAR_SCANNER_VERSION:-}" && \
+    if [ -z "${SCANNER_VERSION}" ] || [ "${SCANNER_VERSION}" = "" ]; then \
+        SCANNER_VERSION=$(jq -r '."sonar-scanner-cli" // empty' "${DEP_FILE}"); \
+    fi && \
+    if [ -z "${SCANNER_VERSION}" ] || [ "${SCANNER_VERSION}" = "null" ]; then \
+        echo "sonar-scanner-cli version not specified in dependencies.json"; \
+        exit 1; \
+    fi && \
     SCANNER_ZIP="/tmp/sonar-scanner.zip" && \
-    curl -sSLo "${SCANNER_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip" && \
+    curl -sSLo "${SCANNER_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip" && \
     python3 - <<'PY'
 import os
 import zipfile
@@ -60,9 +69,9 @@ zip_path = os.environ["SCANNER_ZIP"]
 with zipfile.ZipFile(zip_path) as zf:
     zf.extractall("/tmp")
 PY
-    mv "/tmp/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64" "${SONAR_SCANNER_HOME}" && \
+    mv "/tmp/sonar-scanner-${SCANNER_VERSION}-linux-x64" "${SONAR_SCANNER_HOME}" && \
     ln -sf "${SONAR_SCANNER_HOME}/bin/sonar-scanner" /usr/local/bin/sonar-scanner && \
-    rm -f "${SCANNER_ZIP}"
+    rm -f "${SCANNER_ZIP}" "${DEP_FILE}"
 
 # Configuration for the development user inside the container
 ARG USERNAME=vscode
