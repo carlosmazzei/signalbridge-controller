@@ -34,7 +34,7 @@ if [ "$CPPCHECK_VERSION" != "unknown" ]; then
     DOWNLOAD_URL="https://github.com/danmar/cppcheck/archive/refs/tags/${CPPCHECK_VERSION}.tar.gz"
     echo "Downloading cppcheck source version $CPPCHECK_VERSION..."
     
-    if wget -q "$DOWNLOAD_URL" -O cppcheck.tar.gz 2>/dev/null; then
+    if curl -fsSL "$DOWNLOAD_URL" -o cppcheck.tar.gz 2>/dev/null; then
         tar -xzf cppcheck.tar.gz
         SOURCE_DIR="cppcheck-${CPPCHECK_VERSION}"
         
@@ -80,7 +80,7 @@ if [ "$METHOD1_SUCCESS" != "true" ]; then
     echo ""
     echo "📥 Method 2: Installing from latest main branch..."
     
-    if wget -q "https://github.com/danmar/cppcheck/archive/refs/heads/main.tar.gz" -O cppcheck-main.tar.gz; then
+    if curl -fsSL "https://github.com/danmar/cppcheck/archive/refs/heads/main.tar.gz" -o cppcheck-main.tar.gz; then
         tar -xzf cppcheck-main.tar.gz
         
         if [ -d "cppcheck-main/addons" ]; then
