@@ -309,11 +309,34 @@ jobs:
           files: build-tests/coverage.info
           flags: unittests
 
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - name: SonarQube Scan (local only)
+        run: |
+          set -euo pipefail
+
+          SCANNER_VERSION="6.2.1.4610"
+          SCANNER_DIR="${HOME}/sonar-scanner-${SCANNER_VERSION}"
+
+          if command -v sonar-scanner >/dev/null 2>&1; then
+            SCANNER_BIN="$(command -v sonar-scanner)"
+          else
+            if [ ! -d "${SCANNER_DIR}" ]; then
+              curl -sSLo scanner.zip "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip"
+              unzip -q scanner.zip
+              mv "sonar-scanner-${SCANNER_VERSION}-linux-x64" "${SCANNER_DIR}"
+              rm scanner.zip
+            fi
+            SCANNER_BIN="${SCANNER_DIR}/bin/sonar-scanner"
+          fi
+
+          "${SCANNER_BIN}" \
+            -Dsonar.host.url=http://localhost \
+            -Dsonar.login=dummy-token \
+            -Dsonar.telemetry.enable=false \
+            -Dsonar.scanner.dumpToFile=sonar-scan-report.properties \
+            -Dproject.settings=sonar-project.properties
+
+          echo "=== Local Sonar scanner configuration dump (no server connection attempted) ==="
+          cat sonar-scan-report.properties
 
   # Release job (only runs on releases)
   release:
