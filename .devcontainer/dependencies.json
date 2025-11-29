@@ -23,5 +23,5 @@
     "lcov": "2.3.1-1",
     "gcovr": "7.2+really-1.1",
     "libcmocka-dev": "1.1.7-3+b1",
-    "sonar-scanner-cli": "6.2.1.4610"
+    "unzip": "6.0-29"
 }

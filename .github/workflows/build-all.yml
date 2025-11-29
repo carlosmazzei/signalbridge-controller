@@ -322,7 +322,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: build-firmware
+    needs: [detect-changes, unit-tests, build-firmware]
     if: github.event_name == 'release' && github.event.action == 'published'
     
     steps:
