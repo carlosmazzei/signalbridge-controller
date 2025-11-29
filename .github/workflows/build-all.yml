@@ -309,6 +309,16 @@ jobs:
           files: build-tests/coverage.info
           flags: unittests
 
+      - name: SonarQube analysis
+        uses: SonarSource/sonarqube-scan-action@v2
+        with:
+          args: >
+            -Dsonar.projectBaseDir=${{ github.workspace }}
+            -Dsonar.cfamily.compile-commands=build-tests/compile_commands.json
+            -Dsonar.coverageReportPaths=build-tests/coverage.info
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   # Release job (only runs on releases)
   release:
     name: Release

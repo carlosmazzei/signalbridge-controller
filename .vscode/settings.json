@@ -68,4 +68,8 @@
         "--output-on-failure",
         "--verbose"
     ],
+    "sonarlint.connectedMode.project": {
+        "connectionId": "carlosmazzei",
+        "projectKey": "carlosmazzei_signalbridge-controller"
+    },
 }
