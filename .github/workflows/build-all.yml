@@ -263,7 +263,7 @@ jobs:
   unit-tests:
     name: Quality Checks
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-devcontainer]
+    needs: [detect-changes]
     if: |
       (needs.detect-changes.outputs.firmware-changed == 'true' ||
        needs.detect-changes.outputs.devcontainer-changed == 'true' ||
@@ -308,41 +308,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: build-tests/coverage.info
           flags: unittests
-
-      - name: SonarQube Scan (local only)
-        env:
-          SONAR_SCANNER_OPTS: "-Dsonar.telemetry.enable=false"
-        run: |
-          set -euo pipefail
-
-          if ! command -v sonar-scanner >/dev/null 2>&1; then
-            echo "sonar-scanner should be available from devcontainer dependencies." >&2
-            exit 1
-          fi
-
-          SCANNER_BIN="$(command -v sonar-scanner)"
-          SCAN_REPORT=sonar-scan-report.properties
-
-          set +e
-          ${SCANNER_BIN} \
-            -Dsonar.host.url=http://localhost \
-            -Dsonar.login=dummy-token \
-            -Dsonar.scanner.dumpToFile="${SCAN_REPORT}" \
-            -Dsonar.scanner.forceUpdate=false \
-            -Dproject.settings=sonar-project.properties
-          SCAN_STATUS=$?
-          set -e
-
-          if [ -f "${SCAN_REPORT}" ]; then
-            echo "=== Local Sonar scanner configuration dump (no server connection attempted) ==="
-            cat "${SCAN_REPORT}"
-          else
-            echo "Sonar scanner did not produce ${SCAN_REPORT}."
-          fi
-
-          if [ ${SCAN_STATUS} -ne 0 ]; then
-            echo "Sonar scanner exited with status ${SCAN_STATUS} (expected without a running server)."
-          fi
 
   # Release job (only runs on releases)
   release:
