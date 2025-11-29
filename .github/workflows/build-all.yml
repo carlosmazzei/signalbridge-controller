@@ -85,33 +85,18 @@ jobs:
           echo "tag_debian12=${IMAGE_NAME}:debian-12" >> $GITHUB_OUTPUT
           echo "tag_sha=${IMAGE_NAME}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
-      - name: Build DevContainer image and push
+      - name: Build and push DevContainer image
         uses: docker/build-push-action@v6
         with:
           context: .devcontainer
           file: .devcontainer/Dockerfile
-          push: false
-          load: true
+          push: true
           tags: |
             ${{ steps.image_tags.outputs.tag_latest }}
             ${{ steps.image_tags.outputs.tag_debian12 }}
             ${{ steps.image_tags.outputs.tag_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Validate devcontainer post-create setup
-        run: |
-          docker run --rm \
-            -v "$PWD":/workspace \
-            -w /workspace \
-            ${{ steps.image_tags.outputs.tag_sha }} \
-            bash .devcontainer/post-create.sh
-
-      - name: Push DevContainer image
-        run: |
-          docker push ${{ steps.image_tags.outputs.tag_latest }}
-          docker push ${{ steps.image_tags.outputs.tag_debian12 }}
-          docker push ${{ steps.image_tags.outputs.tag_sha }}
 
   build-firmware:
     name: Build Firmware
@@ -139,6 +124,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: 'recursive'
+
+      - name: Run workspace setup
+        run: |
+          chmod +x .devcontainer/post-create.sh
+          .devcontainer/post-create.sh
 
       # Verify toolchain installation
       - name: Verify installed toolchain version
@@ -295,6 +285,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Run workspace setup
+        run: |
+          chmod +x .devcontainer/post-create.sh
+          .devcontainer/post-create.sh
 
       - name: Run Cppcheck (MISRA)
         run: ./scripts/run_cppcheck.sh
