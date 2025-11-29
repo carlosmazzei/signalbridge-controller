@@ -26,6 +26,13 @@ cd "$WORKSPACE_DIR"
 # Ensure downstream commands that rely on CONTAINERWORKSPACEFOLDER keep working
 export CONTAINERWORKSPACEFOLDER="${CONTAINERWORKSPACEFOLDER:-$WORKSPACE_DIR}"
 
+# GitHub-hosted runners mount /workspace with root ownership, so mark it safe for git
+if [ -d ".git" ]; then
+    if ! git config --global --get-all safe.directory | grep -Fx "$WORKSPACE_DIR" >/dev/null 2>&1; then
+        git config --global --add safe.directory "$WORKSPACE_DIR"
+    fi
+fi
+
 # Check if submodules are properly initialized
 if [ -f ".gitmodules" ]; then
     echo "Checking submodule initialization..."
