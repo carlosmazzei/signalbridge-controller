@@ -7,8 +7,24 @@ set -e
 
 echo "=== Post-Creation Setup ==="
 
-# Navigate to workspace
-cd "${CONTAINERWORKSPACEFOLDER:-/workspaces/$(basename $PWD)}"
+# Navigate to workspace regardless of runtime (VS Code devcontainer or CI)
+WORKSPACE_DIR=""
+if [ -n "${CONTAINERWORKSPACEFOLDER:-}" ] && [ -d "${CONTAINERWORKSPACEFOLDER}" ]; then
+    WORKSPACE_DIR="${CONTAINERWORKSPACEFOLDER}"
+else
+    CURRENT_DIR="$(pwd)"
+    DEFAULT_WORKSPACE="/workspaces/$(basename "$CURRENT_DIR")"
+    if [ -d "$DEFAULT_WORKSPACE" ]; then
+        WORKSPACE_DIR="$DEFAULT_WORKSPACE"
+    else
+        WORKSPACE_DIR="$CURRENT_DIR"
+    fi
+fi
+
+cd "$WORKSPACE_DIR"
+
+# Ensure downstream commands that rely on CONTAINERWORKSPACEFOLDER keep working
+export CONTAINERWORKSPACEFOLDER="${CONTAINERWORKSPACEFOLDER:-$WORKSPACE_DIR}"
 
 # Check if submodules are properly initialized
 if [ -f ".gitmodules" ]; then
@@ -153,7 +169,11 @@ fi
 # Display useful information
 echo ""
 echo "=== Environment Variables (docker container) ==="
-env | sort
+if [ -n "${CI:-}" ]; then
+    echo "(environment redacted in CI environment)"
+else
+    env | sort
+fi
 echo ""
 echo "=== Development Environment Ready ==="
 echo "Workspace: $(pwd)"
