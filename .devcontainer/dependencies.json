@@ -12,7 +12,7 @@
     "libnewlib-arm-none-eabi": "4.5.0.20241231-1",
     "libstdc++-arm-none-eabi-newlib": "15:14.2.rel1-1+29",
     "nodejs": "20.19.2+dfsg-1",
-    "openjdk-21-jre-headless": "21.0.8+9-1",
+    "openjdk-21-jre-headless": "21.0.9+10-1~deb13u1",
     "openssh-client": "1:10.0p1-7",
     "python3": "3.13.5-1",
     "sudo": "1.9.16p2-3",
