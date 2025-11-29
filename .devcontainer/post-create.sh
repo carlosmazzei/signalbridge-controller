@@ -28,6 +28,15 @@ export CONTAINERWORKSPACEFOLDER="${CONTAINERWORKSPACEFOLDER:-$WORKSPACE_DIR}"
 
 # GitHub-hosted runners mount /workspace with root ownership, so mark it safe for git
 if [ -d ".git" ]; then
+    if [ ! -w ".git/config" ]; then
+        echo "Fixing .git ownership for current user..."
+        if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u)":"$(id -g)" .git || echo "⚠️  Unable to adjust .git ownership"
+        else
+            echo "⚠️  sudo not available; git submodule operations may fail due to permissions"
+        fi
+    fi
+
     if ! git config --global --get-all safe.directory | grep -Fx "$WORKSPACE_DIR" >/dev/null 2>&1; then
         git config --global --add safe.directory "$WORKSPACE_DIR"
     fi
