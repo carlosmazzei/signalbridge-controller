@@ -310,12 +310,11 @@ jobs:
           flags: unittests
 
       - name: SonarQube analysis
-        uses: SonarSource/sonarqube-scan-action@v2
+        uses: SonarSource/sonarqube-scan-action@v6
         with:
           args: >
-            -Dsonar.projectBaseDir=${{ github.workspace }}
-            -Dsonar.cfamily.compile-commands=build-tests/compile_commands.json
-            -Dsonar.coverageReportPaths=build-tests/coverage.info
+            --define "sonar.cfamily.compile-commands=build-tests/compile_commands.json"
+            --define "sonar.coverageReportPaths=build-tests/coverage.info"
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
