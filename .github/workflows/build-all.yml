@@ -227,6 +227,16 @@ jobs:
           find build-release -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
           echo "=========================================================="
 
+      # Publish compilation database for downstream analysis jobs
+      - name: Upload compile_commands.json
+        uses: actions/upload-artifact@v5
+        with:
+          name: compile-commands
+          path: |
+            compile_commands.json
+            build-release/compile_commands.json
+          retention-days: 5
+
       # Archive documentation if it exists
       - name: Archive Doxygen Documentation
         run: |
@@ -290,6 +300,25 @@ jobs:
         run: |
           chmod +x .devcontainer/post-create.sh
           .devcontainer/post-create.sh
+
+      - name: Download compile_commands.json
+        uses: actions/download-artifact@v6
+        with:
+          name: compile-commands
+          path: compile-commands
+
+      - name: Restore compile_commands.json
+        run: |
+          # Ensure the compilation database from the release build is available at the repo root
+          mkdir -p build-release
+          if [ -f compile-commands/compile_commands.json ]; then
+            mv compile-commands/compile_commands.json ./compile_commands.json
+          fi
+          if [ -f compile-commands/build-release/compile_commands.json ]; then
+            mv compile-commands/build-release/compile_commands.json build-release/compile_commands.json
+          fi
+          echo "compile_commands.json present:"
+          ls -l ./compile_commands.json
 
       - name: Run Cppcheck (MISRA)
         run: ./scripts/run_cppcheck.sh
