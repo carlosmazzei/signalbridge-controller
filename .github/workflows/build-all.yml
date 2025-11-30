@@ -303,20 +303,24 @@ jobs:
         uses: actions/download-artifact@v6
         with:
           name: build-release
-          path: build-release-artifact
+          path: build-release
 
       - name: Restore build-release directory
         run: |
-          # Preserve the full release build output (including generated headers) for cppcheck analysis
-          if [ -d build-release-artifact/build-release ]; then
-            rm -rf build-release
-            mv build-release-artifact/build-release ./
+          # Ensure the full release build output (including generated headers) is present for cppcheck analysis
+          if [ ! -d build-release ]; then
+            echo "❌ build-release directory not found after artifact download"
+            exit 1
           fi
 
           # Ensure the compilation database from the release build is available at the repo root
-          if [ -f build-release/compile_commands.json ]; then
-            cp build-release/compile_commands.json ./compile_commands.json
+          if [ ! -f build-release/compile_commands.json ]; then
+            echo "❌ compile_commands.json missing from build-release"
+            ls -la build-release || true
+            exit 1
           fi
+
+          cp build-release/compile_commands.json ./compile_commands.json
 
           echo "Restored build-release contents:"
           ls -la build-release | head
