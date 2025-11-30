@@ -6,8 +6,11 @@ endif()
 if(NOT DEFINED COVERAGE_DIR)
   message(FATAL_ERROR "COVERAGE_DIR not set")
 endif()
-if(NOT DEFINED LCOV_PATH OR NOT DEFINED GENHTML_PATH)
-  message(FATAL_ERROR "LCOV_PATH or GENHTML_PATH not set")
+if(NOT DEFINED LCOV_PATH OR NOT DEFINED GENHTML_PATH OR NOT DEFINED GCOVR_PATH)
+  message(FATAL_ERROR "LCOV_PATH, GENHTML_PATH, or GCOVR_PATH not set")
+endif()
+if(NOT DEFINED SOURCE_ROOT)
+  message(FATAL_ERROR "SOURCE_ROOT not set")
 endif()
 
 # Ensure output directory exists
@@ -43,6 +46,16 @@ execute_process(
 )
 if(NOT _genhtml_rv EQUAL 0)
   message(FATAL_ERROR "genhtml failed: ${_genhtml_rv}")
+endif()
+
+# Generate SonarQube-compatible coverage report
+execute_process(
+  COMMAND "${GCOVR_PATH}" --sonarqube "${COVERAGE_DIR}/sonarqube.xml" --root "${SOURCE_ROOT}" --object-directory "${_binary_root}"
+  WORKING_DIRECTORY "${WORK_DIR}"
+  RESULT_VARIABLE _gcovr_rv
+)
+if(NOT _gcovr_rv EQUAL 0)
+  message(FATAL_ERROR "gcovr failed: ${_gcovr_rv}")
 endif()
 
 message(STATUS "Coverage report generated in ${COVERAGE_DIR}/index.html")
