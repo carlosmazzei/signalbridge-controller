@@ -124,13 +124,17 @@ void error_management_set_error_state(error_type_t type)
 	statistics_counters.current_error_type = type;
 	statistics_counters.error_state = true;
 
-	if (type == ERROR_WATCHDOG_TIMEOUT)
+	switch (type)
 	{
+	case ERROR_WATCHDOG_TIMEOUT:
 		statistics_increment_counter(WATCHDOG_ERROR);
-	}
-	else if (type == ERROR_RESOURCE_ALLOCATION)
-	{
+		break;
+	case ERROR_RESOURCE_ALLOCATION:
 		statistics_increment_counter(RESOURCE_ALLOCATION_ERROR);
+		break;
+	default:
+		statistics_increment_counter(RESOURCE_ALLOCATION_ERROR);
+		break;
 	}
 }
 

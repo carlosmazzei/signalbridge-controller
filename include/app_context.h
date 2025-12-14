@@ -29,6 +29,13 @@ typedef struct app_context_t {
 } app_context_t;
 
 /**
+ * @brief Check if the host is ready for USB CDC transfers.
+ *
+ * @return `true` when both DTR and RTS are asserted.
+ */
+bool app_context_is_cdc_ready(void);
+
+/**
  * @brief Retrieve the singleton application context.
  *
  * @return Pointer to the application context structure.
@@ -59,17 +66,18 @@ void app_context_set_line_state(bool dtr, bool rts);
 void app_context_reset_line_state(void);
 
 /**
- * @brief Check if the host is ready for USB CDC transfers.
+ * @brief Obtain the data event queue handle.
  *
- * @return `true` when both DTR and RTS are asserted.
+ * @return Queue handle or `NULL` if not initialised.
  */
-static inline bool app_context_is_cdc_ready(void)
-{
-	const app_context_t *const context = app_context_get();
-	bool dtr = atomic_load_explicit(&context->cdc_dtr, memory_order_acquire);
-	bool rts = atomic_load_explicit(&context->cdc_rts, memory_order_acquire);
-	return (dtr && rts);
-}
+QueueHandle_t app_context_get_data_event_queue(void);
+
+/**
+ * @brief Store the data event queue handle.
+ *
+ * @param[in] queue Queue handle to store.
+ */
+void app_context_set_data_event_queue(QueueHandle_t queue);
 
 /**
  * @brief Fetch task bookkeeping data for a given task identifier.
@@ -77,69 +85,34 @@ static inline bool app_context_is_cdc_ready(void)
  * @param[in] task_id Identifier of the requested task.
  * @return Pointer to the stored task properties.
  */
-static inline task_props_t *app_context_task_props(task_enum_t task_id)
-{
-	return &app_context_get()->task_props[task_id];
-}
-
-/**
- * @brief Obtain the encoded reception queue handle.
- *
- * @return Queue handle or `NULL` if not initialised.
- */
-static inline QueueHandle_t app_context_get_encoded_queue(void)
-{
-	return app_context_get()->encoded_reception_queue;
-}
-
-/**
- * @brief Update the encoded reception queue handle.
- *
- * @param[in] queue Queue handle to store.
- */
-static inline void app_context_set_encoded_queue(QueueHandle_t queue)
-{
-	app_context_get()->encoded_reception_queue = queue;
-}
-
-/**
- * @brief Obtain the data event queue handle.
- *
- * @return Queue handle or `NULL` if not initialised.
- */
-static inline QueueHandle_t app_context_get_data_event_queue(void)
-{
-	return app_context_get()->data_event_queue;
-}
-
-/**
- * @brief Store the data event queue handle.
- *
- * @param[in] queue Queue handle to store.
- */
-static inline void app_context_set_data_event_queue(QueueHandle_t queue)
-{
-	app_context_get()->data_event_queue = queue;
-}
+task_props_t *app_context_task_props(task_enum_t task_id);
 
 /**
  * @brief Obtain the CDC transmit queue handle.
  *
  * @return Queue handle or `NULL` if not initialised.
  */
-static inline QueueHandle_t app_context_get_cdc_transmit_queue(void)
-{
-	return app_context_get()->cdc_transmit_queue;
-}
+QueueHandle_t app_context_get_cdc_transmit_queue(void);
+
+/**
+ * @brief Update the encoded reception queue handle.
+ *
+ * @param[in] queue Queue handle to store.
+ */
+void app_context_set_encoded_queue(QueueHandle_t queue);
 
 /**
  * @brief Store the CDC transmit queue handle.
  *
  * @param[in] queue Queue handle to store.
  */
-static inline void app_context_set_cdc_transmit_queue(QueueHandle_t queue)
-{
-	app_context_get()->cdc_transmit_queue = queue;
-}
+void app_context_set_cdc_transmit_queue(QueueHandle_t queue);
+
+/**
+ * @brief Obtain the encoded reception queue handle.
+ *
+ * @return Queue handle or `NULL` if not initialised.
+ */
+QueueHandle_t app_context_get_encoded_queue(void);
 
 #endif // APP_CONTEXT_H

@@ -19,6 +19,49 @@ static app_context_t s_app_context = {
 	.cdc_dtr                 = ATOMIC_VAR_INIT(false)
 };
 
+bool app_context_is_cdc_ready(void)
+{
+	const app_context_t *const context = app_context_get();
+	bool dtr = atomic_load_explicit(&context->cdc_dtr, memory_order_acquire);
+	bool rts = atomic_load_explicit(&context->cdc_rts, memory_order_acquire);
+	return (dtr && rts);
+}
+
+task_props_t *app_context_task_props(task_enum_t task_id)
+{
+	return &app_context_get()->task_props[task_id];
+}
+
+QueueHandle_t app_context_get_encoded_queue(void)
+{
+	return app_context_get()->encoded_reception_queue;
+}
+
+void app_context_set_encoded_queue(QueueHandle_t queue)
+{
+	app_context_get()->encoded_reception_queue = queue;
+}
+
+QueueHandle_t app_context_get_data_event_queue(void)
+{
+	return app_context_get()->data_event_queue;
+}
+
+void app_context_set_data_event_queue(QueueHandle_t queue)
+{
+	app_context_get()->data_event_queue = queue;
+}
+
+QueueHandle_t app_context_get_cdc_transmit_queue(void)
+{
+	return app_context_get()->cdc_transmit_queue;
+}
+
+void app_context_set_cdc_transmit_queue(QueueHandle_t queue)
+{
+	app_context_get()->cdc_transmit_queue = queue;
+}
+
 app_context_t *app_context_get(void)
 {
 	return &s_app_context;
@@ -52,10 +95,6 @@ void app_context_reset_queues(void)
 	}
 }
 
-/**
- * @brief TinyUSB line state callback expects to toggle RTS/DTR frequently,
- *        so store defaults using atomic helpers directly.
- */
 void app_context_set_line_state(bool dtr, bool rts)
 {
 	atomic_store_explicit(&s_app_context.cdc_dtr, dtr, memory_order_release);

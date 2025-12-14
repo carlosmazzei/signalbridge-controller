@@ -13,7 +13,6 @@
 #include "error_management.h"
 
 //-----------------------------------------------------------
-
 void vApplicationMallocFailedHook(void)
 {
 	/* Called if a call to pvPortMalloc() fails because there is insufficient

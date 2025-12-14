@@ -71,8 +71,6 @@ typedef struct tm1639_key_t {
  *
  * The helper initialises the driver bookkeeping structure, clears the display,
  * programs the default brightness level and enables the panel. The returned
- * handle must be released with @c vPortFree() after calling
- * @ref tm1639_deinit().
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
  * @param[in] select_interface Callback used to acquire and release the shared
@@ -158,18 +156,5 @@ output_result_t tm1639_set_digits(output_driver_t *config,
  * @retval OUTPUT_ERR_DISPLAY_OUT  Communication with the controller failed.
  */
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);
-
-/**
- * @brief Shutdown the TM1639 driver and place the display into standby.
- *
- * The routine sends a display-off command but does not free the driver storage;
- * the caller remains responsible for invoking @c vPortFree() on @p config.
- *
- * @param[in,out] config Driver handle obtained from @ref tm1639_init().
- *
- * @retval TM1639_OK              Shutdown completed successfully.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- */
-tm1639_result_t tm1639_deinit(output_driver_t *config);
 
 #endif // TM1639_H

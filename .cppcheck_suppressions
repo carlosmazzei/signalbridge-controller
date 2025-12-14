@@ -1,19 +1,12 @@
 # External library suppressions - MISRA DEVIATION (D5)
-*:lib/*
-*:test/*
-*:unit/*
+*:*lib/*
 
 # Specific MISRA C:2012 suppressions for project code
 # Only suppress when actually needed and document reason
 
 # TinyUSB integration suppressions
-*:*/usb_descriptors.c                   # TinyUSB generated code and API usage
-*:*/cobs.c                              # COBS encoding/decoding library
-
-# Function-specific suppressions with rationale
-# Note: MISRA addon suppressions must be added inline in code using // cppcheck-suppress [rule-id]
-# This file only suppresses cppcheck's built-in checks, not MISRA addon violations
-misra-c2012-17.7:src/app_comm.c             # Return value intentionally ignored for non-blocking calls
+*:*src/usb_descriptors.c                   # TinyUSB generated code and API usage
+*:*src/cobs.c                              # COBS encoding/decoding library
 
 # Configuration file suppressions - cppcheck cannot track macro usage across translation units
 misra-c2012-2.5:*
@@ -28,6 +21,29 @@ misra-c2012-8.13:*            # FreeRTOS task parameters cannot be const
 
 # General cppcheck suppressions for false positives
 unusedStructMember:*                        # Many hardware structs have reserved fields
-preprocessorErrorDirective:lib/*:*          # External library preprocessor directives
 missingIncludeSystem:*                      # System includes handled by build system
 unmatchedSuppression:*                      # Allow flexible suppression matching
+
+# Specific function suppressions for FreeRTOS hooks
+unusedFunction:*src/hooks.c                      # Used by FreeRTOS
+misra-c2012-8.7:*src/hooks.c                     # FreeRTOS hook prototypes
+
+# Specific function suppressions for error management
+misra-c2012-17.3:*src/error_management.c:149            # Used by FreeRTOS
+unusedFunction:*src/error_management.c:168              # Used by FreeRTOS
+misra-c2012-8.4:*src/error_management.c:168             # typedef needed for clarity
+
+# Specific function suppressions for false positives
+unusedFunction:*src/app_comm.c:30                       # Used by TinyUSB stack
+unusedFunction:*src/app_inputs.c:470                    # Used by app_outputs
+unusedFunction:*src/tm1637.c:300
+                        # Used by app_outputs
+unusedFunction:*src/tm1637.c:660                        # Used by app_outputs
+unusedFunction:*src/tm1639.c:205                        # Used by app_outputs
+unusedFunction:*src/tm1639.c:528                        # Used by app_outputs
+unusedFunction:*src/tm1639.c:617                        # Used by app_outputs
+misra-c2012-17.3:*src/tm1639.c:236                      # Used by app_outputs
+misra-c2012-8.4:*src/app_comm.c:30                      # typedef needed for clarity
+misra-c2012-17.7:*src/app_comm.c                        # Return value intentionally ignored for non-blocking calls
+unknownMacro:*src/app_outputs.c:259                     # Macro from Pico SDK - bi_decl
+misra-c2012-8.7:*src/app_tasks.c:561                    # FreeRTOS task function

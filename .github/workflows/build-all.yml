@@ -135,7 +135,7 @@ jobs:
         run: arm-none-eabi-gcc --version
 
       # Comprehensive debugging of paths and directory structure
-      - name: Debug - Show directory structure and paths
+      - name: Show directory structure and paths
         run: |
           echo "==================== DEBUGGING PATHS ===================="
           echo "Current working directory: $(pwd)"
@@ -252,7 +252,7 @@ jobs:
           echo "=========================================================="
 
       # Debug artifacts before upload
-      - name: Debug - Show artifacts
+      - name: Show artifacts
         run: |
           echo "==================== ARTIFACTS ===================="
           echo "=== Looking for build artifacts ==="

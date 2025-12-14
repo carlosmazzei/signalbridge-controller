@@ -10,3 +10,4 @@ build**
 *.code-workspace
 compile_commands.json
 *.dump
+*.ctu-info

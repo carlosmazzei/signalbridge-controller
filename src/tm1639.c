@@ -33,13 +33,8 @@ static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 static void tm1639_set_read_mode(const output_driver_t *config);
 static inline void tm1639_set_write_mode(const output_driver_t *config);
 static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count);
-static tm1639_result_t tm1639_clear_and_off(output_driver_t *config);
 static tm1639_result_t tm1639_flush(output_driver_t *config);
-static tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr);
-static tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data);
 static tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
-static tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length);
-static tm1639_result_t tm1639_read_keys(const output_driver_t *config, uint8_t *key_data);
 static tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys);
 static tm1639_result_t tm1639_update(output_driver_t *config);
 static tm1639_result_t tm1639_validate_custom_array(const uint8_t *digits, const size_t length);
@@ -257,29 +252,6 @@ static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t 
 }
 
 /**
- * @brief Clear the TM1639 display and turn it off.
- *
- * @param[in,out] config Pointer to the TM1639 driver configuration.
- *
- * @return TM1639_OK on success or an error code describing the failure.
- */
-static tm1639_result_t tm1639_clear_and_off(output_driver_t *config)
-{
-	tm1639_result_t result;
-
-	// Clear the display first
-	result = tm1639_clear(config);
-
-	// Turn off display if clear was successful
-	if (TM1639_OK == result)
-	{
-		result = tm1639_display_off(config);
-	}
-
-	return result;
-}
-
-/**
  * @brief Flush the prepared buffer to the TM1639 display.
  *
  * This function copies the preparation buffer to the active buffer, resets the modified flag,
@@ -388,98 +360,6 @@ static tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_
 }
 
 /**
- * @brief Select the TM1639 display memory address for subsequent writes.
- *
- * @param[in] config Driver handle obtained from @ref tm1639_init().
- * @param[in] addr   Address in the range 0-15 to program on the device.
- *
- * @retval TM1639_OK              The address command was accepted.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1639_ERR_ADDRESS_RANGE The address exceeds the valid range.
- * @retval TM1639_ERR_SPI_WRITE   The command write failed.
- */
-static tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Parameter validation
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else if ((uint8_t)0x0F < addr)
-	{
-		result = TM1639_ERR_ADDRESS_RANGE;
-	}
-	else
-	{
-		// Address command: B7:B6 = 11, Address in B3:B0
-		uint8_t cmd = (uint8_t)TM1639_CMD_ADDR_BASE | (uint8_t)(addr & (uint8_t)0x0F);
-		result = tm1639_send_command(config, cmd);
-	}
-
-	return result;
-}
-
-/**
- * @brief Write a single byte to a fixed TM1639 display register.
- *
- * @param[in,out] config Driver handle obtained from @ref tm1639_init().
- * @param[in]     addr   Display memory address to update (0-15).
- * @param[in]     data   Segment pattern to store at @p addr.
- *
- * @retval TM1639_OK              The byte was written successfully.
- * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1639_ERR_ADDRESS_RANGE The address exceeds the valid range.
- * @retval TM1639_ERR_SPI_WRITE   The underlying SPI transaction failed.
- */
-static tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data)
-{
-	uint8_t result = TM1639_OK;
-
-	// Parameter validation
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else if (addr > 0x0FU)
-	{
-		result = TM1639_ERR_ADDRESS_RANGE;
-	}
-	else
-	{
-		tm1639_start(config);
-		// Set fixed address mode
-		int write_result = tm1639_write_byte(config, TM1639_CMD_FIXED_ADDR); // DATA_CMD_FIXED_ADDR
-		tm1639_stop(config);
-
-		if (1 == write_result)
-		{
-			tm1639_start(config);
-			// Set the address
-			write_result = tm1639_write_byte(config, (uint8_t)((uint8_t)TM1639_CMD_ADDR_BASE | (addr & 0x0FU)));
-			if (1 == write_result)
-			{
-				// Write the data
-				write_result = tm1639_write_byte(config, data);
-				if (1 == write_result)
-				{
-					// Update active buffer
-					config->active_buffer[addr] = data;
-				}
-				else
-				{
-					result = TM1639_ERR_SPI_WRITE; // Error writing data
-				}
-			}
-		}
-		tm1639_stop(config);
-	}
-
-	return result;
-}
-
-/**
  * @brief Update a single byte in the TM1639 preparation buffer.
  *
  * @param[in,out] config Driver handle obtained from @ref tm1639_init().
@@ -507,168 +387,6 @@ static tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t add
 		// Update prep buffer and mark as modified
 		config->prep_buffer[addr] = data;
 		config->buffer_modified = true;
-	}
-
-	return result;
-}
-
-/**
- * @brief Write multiple bytes to the TM1639 using auto-increment mode.
- *
- * @param[in,out] config     Driver handle obtained from @ref tm1639_init().
- * @param[in]     addr       Start address in display memory (0-15).
- * @param[in]     data_bytes Pointer to the data block to send.
- * @param[in]     length     Number of bytes contained in @p data_bytes.
- *
- * @retval TM1639_OK              The transfer completed successfully.
- * @retval TM1639_ERR_INVALID_PARAM One or more arguments are invalid.
- * @retval TM1639_ERR_ADDRESS_RANGE The address and length exceed the buffer size.
- * @retval TM1639_ERR_SPI_WRITE   The SPI transaction failed.
- */
-static tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Parameter validation
-	if ((NULL == config) || (NULL == data_bytes) || (0U == length))
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else if ((addr > 0x0FU) || ((uint16_t)addr + (uint16_t)length > 16U))
-	{
-		result = TM1639_ERR_ADDRESS_RANGE;
-	}
-	else
-	{
-		tm1639_start(config);
-
-		// Set auto-increment mode
-		int write_result = tm1639_write_byte(config, TM1639_CMD_DATA_WRITE); // DATA_CMD_AUTO_INC
-		if (1 == write_result)
-		{
-			// Set the starting address
-			write_result = tm1639_write_byte(config, (uint8_t)(0xC0U | (addr & 0x0FU)));
-			if (1 == write_result)
-			{
-				// Write all data bytes
-				for (uint8_t i = 0U; i < length; i++)
-				{
-					write_result = tm1639_write_byte(config, data_bytes[i]);
-					if (write_result != 1)
-					{
-						result = TM1639_ERR_SPI_WRITE;
-						break;
-					}
-					config->active_buffer[addr + i] = data_bytes[i];
-				}
-			}
-		}
-		tm1639_stop(config);
-	}
-	return result;
-}
-
-/**
- * @brief Read the key scan data from the TM1639 device.
- *
- * This function reads the key scan data (2 bytes) from the TM1639 device into the provided buffer.
- *
- * @param[in,out] config   Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- * @param[out]    key_data Pointer to the buffer where the 2 bytes of key scan data will be stored. Must not be NULL.
- *
- * @return TM1639_OK on success,
- *         TM1639_ERR_INVALID_PARAM if any parameter is invalid,
- *         or error code from tm1639_write_byte or tm1639_read_bytes.
- */
-static tm1639_result_t tm1639_read_keys(const output_driver_t *config, uint8_t *key_data)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Parameter validation
-	if ((NULL == config) || (NULL == key_data))
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		tm1639_start(config);
-		// Set key reading mode
-		if (tm1639_write_byte(config, TM1639_CMD_DATA_READ_KEYS) != 1)
-		{
-			result = TM1639_ERR_SPI_WRITE;
-		}
-		else
-		{
-			// Read key scan data (2 bytes)
-			result = tm1639_read_bytes(config, key_data, 2U);
-		}
-		tm1639_stop(config);
-	}
-
-	return result;
-}
-
-/**
- * @brief Decode the pressed key states reported by the TM1639.
- *
- * The caller must provide storage for four @ref tm1639_key_t entries. The
- * driver populates the array sequentially with any active key scans and leaves
- * unused entries unchanged.
- *
- * @param[in]  config Driver handle obtained from @ref tm1639_init().
- * @param[out] keys   Array that receives the decoded key descriptors.
- *
- * @retval TM1639_OK              Key data was retrieved successfully.
- * @retval TM1639_ERR_INVALID_PARAM @p config or @p keys is NULL.
- * @retval TM1639_ERR_SPI_WRITE   The read transaction failed.
- */
-static tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	if ((NULL == config) || (NULL == keys))
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		uint8_t key_data[2] = {0U, 0U};
-		result = tm1639_read_keys(config, key_data);
-
-		if (TM1639_OK == result)
-		{
-			uint8_t count = 0U;
-			for (uint8_t ks_idx = 0U; ks_idx < 2U; ks_idx++)
-			{
-				uint8_t byte = key_data[ks_idx];
-				uint8_t ks_base = (uint8_t)((ks_idx * 2U) + 1U);
-
-				if (0U != (byte & 0x04U))
-				{
-					keys[count].ks = ks_base;
-					keys[count].k = 0U;
-					count++;
-				}
-				if (0U != (byte & 0x08U))
-				{
-					keys[count].ks = ks_base;
-					keys[count].k = 1U;
-					count++;
-				}
-				if (0U != (byte & 0x40U))
-				{
-					keys[count].ks = (uint8_t)(ks_base + 1U);
-					keys[count].k = 0U;
-					count++;
-				}
-				if (0U != (byte & 0x80U))
-				{
-					keys[count].ks = (uint8_t)(ks_base + 1U);
-					keys[count].k = 1U;
-					count++;
-				}
-			}
-		}
 	}
 
 	return result;
@@ -1026,19 +744,4 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 	}
 
 	return tm1639_to_output_result(tm_result);
-}
-
-tm1639_result_t tm1639_deinit(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (!config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		// Turn off display
-		result = tm1639_display_off(config);
-	}
-	return result;
 }

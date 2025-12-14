@@ -69,7 +69,6 @@ typedef struct tm1637_key_t {
  * The helper initialises the driver bookkeeping structure, clears the attached
  * display, programs the default brightness level and enables the panel. The
  * returned handle is owned by the caller and must later be released with
- * @c vPortFree() after calling @ref tm1637_deinit().
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
  * @param[in] select_interface Callback used to acquire and release the shared
@@ -155,19 +154,5 @@ tm1637_result_t tm1637_display_on(output_driver_t *config);
  * @retval TM1637_ERR_WRITE      Hardware communication failed.
  */
 tm1637_result_t tm1637_display_off(output_driver_t *config);
-
-/**
- * @brief Shutdown the TM1637 driver and release its GPIOs.
- *
- * The routine sends a display-off command and returns the dedicated GPIO lines
- * to a safe state. The caller remains responsible for releasing the memory
- * backing @p config with @c vPortFree().
- *
- * @param[in,out] config Driver handle obtained from @ref tm1637_init().
- *
- * @retval TM1637_OK             Shutdown completed successfully.
- * @retval TM1637_ERR_INVALID_PARAM @p config is NULL.
- */
-tm1637_result_t tm1637_deinit(output_driver_t *config);
 
 #endif // TM1637_H

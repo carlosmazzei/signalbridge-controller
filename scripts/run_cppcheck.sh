@@ -1,39 +1,38 @@
 #!/bin/bash
 # Script to run cppcheck with MISRA C:2012 addon
-# This script should be run from the project root directory
+# Optimized for CI and VS Code visibility
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Workspace for cppcheck artefacts (ignored by git)
+# Workspace for cppcheck artefacts
 OUTPUT_DIR="$PROJECT_ROOT/.cppcheck"
 DUMP_DIR="$OUTPUT_DIR/dumps"
+BUILD_DIR="$OUTPUT_DIR/build"
 LOG_FILE="$OUTPUT_DIR/cppcheck.log"
 
 mkdir -p "$DUMP_DIR"
+mkdir -p "$BUILD_DIR" 
 : > "$LOG_FILE"
 
 # Mirror console output to log file stored under .cppcheck/
 exec > >(tee "$LOG_FILE") 2>&1
 
 collect_dumps() {
-    [ -d "$PROJECT_ROOT" ] || return 0
+    [ -d "$PROJECT_ROOT/src" ] || return 0
 
     local git_available=false
     if command -v git >/dev/null 2>&1 && git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         git_available=true
     fi
 
-    find "$PROJECT_ROOT" -type f -name '*.dump' \
-        -not -path "$PROJECT_ROOT/.git/*" \
-        -not -path "$DUMP_DIR/*" \
+    find "$PROJECT_ROOT/src" -type f \( -name '*.dump' -o -name '*.ctu-info' \) \
         -print0 | while IFS= read -r -d '' dumpfile; do
             rel_path="${dumpfile#$PROJECT_ROOT/}"
 
             if [ "$git_available" = true ] && git -C "$PROJECT_ROOT" ls-files --error-unmatch "$rel_path" >/dev/null 2>&1; then
-                # Leave tracked dump artefacts (e.g. checked-in vendor files) untouched
                 continue
             fi
 
@@ -51,17 +50,14 @@ trap collect_dumps EXIT
 echo "=== Signalbridge Controller - Cppcheck with MISRA C:2012 ==="
 echo "Project root: $PROJECT_ROOT"
 
-# Check if cppcheck is available
+# Check dependencies
 if ! command -v cppcheck &> /dev/null; then
     echo "❌ cppcheck is not installed or not in PATH"
-    echo "In DevContainer: cppcheck should be pre-installed"
-    echo "On host system: install with 'apt install cppcheck' or 'brew install cppcheck'"
     exit 1
 fi
-
 echo "✅ cppcheck version: $(cppcheck --version)"
 
-# Check if MISRA addon is available
+# Check MISRA addon
 MISRA_ADDON_PATH=""
 POSSIBLE_PATHS=(
     "/usr/share/cppcheck/addons/misra.py"
@@ -79,201 +75,81 @@ for path in "${POSSIBLE_PATHS[@]}"; do
 done
 
 if [ -z "$MISRA_ADDON_PATH" ]; then
-    echo "⚠️  MISRA addon not found in standard locations."
-    echo "💡 To install MISRA addon in DevContainer:"
-    echo "   1. Rebuild DevContainer (runs .devcontainer/install_misra_addon.sh)"
-    echo "   2. Or manually run: .devcontainer/install_misra_addon.sh"
-    echo "   3. Or run: ./scripts/test_misra_addon.sh to verify installation"
-    echo ""
-    echo "🔍 Searching for any Python addons..."
-    
-    # Try to find any addon files
-    ADDON_FILES=$(find /usr -name "*.py" -path "*/cppcheck/addons/*" 2>/dev/null | head -5)
-    if [ -n "$ADDON_FILES" ]; then
-        echo "Found cppcheck addon files:"
-        echo "$ADDON_FILES"
-    else
-        echo "No cppcheck addon files found."
-    fi
-    
+    echo "⚠️  MISRA addon not found. Running standard checks only."
     ENABLE_MISRA=false
+    exit 1 # Exit if MISRA addon is mandatory
 else
     ENABLE_MISRA=true
-    
-    # Verify the addon is executable
-    if python3 "$MISRA_ADDON_PATH" --help >/dev/null 2>&1; then
-        echo "✅ MISRA addon is executable and functional"
-    else
-        echo "⚠️  MISRA addon found but may have issues"
-        echo "   Try running: python3 $MISRA_ADDON_PATH --help"
-    fi
 fi
 
-# Verify configuration files exist
+# Config Files
 CONFIG_FILE="$PROJECT_ROOT/.cppcheck_config"
 SUPPRESSIONS_FILE="$PROJECT_ROOT/.cppcheck_suppressions"
 MISRA_CONFIG="$PROJECT_ROOT/misra.json"
 MISRA_RULES="$PROJECT_ROOT/misra.txt"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "❌ Configuration file not found: $CONFIG_FILE"
-    exit 1
-fi
+[ ! -f "$CONFIG_FILE" ] && { echo "❌ Missing config: $CONFIG_FILE"; exit 1; }
+[ ! -f "$SUPPRESSIONS_FILE" ] && { echo "❌ Missing suppressions: $SUPPRESSIONS_FILE"; exit 1; }
 
-if [ ! -f "$SUPPRESSIONS_FILE" ]; then
-    echo "❌ Suppressions file not found: $SUPPRESSIONS_FILE"
-    exit 1
-fi
+echo "✅ Configuration loaded"
 
-echo "✅ Configuration file: $CONFIG_FILE"
-echo "✅ Suppressions file: $SUPPRESSIONS_FILE"
-
-# Check for compile_commands.json
-COMPILE_COMMANDS="$PROJECT_ROOT/compile_commands.json"
-USE_COMPILE_DB=false
-
-if [ -f "$COMPILE_COMMANDS" ]; then
-    echo "✅ Found compile_commands.json"
-    USE_COMPILE_DB=true
-else
-    echo "⚠️  compile_commands.json not found, using manual configuration"
-fi
-
-# Build cppcheck command
+# Build Base Command
 CPPCHECK_CMD=(
     cppcheck
     --std=c11
     --enable=all
-    --inline-suppr
     --force
-    --verbose
     --check-level=exhaustive
     -j$(nproc)
     --template='{file}:{line}:{column}: {severity}: {message} [{id}]'
     --suppressions-list="$SUPPRESSIONS_FILE"
+    --cppcheck-build-dir="$BUILD_DIR"
+    --error-exitcode=1
+    --checkers-report="$OUTPUT_DIR/checkers_report.txt"
 )
 
-# Add MISRA addon if available
 if [ "$ENABLE_MISRA" = true ] && [ -f "$MISRA_CONFIG" ] && [ -f "$MISRA_RULES" ]; then
-    echo "✅ MISRA configuration: $MISRA_CONFIG"
-    echo "✅ MISRA rules text: $MISRA_RULES"
     CPPCHECK_CMD+=(--addon="$MISRA_CONFIG")
-    # Enable dump for MISRA addon analysis
     CPPCHECK_CMD+=(--dump)
-    echo "ℹ️  Dump files enabled for MISRA analysis"
-else
-    echo "⚠️  Running without MISRA addon (no dump files will be generated)"
-    if [ ! -f "$MISRA_CONFIG" ]; then
-        echo "   Missing: $MISRA_CONFIG"
-    fi
-    if [ ! -f "$MISRA_RULES" ]; then
-        echo "   Missing: $MISRA_RULES"
-    fi
+    echo "ℹ️  MISRA enabled"
 fi
 
-# Load manual configuration for defines and critical includes
-echo "✅ Loading configuration from: $CONFIG_FILE"
+# Load defines from config
 while IFS= read -r line; do
-    # Skip empty lines and comments
     if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-        # Only add defines and include directives (not include paths, they're in compile_commands.json)
         if [[ "$line" =~ ^-D || "$line" =~ ^--include= ]]; then
             CPPCHECK_CMD+=("$line")
         fi
     fi
 done < "$CONFIG_FILE"
 
-# Use compile_commands.json if available, otherwise use manual config
-if [ "$USE_COMPILE_DB" = true ]; then
-    echo "✅ Using compile_commands.json for accurate compiler settings"
+COMPILE_COMMANDS="$PROJECT_ROOT/compile_commands.json"
+
+if [ -f "$COMPILE_COMMANDS" ]; then
+    echo "✅ Using compile_commands.json"
     CPPCHECK_CMD+=(--project="$COMPILE_COMMANDS")
-    # Filter to only analyze project source files (not SDK/libraries)
-    # CPPCHECK_CMD+=(--file-filter="$PROJECT_ROOT/src/*.c")
+    CPPCHECK_CMD+=(--file-filter="$PROJECT_ROOT/src/*")
+    CPPCHECK_CMD+=(-I"$PROJECT_ROOT/include/*") 
 
-    echo ""
-    echo "🚀 Running cppcheck analysis with compilation database..."
-    echo "Cppcheck command: ${CPPCHECK_CMD[*]}"
-    echo ""
+    echo "🚀 Executing Cppcheck..."
+    echo "CMD: ${CPPCHECK_CMD[*]}"
+    echo "---------------------------------------------------"
 
-    # Run cppcheck with compilation database and filter output
-    CPPCHECK_OUTPUT=$(mktemp)
-    "${CPPCHECK_CMD[@]}" > "$CPPCHECK_OUTPUT" 2>&1
+    # Execute DIRECTLY to stdout/stderr
+    "${CPPCHECK_CMD[@]}"
     EXIT_CODE=$?
 
-    # Display only errors from src/ and include/ folders (exclude lib/test/unit)
-    grep -v -E "/(lib|test|unit)/" "$CPPCHECK_OUTPUT" || true
-    rm -f "$CPPCHECK_OUTPUT"
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        collect_dumps
-        echo ""
-        echo "✅ Cppcheck analysis completed successfully"
-        exit 0
-    else
-        EXIT_CODE=$?
-        collect_dumps
-        echo ""
-        echo "⚠️  Cppcheck analysis completed with warnings/errors (exit code: $EXIT_CODE)"
-        echo ""
-        echo "💡 Tips for resolving issues:"
-        echo "   - Check .cppcheck_suppressions for known suppressions"
-        echo "   - For MISRA violations, add appropriate suppressions with justification"
-        echo "   - External library issues should be suppressed with DEVIATION (D5)"
+    collect_dumps
+    if [ $EXIT_CODE -ne 0 ]; then
+        echo "---------------------------------------------------"
+        echo "❌ Cppcheck failed with errors (Exit Code: $EXIT_CODE)"
         exit $EXIT_CODE
     fi
 else
-    # Fallback to manual configuration
-    echo "✅ Loading manual configuration from: $CONFIG_FILE"
-    # Read the config file and add each line as a separate argument
-    while IFS= read -r line; do
-        # Skip empty lines and comments
-        if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-            CPPCHECK_CMD+=("$line")
-        fi
-    done < "$CONFIG_FILE"
-
-    # Add source files to analyze
-    SOURCE_FILES=($(find src -name "*.c" -not -path "*/build/*" | sort))
-
-    if [ ${#SOURCE_FILES[@]} -eq 0 ]; then
-        echo "❌ No source files found in src/ directory"
-        exit 1
-    fi
-
-    echo ""
-    echo "📁 Source files to analyze:"
-    for file in "${SOURCE_FILES[@]}"; do
-        echo "   - $file"
-    done
-
-    echo ""
-    echo "🚀 Running cppcheck analysis with manual configuration..."
-    echo ""
-
-    # Run cppcheck with manual config and filter output
-    CPPCHECK_OUTPUT=$(mktemp)
-    "${CPPCHECK_CMD[@]}" "${SOURCE_FILES[@]}" > "$CPPCHECK_OUTPUT" 2>&1
-    EXIT_CODE=$?
-
-    # Display only errors from src/ and include/ folders (exclude lib/test/unit)
-    grep -v -E "/(lib|test|unit)/" "$CPPCHECK_OUTPUT" || true
-    rm -f "$CPPCHECK_OUTPUT"
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        collect_dumps
-        echo ""
-        echo "✅ Cppcheck analysis completed successfully"
-        exit 0
-    else
-        collect_dumps
-        echo ""
-        echo "⚠️  Cppcheck analysis completed with warnings/errors (exit code: $EXIT_CODE)"
-        echo ""
-        echo "💡 Tips for resolving issues:"
-        echo "   - Check .cppcheck_suppressions for known suppressions"
-        echo "   - Verify include paths in .cppcheck_config"
-        echo "   - For MISRA violations, add appropriate suppressions with justification"
-        echo "   - External library issues should be suppressed with DEVIATION (D5)"
-        exit $EXIT_CODE
-    fi
+    echo "❌  compile_commands.json not found. Please generate it using your build system."
+    exit 1
 fi
+
+echo ""
+echo "✅ Cppcheck passed successfully"
+exit 0

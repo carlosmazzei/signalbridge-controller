@@ -323,7 +323,6 @@ void adc_read_task(void *pvParameters)
 	 */
 	static adc_states_t adc_states;
 
-	// cppcheck-suppress [misra-c2012-11.5] - FreeRTOS task parameter requires void* to task_props_t* cast
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
 	// Initialize the ADC states
@@ -398,7 +397,6 @@ void encoder_read_task(void *pvParameters)
 	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 
-	// cppcheck-suppress [misra-c2012-11.5] - FreeRTOS task parameter requires void* to task_props_t* cast
 	task_props_t * task_prop = (task_props_t*) pvParameters;
 
 	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)

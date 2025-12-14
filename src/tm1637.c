@@ -183,11 +183,12 @@ static inline void tm1637_stop(const output_driver_t *config)
 static inline int tm1637_write_byte(const output_driver_t *config, uint8_t data)
 {
 	// Send 8 bits, LSB first
+	uint8_t wdata = data;
 	for (uint8_t i = 0U; i < (uint8_t)8; i++)
 	{
 		tm1637_clk_low(config);
 
-		if ((data >> i) & 0x01U)
+		if (((wdata >> i) & 0x01U) != 0U)
 		{
 			tm1637_dio_high(config); // release -> logic high
 		}
@@ -305,7 +306,6 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 	output_driver_t *config = NULL;
 	uint8_t valid = 1U;
 
-	// cppcheck-suppress [misra-c2012-11.5] - FreeRTOS pvPortMalloc returns void* that must be cast
 	config = pvPortMalloc(sizeof(output_driver_t));
 	if (NULL == config)
 	{
@@ -719,26 +719,5 @@ tm1637_result_t tm1637_clear(output_driver_t *config)
 		}
 	}
 
-	return result;
-}
-
-tm1637_result_t tm1637_deinit(output_driver_t *config)
-{
-	tm1637_result_t result = TM1637_OK;
-	if (!config)
-	{
-		result = TM1637_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		// Turn off display
-		result = tm1637_display_off(config);
-
-		// Reset GPIO pins to safe state
-		gpio_put(config->dio_pin, 0);
-		gpio_put(config->clk_pin, 0);
-		gpio_deinit(config->dio_pin);
-		gpio_deinit(config->clk_pin);
-	}
 	return result;
 }
