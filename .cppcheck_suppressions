@@ -36,8 +36,7 @@ misra-c2012-8.4:*src/error_management.c:168             # typedef needed for cla
 # Specific function suppressions for false positives
 unusedFunction:*src/app_comm.c:30                       # Used by TinyUSB stack
 unusedFunction:*src/app_inputs.c:470                    # Used by app_outputs
-unusedFunction:*src/tm1637.c:300
-                        # Used by app_outputs
+unusedFunction:*src/tm1637.c:300                        # Used by app_outputs
 unusedFunction:*src/tm1637.c:660                        # Used by app_outputs
 unusedFunction:*src/tm1639.c:205                        # Used by app_outputs
 unusedFunction:*src/tm1639.c:528                        # Used by app_outputs

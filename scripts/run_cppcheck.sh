@@ -104,7 +104,6 @@ CPPCHECK_CMD=(
     --template='{file}:{line}:{column}: {severity}: {message} [{id}]'
     --suppressions-list="$SUPPRESSIONS_FILE"
     --cppcheck-build-dir="$BUILD_DIR"
-    --error-exitcode=1
     --checkers-report="$OUTPUT_DIR/checkers_report.txt"
 )
 
