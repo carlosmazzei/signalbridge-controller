@@ -264,7 +264,7 @@ jobs:
 
       # Store build artifacts
       - name: Store Build Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pico-build
           path: |
@@ -343,7 +343,7 @@ jobs:
         run: cmake --build --preset host-tests-coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: build-tests/coverage
