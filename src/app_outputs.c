@@ -1,5 +1,5 @@
 /**
- * @file outputs.c
+ * @file app_outputs.c
  * @brief Implementation of output control functions: LEDs, PWM, and 7-segment displays.
  * @author
  *   Carlos Mazzei <carlos.mazzei@gmail.com>
@@ -13,23 +13,26 @@
  * (c) 2020-2025 Carlos Mazzei. All rights reserved.
  */
 
-#include "hardware/spi.h"
-#include "hardware/pwm.h"
-#include "pico/stdlib.h"
-#include "pico/binary_info.h"
+#include <string.h>
+
+#include <hardware/pwm.h>
+#include <hardware/spi.h>
+#include <pico/binary_info.h>
+#include <pico/stdlib.h>
 
 #include "FreeRTOS.h"
 #include "semphr.h"
 
 #include "tm1639.h"
 #include "tm1637.h"
-#include "outputs.h"
+#include "app_outputs.h"
+#include "error_management.h"
 
 /**
  * @brief Device configuration map for all SPI interfaces.
  *
- * This array holds the device type for each SPI interface, as defined by DEVICE_CONFIG.
- * Each entry corresponds to a controller ID (0-based).
+ * Mirrors @ref DEVICE_CONFIG so the implementation can reason about the
+ * concrete driver assigned to each logical slot.
  */
 static const uint8_t device_config_map[MAX_SPI_INTERFACES] = DEVICE_CONFIG;
 
@@ -42,25 +45,14 @@ static SemaphoreHandle_t spi_mutex = NULL;
 
 /**
  * @brief Structure holding all output driver handles (module scope).
- *
- * This variable stores pointers to the initialized output drivers for each interface.
  */
 static output_drivers_t output_drivers;
 
 /**
- * @brief Output statistics counters (module scope).
+ * @brief Initialise GPIO used by the SPI multiplexer.
  *
- * This variable holds counters for various output-related errors and states.
- */
-static out_statistics_counters_t out_statistics_counters;
-
-// Function declarations
-
-/**
- * @brief Initialize the multiplexer for chip select control
- * This function initializes the GPIO pins used for the multiplexer
- *
- * @return output_result_t Error code, 0 if successful
+ * @retval OUTPUT_OK        GPIOs configured successfully.
+ * @retval OUTPUT_ERR_INIT  One or more GPIOs failed the post-configuration check.
  */
 static output_result_t init_mux(void)
 {
@@ -95,7 +87,7 @@ static output_result_t init_mux(void)
 	output_result_t output_result  = OUTPUT_OK;
 	if (result != TM1639_OK)
 	{
-		out_statistics_counters.counters[OUT_INIT_ERROR]++;
+		statistics_increment_counter(OUTPUT_INIT_ERROR);
 		output_result = OUTPUT_ERR_INIT;
 	}
 	else
@@ -107,12 +99,13 @@ static output_result_t init_mux(void)
 }
 
 /**
- * @brief Select the interace chip through multiplexer
- *  This function selects the specified chip by setting the multiplexer pins
+ * @brief Toggle the multiplexer lines for the requested device.
  *
- * @param[in] chip_select Chip select number (0-7)
- * @param[in] select True to select (STB low), false to deselect (STB high)
- * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
+ * @param[in] chip_select Chip select number (0-7).
+ * @param[in] select      `true` to assert the strobe, `false` to release it.
+ *
+ * @retval OUTPUT_OK            Multiplexer state updated.
+ * @retval OUTPUT_ERR_INVALID_PARAM Chip identifier outside the supported range.
  */
 static output_result_t select_interface(uint8_t chip_select, bool select)
 {
@@ -122,7 +115,7 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
 		result = OUTPUT_ERR_INVALID_PARAM;
-		out_statistics_counters.counters[OUT_INVALID_PARAM_ERROR]++;
+		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 	}
 
 	if (select)
@@ -147,16 +140,10 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 }
 
 /**
- * @brief Initialize the output drivers
- * This function initializes the output drivers based on the device configuration map.
- * It checks the device type for each SPI interface and initializes the corresponding driver.
- * For TM1639 devices, it initializes the TM1639 driver with the appropriate parameters.
- * For generic devices, it can be extended to initialize a generic driver if needed.
- * If a device type is not supported, it skips initialization for that interface.
+ * @brief Instantiate driver back-ends based on @ref device_config_map.
  *
- * @return output_result_t Result code, OUTPUT_OK if successful, otherwise an error code
- * @note This function assumes that the device_config_map is correctly defined and matches the expected device types.
- *
+ * @retval OUTPUT_OK        All configured drivers initialised successfully.
+ * @retval OUTPUT_ERR_INIT  At least one driver failed to allocate resources.
  */
 static output_result_t init_driver(void)
 {
@@ -179,7 +166,7 @@ static output_result_t init_driver(void)
 			if (!output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
-				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 				continue;
 			}
 		}
@@ -195,7 +182,7 @@ static output_result_t init_driver(void)
 			if (!output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
-				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 				continue;
 			}
 		}
@@ -203,7 +190,6 @@ static output_result_t init_driver(void)
 		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
 			// Initialize generic driver (if needed)
-			/** @todo: initialize generic devices with generic drivers */
 		}
 	}
 
@@ -211,20 +197,19 @@ static output_result_t init_driver(void)
 }
 
 /**
- * @brief Initialize UART0 on GPIO 16 (TX) and GPIO 17 (RX).
- * This function configures UART0 with the specified baud rate and assigns the TX/RX pins.
+ * @brief Initialise UART0 on GPIO 12 (TX) and GPIO 13 (RX).
  *
- * @param[in] baudrate UART baud rate (e.g., 115200).
+ * @param[in] baudrate UART baud rate (e.g. 115200).
  */
 static void uart0_init(uint32_t baudrate)
 {
 	// Initialize UART0 hardware
 	uart_init(uart0, baudrate);
 
-	// Set GPIO 16 as UART0 TX
+	// Set GPIO 12 as UART0 TX
 	gpio_set_function(12, GPIO_FUNC_UART);
 
-	// Set GPIO 17 as UART0 RX
+	// Set GPIO 13 as UART0 RX
 	gpio_set_function(13, GPIO_FUNC_UART);
 
 	// Optional: Enable FIFO
@@ -243,6 +228,7 @@ output_result_t output_init(void)
 		if (!spi_mutex)
 		{
 			result = OUTPUT_ERR_INIT;
+			statistics_increment_counter(OUTPUT_INIT_ERROR);
 		}
 	}
 
@@ -250,8 +236,7 @@ output_result_t output_init(void)
 	output_result_t result_mux = init_mux();
 	if (result_mux != OUTPUT_OK)
 	{
-		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-		result = OUTPUT_ERR_INIT;
+		statistics_increment_counter(OUTPUT_INIT_ERROR);
 	}
 
 	// Initialize SPI
@@ -266,11 +251,12 @@ output_result_t output_init(void)
 	if ((gpio_get_function(PICO_DEFAULT_SPI_SCK_PIN) != GPIO_FUNC_SPI) ||
 	    (gpio_get_function(PICO_DEFAULT_SPI_TX_PIN) != GPIO_FUNC_SPI))
 	{
+		statistics_increment_counter(OUTPUT_INIT_ERROR);
 		result =  OUTPUT_ERR_INIT;
 	}
 
 	// Make the SPI pins available to picotool
-	bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI)) // cppcheck-suppress unknownMacro
+	bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI))
 
 	// Initialize UART0
 	uart0_init(115200);
@@ -285,8 +271,7 @@ output_result_t output_init(void)
 	output_result_t result_init = init_driver();
 	if (result_init != OUTPUT_OK)
 	{
-		out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
-		result = OUTPUT_ERR_INIT;
+		statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 	}
 
 	return result;
@@ -309,7 +294,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	    ((uint8_t)0 == payload[0]) ||
 	    (payload[0] > (uint8_t)MAX_SPI_INTERFACES))
 	{
-		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+		statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 	else
@@ -320,13 +305,13 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for display output.
 		 */
-        if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
-        {
-            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-            result = OUTPUT_ERR_INVALID_PARAM;
-        }
+		if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
+		{
+			statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
 	}
 
 	/**
@@ -364,7 +349,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		{
 			// If the driver handle is invalid, try to deselect the chip and set error
 			(void)select_interface(physical_cs, false);
-			out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+			statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 			result = OUTPUT_ERR_DISPLAY_OUT;
 		}
 	}
@@ -398,7 +383,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	    (0U == payload[0]) ||
 	    ((uint8_t)MAX_SPI_INTERFACES < payload[0]))
 	{
-		out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
+		statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 	else
@@ -409,13 +394,13 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 		 * @par Device type validation
 		 * Checks if the device type is supported for LED output.
 		 */
-        if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]) &&
-            ((uint8_t)DEVICE_TM1637_LED != device_config_map[physical_cs]))
-        {
-            out_statistics_counters.counters[OUT_CONTROLLER_ID_ERROR]++;
-            result = OUTPUT_ERR_INVALID_PARAM;
-        }
+		if (((uint8_t)DEVICE_GENERIC_LED != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1639_LED != device_config_map[physical_cs]) &&
+		    ((uint8_t)DEVICE_TM1637_LED != device_config_map[physical_cs]))
+		{
+			statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
 	}
 
 	/**
@@ -441,7 +426,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 			else
 			{
 				(void)select_interface(physical_cs, false);
-				out_statistics_counters.counters[OUT_DRIVER_INIT_ERROR]++;
+				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 				result = OUTPUT_ERR_DISPLAY_OUT;
 			}
 		}

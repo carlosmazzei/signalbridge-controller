@@ -22,7 +22,8 @@
                 "cschlosser.doxdocgen",
                 "zachflower.uncrustify",
                 "SonarSource.sonarlint-vscode",
-                "jbenden.c-cpp-flylint"
+                "jbenden.c-cpp-flylint",
+                "openai.chatgpt"
             ]
         }
     },

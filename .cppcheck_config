@@ -1,0 +1,25 @@
+# Cppcheck configuration file for Signalbridge Controller
+# When using compile_commands.json, most defines and all include paths come from the build system.
+# This file only provides compiler-specific defines that cppcheck needs for proper code analysis.
+
+# ARM Cortex-M0+ architecture defines (compiler built-ins)
+-D__ARM_ARCH=6
+-D__ARM_ARCH_6M__=1
+-D__ARM_FEATURE_CLZ=1
+-D__ARM_FEATURE_DSP=0
+-D__ARM_FEATURE_UNALIGNED=0
+-D__CORTEX_M=0
+-D__thumb__=1
+-D__thumb2__=0
+
+# GCC compiler version defines (compiler built-ins)
+-D__GNUC__=11
+-D__GNUC_MINOR__=3
+-D__GNUC_PATCHLEVEL__=1
+
+# Standard C library defines (compiler built-ins)
+-D__NEWLIB__=1
+-D_NEWLIB_VERSION=4050000
+
+# Note: All project-specific defines (FreeRTOS, Pico SDK, TinyUSB) are already in compile_commands.json
+# Note: All include paths are already in compile_commands.json

@@ -71,98 +71,6 @@
             "dependsOn": "Create Build Directory"
         },
         {
-            "label": "Create Build Directory",
-            "type": "shell",
-            "command": "mkdir",
-            "args": [
-                "-p",
-                "build"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": false,
-                "clear": false
-            },
-            "problemMatcher": [],
-            "detail": "Create build directory if it doesn't exist"
-        },
-        {
-            "label": "Build Project",
-            "type": "shell",
-            "command": "make",
-            "args": [
-                "-j$(sysctl -n hw.ncpu)"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}/build"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build the project using make",
-            "dependsOn": "CMake Configure"
-        },
-        {
-            "label": "Clean Build",
-            "type": "shell",
-            "command": "rm",
-            "args": [
-                "-rf",
-                "build"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [],
-            "detail": "Remove the build directory"
-        },
-        {
-            "label": "Full Clean Build",
-            "type": "shell",
-            "command": "echo",
-            "args": [
-                "Build completed successfully!"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [],
-            "detail": "Clean build directory and rebuild project",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Clean Build",
-                "Build Project"
-            ]
-        },
-        {
             "label": "Generate Documentation",
             "type": "shell",
             "command": "doxygen",
@@ -208,137 +116,6 @@
             "detail": "Format current file with uncrustify code formatter"
         },
         {
-            "label": "Configure Tests",
-            "type": "shell",
-            "command": "echo",
-            "args": [
-                "Test build directory created"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": false,
-                "clear": false
-            },
-            "problemMatcher": [],
-            "detail": "Create test build directory (CMake config not working)",
-            "dependsOn": "Create Test Build Directory"
-        },
-        {
-            "label": "Create Test Build Directory",
-            "type": "shell",
-            "command": "mkdir",
-            "args": [
-                "-p",
-                "test/build"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": false,
-                "clear": false
-            },
-            "problemMatcher": [],
-            "detail": "Create test build directory if it doesn't exist"
-        },
-        {
-            "label": "Build Tests",
-            "type": "shell",
-            "command": "bash",
-            "args": [
-                "-c",
-                "cd test && mkdir -p build && cd build && cmake .. && make"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build CMocka unit tests",
-            "dependsOn": "Configure Tests"
-        },
-        {
-            "label": "Run All Tests",
-            "type": "shell",
-            "command": "bash",
-            "args": [
-                "-c",
-                "cd test/build && make test_all"
-            ],
-            "group": {
-                "kind": "test", 
-                "isDefault": true
-            },
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Run all CMocka unit tests using CTest",
-            "dependsOn": "Build Tests"
-        },
-        {
-            "label": "Generate Coverage Report",
-            "type": "shell",
-            "command": "bash",
-            "args": [
-                "-c",
-                "cd test && rm -rf build && mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON .. && make && make coverage"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Generate HTML coverage report using CMake target"
-        },
-        {
-            "label": "Clean Tests",
-            "type": "shell",
-            "command": "rm",
-            "args": [
-                "-rf",
-                "test/build"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            },
-            "problemMatcher": [],
-            "detail": "Remove test build directory"
-        },
-        {
             "label": "uncrustify all C/C++ files",
             "type": "shell",
             "command": "find",
@@ -350,7 +127,7 @@
                 "-o",
                 "-name",
                 "*.cpp",
-                "-o", 
+                "-o",
                 "-name",
                 "*.h",
                 "-o",
@@ -375,6 +152,113 @@
             },
             "problemMatcher": [],
             "detail": "Format all C/C++ files in src/ and include/ directories with uncrustify"
+        },
+        {
+            "label": "Run Cppcheck (Full Analysis)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/run_cppcheck.sh",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "cppcheck",
+                "source": "cppcheck",
+                "fileLocation": "absolute",
+                "severity": "info",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|information|style|performance|portability|note): (.*)\\s+\\[(.*)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "detail": "Run comprehensive cppcheck analysis with MISRA C:2012 addon - results appear in Problems panel"
+        },
+        {
+            "label": "Run Cppcheck (Quick Check)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/cppcheck_simple.sh",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "cppcheck",
+                "source": "cppcheck",
+                "fileLocation": "absolute",
+                "severity": "info",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|information|style|performance|portability|note): (.*)\\s+\\[(.*)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "detail": "Run simplified cppcheck analysis with basic MISRA rules"
+        },
+        {
+            "label": "Run Cppcheck (Single File)",
+            "type": "shell",
+            "command": "cppcheck",
+            "args": [
+                "--std=c11",
+                "--enable=all",
+                "--force",
+                "--template={file}:{line}: {severity}: {message} [{id}]",
+                "--suppressions-list=${workspaceFolder}/.cppcheck_suppressions",
+                "--addon=${workspaceFolder}/misra.json",
+                "-DportBYTE_ALIGNMENT=8",
+                "-DRP2040=1",
+                "-D__ARM_ARCH_6M__=1",
+                "-DconfigNUM_CORES=2",
+                "-I${workspaceFolder}/include",
+                "-I${workspaceFolder}/lib/pico-sdk/src/common/pico_stdlib/include",
+                "-I${workspaceFolder}/lib/FreeRTOS-Kernel/include",
+                "--force-include=${workspaceFolder}/include/FreeRTOSConfig.h",
+                "${file}"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "cppcheck",
+                "source": "cppcheck",
+                "fileLocation": "absolute",
+                "severity": "info",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|information|style|performance|portability|note): (.*)\\s+\\[(.*)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5,
+                    "code": 6
+                }
+            },
+            "detail": "Run cppcheck on the currently open file"
         }
     ]
 }

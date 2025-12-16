@@ -1,27 +1,25 @@
 /**
  * @file cobs.c
- * @brief COBS encoding implementation
- * @author Carlos Mazzei
- *
- * This file contains the COBS encoding implementation.
- *
- * @copyright
- *   (c) 2020-2025 Carlos Mazzei - All rights reserved.
+ * @brief COBS encoding and decoding implementation.
  */
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include "cobs.h"
 
-/** @brief COBS encode data to buffer
+/*
+ * @brief Encode data using the Consistent Overhead Byte Stuffing algorithm.
  *
- *	@param data Pointer to input data to encode
- *	@param length Number of bytes to encode
- *	@param buffer Pointer to encoded output buffer
+ * The encoded stream omits zero bytes to make it suitable for protocols that
+ * rely on zero as a frame delimiter. The caller must append the delimiter
+ * manually when required by the transport.
  *
- *	@return Encoded buffer length in bytes
+ * @param[in]  data   Pointer to the raw payload to encode.
+ * @param[in]  length Number of bytes available in @p data.
+ * @param[out] buffer Destination buffer that receives the encoded payload.
  *
- *	@note Does not output delimiter byte
+ * @return Number of encoded bytes written into @p buffer.
  */
 size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 {
@@ -49,15 +47,18 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 	return (size_t)(encode - buffer);
 }
 
-/** @brief COBS decode data from buffer
+/*
+ * @brief Decode a COBS-encoded payload.
  *
- *	@param buffer Pointer to encoded input bytes
- *	@param length Number of bytes to decode
- *	@param data Pointer to decoded output data
+ * The function reconstructs the original payload produced by
+ * cobs_encode(). If a delimiter code (zero) is encountered the operation
+ * stops, mirroring the behaviour expected by typical framing layers.
  *
- *	@return Number of bytes successfully decoded
+ * @param[in]  buffer Pointer to the COBS-encoded input bytes.
+ * @param[in]  length Number of encoded bytes available in @p buffer.
+ * @param[out] data   Destination buffer that receives the decoded bytes.
  *
- *	@note Stops decoding if delimiter byte is found
+ * @return Number of decoded payload bytes stored in @p data.
  */
 size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
 {

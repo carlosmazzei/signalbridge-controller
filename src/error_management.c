@@ -12,10 +12,11 @@
  *
  */
 
-#include "pico/time.h"
-#include "pico/stdlib.h"
-#include "hardware/gpio.h"
-#include "hardware/watchdog.h"
+#include <pico/time.h>
+#include <pico/stdlib.h>
+#include <hardware/gpio.h>
+#include <hardware/watchdog.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "error_management.h"
@@ -24,131 +25,117 @@
  * @brief Statistics counters instance (module scope).
  */
 static volatile statistics_counters_t statistics_counters = {
-        .counters = {0},
-        .error_state = false,
-        .current_error_type = ERROR_NONE
+	.counters = {0},
+	.error_state = false,
+	.current_error_type = ERROR_NONE
 };
+
+static bool error_type_non_fatal(error_type_t type)
+{
+	bool result = false;
+	switch (type)
+	{
+	case ERROR_WATCHDOG_TIMEOUT:
+	case ERROR_RESOURCE_ALLOCATION:
+		result = true;
+		break;
+	default:
+		result = false;
+		break;
+	}
+	return result;
+}
+
+bool error_management_is_fatal(error_type_t type)
+{
+	return !error_type_non_fatal(type);
+}
 
 void statistics_increment_counter(statistics_counter_enum_t index)
 {
-        statistics_counters.counters[index]++;
+	statistics_counters.counters[index]++;
+
 }
 
 void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value)
 {
-        statistics_counters.counters[index] += value;
+	statistics_counters.counters[index] += value;
 }
 
 void statistics_set_counter(statistics_counter_enum_t index, uint32_t value)
 {
-        statistics_counters.counters[index] = value;
+	statistics_counters.counters[index] = value;
 }
 
 uint32_t statistics_get_counter(statistics_counter_enum_t index)
 {
-        return statistics_counters.counters[index];
+	return statistics_counters.counters[index];
 }
 
 void statistics_reset_all_counters(void)
 {
-        for (uint32_t i = 0; i < NUM_STATISTICS_COUNTERS; i++)
-        {
-                statistics_counters.counters[i] = 0;
-        }
+	for (uint32_t i = 0; i < (uint32_t)NUM_STATISTICS_COUNTERS; i++)
+	{
+		statistics_counters.counters[i] = 0;
+	}
 }
 
 bool statistics_is_error_state(void)
 {
-        return statistics_counters.error_state;
+	return statistics_counters.error_state;
 }
 
 error_type_t statistics_get_error_type(void)
 {
-        return statistics_counters.current_error_type;
-}
-
-void statistics_clear_error(void)
-{
-        statistics_counters.error_state = false;
-        statistics_counters.current_error_type = ERROR_NONE;
+	return statistics_counters.current_error_type;
 }
 
 void show_error_pattern_blocking(error_type_t error_type)
 {
-	uint8_t blink_count = (uint8_t)error_type;
+	static volatile bool error_display_active = false;
 
-	// Show the blink pattern
-	for (uint8_t i = 0; i < blink_count; i++) {
-		gpio_put(ERROR_LED_PIN, 1);
-		busy_wait_ms(BLINK_ON_MS);
-		gpio_put(ERROR_LED_PIN, 0);
+	// Prevent nested error pattern calls
+	if (!error_display_active)
+	{
+		error_display_active = true;
+		uint8_t blink_count = (uint8_t)error_type;
 
-		if (i < (blink_count - 1))
-		{
-			// Short pause between blinks (except after last blink)
-			busy_wait_ms(BLINK_OFF_MS);
+		// Show the blink pattern
+		for (uint8_t i = 0; i < blink_count; i++) {
+			gpio_put(ERROR_LED_PIN, 1);
+			busy_wait_ms(BLINK_ON_MS);
+			gpio_put(ERROR_LED_PIN, 0);
+
+			if (i < (blink_count - 1U))
+			{
+				// Short pause between blinks (except after last blink)
+				busy_wait_ms(BLINK_OFF_MS);
+			}
 		}
-	}
 
-	// Long pause after pattern
-	busy_wait_ms(PATTERN_PAUSE_MS);
+		// Long pause after pattern
+		busy_wait_ms(PATTERN_PAUSE_MS);
+		error_display_active = false;
+	}
 }
 
-/**
- * @brief Check the previous error state from the watchdog registers.
- *
- */
-static void check_previous_error_state(void)
+void error_management_set_error_state(error_type_t type)
 {
-	uint32_t boot_magic = watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG];
-	uint32_t error_type = watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG];
-
-	// Only check for errors if we have a valid magic value
-	if (ERROR_MAGIC_VALUE == boot_magic) // Only check if explicitly set by set_error_state_persistent()
-	{
-		// This was definitely an error boot
-		if (error_type == ERROR_NONE)
-		{
-			statistics_counters.current_error_type = ERROR_WATCHDOG_TIMEOUT;
-		}
-		else if (error_type <= ERROR_RESOURCE_ALLOCATION)  // Remove >= 0 check
-		{
-			statistics_counters.current_error_type = (error_type_t)error_type;
-		}
-		else
-		{
-			statistics_counters.current_error_type = ERROR_WATCHDOG_TIMEOUT;
-		}
-
-		statistics_counters.error_state = true;
-
-		uint32_t count = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
-		watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG] = count + 1;
-	}
-	else
-	{
-		// Either first boot or clean boot - treat as clean
-		watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG] = ERROR_NONE;
-		watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG] = 0;
-		statistics_counters.error_state = false;
-		statistics_counters.current_error_type = ERROR_NONE;
-	}
-
-	// Mark as clean boot for next time
-	watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG] = CLEAN_BOOT_MAGIC;
-}
-
-void set_error_state_persistent(error_type_t type)
-{
-	watchdog_hw->scratch[WATCHDOG_ERROR_TYPE_REG] = type;
-	watchdog_hw->scratch[WATCHDOG_BOOT_MAGIC_REG] = ERROR_MAGIC_VALUE;
-
 	statistics_counters.current_error_type = type;
 	statistics_counters.error_state = true;
 
-	// Increment error count
-	uint32_t count = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
-	watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG] = count + 1;
+	switch (type)
+	{
+	case ERROR_WATCHDOG_TIMEOUT:
+		statistics_increment_counter(WATCHDOG_ERROR);
+		break;
+	case ERROR_RESOURCE_ALLOCATION:
+		statistics_increment_counter(RESOURCE_ALLOCATION_ERROR);
+		break;
+	default:
+		statistics_increment_counter(RESOURCE_ALLOCATION_ERROR);
+		break;
+	}
 }
 
 void setup_watchdog_with_error_detection(uint32_t timeout_ms)
@@ -158,41 +145,21 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 	gpio_set_dir(ERROR_LED_PIN, GPIO_OUT);
 	gpio_put(ERROR_LED_PIN, 0);
 
-	// Check previous error state
-	check_previous_error_state();
+	uint32_t watchdog_resets = watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG];
+	if (watchdog_caused_reboot())
+	{
+		watchdog_resets++;
+	}
+	// check for overflow
+	if (0xFFFFFFFFU == watchdog_resets)
+	{
+		watchdog_resets = 0;
+	}
+	watchdog_hw->scratch[WATCHDOG_ERROR_COUNT_REG] = watchdog_resets;
+	statistics_set_counter(WATCHDOG_ERROR, watchdog_resets);
 
 	// Enable watchdog
 	watchdog_enable(timeout_ms, 1);
-}
-
-void update_watchdog_safe(void)
-{
-	static uint32_t error_start_time = 0;
-
-	if (false == statistics_counters.error_state)
-	{
-		watchdog_update();
-		error_start_time = 0;
-	}
-	else
-	{
-		// In error state - show error for limited time then reset
-		if (0 == error_start_time)
-		{
-			error_start_time = time_us_32();
-		}
-
-		// Keep alive for 15 seconds while showing error
-		if ((time_us_32() - error_start_time) < 15000000)
-		{
-			watchdog_update();
-		}
-		else
-		{
-			set_error_state_persistent(ERROR_WATCHDOG_TIMEOUT);
-			// Stop updating - let watchdog reset
-		}
-	}
 }
 
 /**
@@ -202,13 +169,20 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
 {
 	(void)fmt;
 
-	set_error_state_persistent(ERROR_PICO_SDK_PANIC);
-
 	// Disable all interrupts using Pico SDK
 	(void)save_and_disable_interrupts();
+	fatal_halt(ERROR_PICO_SDK_PANIC);
+}
 
-	// Show error pattern forever using busy wait
-	while (true) {
-		show_error_pattern_blocking(ERROR_PICO_SDK_PANIC);
+/**
+ * @brief Fatal halt helper that records error and shows pattern forever.
+ */
+void __attribute__((noreturn)) fatal_halt(error_type_t type)
+{
+	watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
+	while (true)
+	{
+		show_error_pattern_blocking(type);
+		watchdog_update();
 	}
 }

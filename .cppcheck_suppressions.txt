@@ -1,7 +1,0 @@
-*:include/FreeRTOSConfig.h:*    // Required by external lib FreeRTOS; DEVIATION (D5)
-*:include/tusb_config.h:*       // Required by external lib TinyUSB; DEVIATION (D5)
-*:lib:*                         // External lib; DEVIATION (D5)
-misra-c2012-2.5                 // Cppcheck bug with header inclusion; DEVIATION (D3)
-misra-c2012-2.4                 // Cppcheck bug with header inclusion; DEVIATION (D3)
-misra-c2012-2.3                 // Cppcheck bug with header inclusion; DEVIATION (D3)
-unusedStructMember              // Cppcheck bug with header inclusion; DEVIATION (D3)

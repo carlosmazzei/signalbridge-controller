@@ -3,10 +3,12 @@
     "build-essential": "12.12",
     "cmake": "3.31.6-2",
     "cppcheck": "2.17.1-2",
+    "curl": "8.14.1-2+deb13u2",
     "doxygen": "1.9.8+ds-2.1",
     "flawfinder": "2.0.19-1.1",
     "gcc-arm-none-eabi": "15:14.2.rel1-1",
     "gdb-multiarch": "16.3-1",
+    "gpg": "2.4.5-3",
     "openocd": "0.12.0-3+b2",
     "git": "1:2.47.3-0+deb13u1",
     "libnewlib-arm-none-eabi": "4.5.0.20241231-1",
@@ -20,5 +22,6 @@
     "jq": "1.7.1-6+deb13u1",
     "lcov": "2.3.1-1",
     "gcovr": "7.2+really-1.1",
-    "libcmocka-dev": "1.1.7-3+b1"
+    "libcmocka-dev": "1.1.7-3+b1",
+    "unzip": "6.0-29"
 }

@@ -10,16 +10,39 @@
 
  #include <string.h>
 
- #include "pico/stdlib.h"
- #include "hardware/spi.h"
- #include "hardware/gpio.h"
- #include "hardware/clocks.h"
- #include "hardware/pio.h"
+ #include <pico/stdlib.h>
+ #include <hardware/spi.h>
+ #include <hardware/gpio.h>
+ #include <hardware/clocks.h>
+ #include <hardware/pio.h>
+
  #include "FreeRTOS.h"
  #include "semphr.h"
 
- #include "outputs.h"
  #include "tm1639.h"
+
+/*
+ * Forward declarations
+ */
+static output_result_t tm1639_to_output_result(tm1639_result_t tm_result);
+static tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd);
+static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
+static inline void tm1639_start(const output_driver_t *config);
+static inline void tm1639_stop(const output_driver_t *config);
+static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data);
+static void tm1639_set_read_mode(const output_driver_t *config);
+static inline void tm1639_set_write_mode(const output_driver_t *config);
+static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count);
+static tm1639_result_t tm1639_flush(output_driver_t *config);
+static tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
+static tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys);
+static tm1639_result_t tm1639_update(output_driver_t *config);
+static tm1639_result_t tm1639_validate_custom_array(const uint8_t *digits, const size_t length);
+static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
+                                                  const uint8_t *digits,
+                                                  const size_t length,
+                                                  const uint8_t dot_position);
+static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t *digits, const uint8_t dot_position);
 
 /**
  * @brief Convert tm1639_result_t to output_result_t
@@ -85,111 +108,6 @@ static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t le
 }
 
 /**
- * @brief Turn the display on.
- *
- * This function turns the TM1639 display on by setting the display_on flag in the driver
- * configuration and sending the display ON command with the current brightness level.
- *
- * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- *
- * @return TM1639_OK on success,
- *         TM1639_ERR_INVALID_PARAM if config is NULL,
- *         or error code from tm1639_send_command.
- */
-tm1639_result_t tm1639_display_on(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		config->display_on = true;
-		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON | config->brightness); // DISPLAY_ON | brightness
-	}
-
-	return result;
-}
-
-/**
- * @brief Initialize the TM1639 output driver.
- * This function allocates and initializes a TM1639 output driver structure.
- */
-output_driver_t* tm1639_init(uint8_t chip_id,
-                             output_result_t (*select_interface)(uint8_t chip_id, bool select),
-                             spi_inst_t *spi,
-                             uint8_t dio_pin,
-                             uint8_t clk_pin)
-{
-	output_driver_t *config = NULL;
-	uint8_t valid = 1U;
-
-	config = pvPortMalloc(sizeof(output_driver_t));
-	if (NULL == config)
-	{
-		valid = 0U;
-	}
-
-	// Parameter validation
-	if ((1U == valid) &&
-	    ((chip_id >= (uint8_t)MAX_SPI_INTERFACES) ||
-	     (NULL == select_interface) ||
-	     (NULL == spi) ||
-	     (dio_pin >= (uint8_t)NUM_GPIO) ||
-	     (clk_pin >= (uint8_t)NUM_GPIO)))
-	{
-		valid = 0U;
-	}
-
-	// Only initialize if all parameters are valid
-	if (1U == valid)
-	{
-		config->chip_id = chip_id;
-		config->select_interface = select_interface;
-		config->spi = spi;
-		config->dio_pin = dio_pin;
-		config->clk_pin = clk_pin;
-
-		// Initialize buffer and state
-		(void)memset(config->active_buffer, 0, sizeof(config->active_buffer));
-		(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
-		config->buffer_modified = false;
-		config->brightness = 7U;
-		config->display_on = false;
-		config->set_digits = &tm1639_set_digits;
-		config->set_leds = &tm1639_set_leds;
-
-		// Clear display on startup
-		if (TM1639_OK != tm1639_clear(config))
-		{
-			valid = 0U;
-		}
-
-		// Set maximum brightness
-		if (TM1639_OK != tm1639_set_brightness(config, 7U))
-		{
-			valid = 0U;
-		}
-
-		// Turn on display
-		if (TM1639_OK != tm1639_display_on(config))
-		{
-			valid = 0U;
-		}
-	}
-
-	// Free resources and set pointer to NULL on error
-	if ((1U != valid) && (NULL != config))
-	{
-		vPortFree(config);
-		config = NULL;
-	}
-
-	return config;
-}
-
-/**
  * @brief Start a transmission by setting STB low via multiplexer.
  *
  * This function selects the TM1639 chip by setting the strobe (STB) line low
@@ -223,7 +141,7 @@ static inline void tm1639_stop(const output_driver_t *config)
  * @param[in] config Pointer to the TM1639 output driver configuration structure.
  * @param[in] data   Byte to be written to the TM1639.
  *
- * @return uint8_t Number of bytes written (should be 1 if successful).
+ * @return Number of bytes written (1 on success).
  */
 static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 {
@@ -334,27 +252,6 @@ static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t 
 }
 
 /**
- * @brief Clear display and turn off display
- * @param[in] config Pointer to the TM1639 configuration structure
- * @return TM1639_OK on success, error code otherwise
- */
-static tm1639_result_t tm1639_clear_and_off(output_driver_t *config)
-{
-	tm1639_result_t result;
-
-	// Clear the display first
-	result = tm1639_clear(config);
-
-	// Turn off display if clear was successful
-	if (TM1639_OK == result)
-	{
-		result = tm1639_display_off(config);
-	}
-
-	return result;
-}
-
-/**
  * @brief Flush the prepared buffer to the TM1639 display.
  *
  * This function copies the preparation buffer to the active buffer, resets the modified flag,
@@ -429,9 +326,16 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 }
 
 /**
- * @brief Send a command to the TM1639
+ * @brief Transmit a raw command to the TM1639 controller.
+ *
+ * @param[in] config Driver handle obtained from @ref tm1639_init().
+ * @param[in] cmd    Encoded command byte to be written on the bus.
+ *
+ * @retval TM1639_OK              The command was accepted by the controller.
+ * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
+ * @retval TM1639_ERR_SPI_WRITE   The byte transfer failed.
  */
-tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd)
+static tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd)
 {
 	tm1639_result_t result = TM1639_OK;
 
@@ -456,85 +360,17 @@ tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd)
 }
 
 /**
- * @brief Set the display memory address (0x00-0x0F).
+ * @brief Update a single byte in the TM1639 preparation buffer.
+ *
+ * @param[in,out] config Driver handle obtained from @ref tm1639_init().
+ * @param[in]     addr   Display memory address to update (0-15).
+ * @param[in]     data   Segment pattern to cache at @p addr.
+ *
+ * @retval TM1639_OK              The cache entry was updated successfully.
+ * @retval TM1639_ERR_INVALID_PARAM @p config is NULL.
+ * @retval TM1639_ERR_ADDRESS_RANGE The address exceeds the valid range.
  */
-tm1639_result_t tm1639_set_address(const output_driver_t *config, uint8_t addr)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Parameter validation
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else if ((uint8_t)0x0F < addr)
-	{
-		result = TM1639_ERR_ADDRESS_RANGE;
-	}
-	else
-	{
-		// Address command: B7:B6 = 11, Address in B3:B0
-		uint8_t cmd = (uint8_t)TM1639_CMD_ADDR_BASE | (uint8_t)(addr & (uint8_t)0x0F);
-		result = tm1639_send_command(config, cmd);
-	}
-
-	return result;
-}
-
-/**
- * @brief Write data to a specific address
- */
-tm1639_result_t tm1639_write_data_at(output_driver_t *config, uint8_t addr, uint8_t data)
-{
-	uint8_t result = TM1639_OK;
-	int write_result;
-
-	// Parameter validation
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else if (addr > 0x0FU)
-	{
-		result = TM1639_ERR_ADDRESS_RANGE;
-	}
-	else
-	{
-		tm1639_start(config);
-		// Set fixed address mode
-		write_result = tm1639_write_byte(config, TM1639_CMD_FIXED_ADDR); // DATA_CMD_FIXED_ADDR
-		tm1639_stop(config);
-
-		if (1 == write_result)
-		{
-			tm1639_start(config);
-			// Set the address
-			write_result = tm1639_write_byte(config, (uint8_t)((uint8_t)TM1639_CMD_ADDR_BASE | (addr & 0x0FU)));
-			if (1 == write_result)
-			{
-				// Write the data
-				write_result = tm1639_write_byte(config, data);
-				if (1 == write_result)
-				{
-					// Update active buffer
-					config->active_buffer[addr] = data;
-				}
-				else
-				{
-					result = TM1639_ERR_SPI_WRITE; // Error writing data
-				}
-			}
-		}
-		tm1639_stop(config);
-	}
-
-	return result;
-}
-
-/**
- * @brief Update specific bytes in the preparation buffer
- */
-tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data)
+static tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data)
 {
 	tm1639_result_t result = TM1639_OK;
 
@@ -557,150 +393,227 @@ tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint
 }
 
 /**
- * @brief Write multiple bytes starting at the given address.
+ * @brief Update the display with the current preparation buffer contents.
+ *
+ * This function updates the display with the contents of the preparation buffer
+ * when it has been marked as modified.
+ *
+ * @param[in,out] config TM1639 driver configuration.
+ *
+ * @return TM1639_OK if the display was updated successfully, error code otherwise.
  */
-tm1639_result_t tm1639_write_data(output_driver_t *config, uint8_t addr, const uint8_t *data_bytes, uint8_t length)
+static tm1639_result_t tm1639_update(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
-	int write_result;
-
-	// Parameter validation
-	if ((NULL == config) || (NULL == data_bytes) || (0U == length))
+	if (NULL == config)
 	{
 		result = TM1639_ERR_INVALID_PARAM;
 	}
-	else if ((addr > 0x0FU) || ((uint16_t)addr + (uint16_t)length > 16U))
-	{
-		result = TM1639_ERR_ADDRESS_RANGE;
-	}
 	else
 	{
-		tm1639_start(config);
-
-		// Set auto-increment mode
-		write_result = tm1639_write_byte(config, TM1639_CMD_DATA_WRITE); // DATA_CMD_AUTO_INC
-		if (1 == write_result)
+		// Only update if buffer has been modified
+		if (config->buffer_modified)
 		{
-			// Set the starting address
-			write_result = tm1639_write_byte(config, (uint8_t)(0xC0U | (addr & 0x0FU)));
-			if (1 == write_result)
-			{
-				// Write all data bytes
-				for (uint8_t i = 0U; i < length; i++)
-				{
-					write_result = tm1639_write_byte(config, data_bytes[i]);
-					if (write_result != 1)
-					{
-						result = TM1639_ERR_SPI_WRITE;
-						break;
-					}
-					config->active_buffer[addr + i] = data_bytes[i];
-				}
-			}
+			result = tm1639_flush(config);
 		}
-		tm1639_stop(config);
 	}
+
 	return result;
 }
 
 /**
- * @brief Read the key scan data from the TM1639 device.
+ * @brief Validate a custom character digit array.
  *
- * This function reads the key scan data (2 bytes) from the TM1639 device into the provided buffer.
+ * @param[in] digits Pointer to the digit array to validate.
+ * @param[in] length Number of digits provided in @p digits.
  *
- * @param[in,out] config   Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- * @param[out]    key_data Pointer to the buffer where the 2 bytes of key scan data will be stored. Must not be NULL.
- *
- * @return TM1639_OK on success,
- *         TM1639_ERR_INVALID_PARAM if any parameter is invalid,
- *         or error code from tm1639_write_byte or tm1639_read_bytes.
+ * @return TM1639_OK if every entry is valid, error code otherwise.
  */
-static tm1639_result_t tm1639_read_keys(const output_driver_t *config, uint8_t *key_data)
+static tm1639_result_t tm1639_validate_custom_array(const uint8_t* digits, const size_t length)
 {
 	tm1639_result_t result = TM1639_OK;
 
-	// Parameter validation
-	if ((NULL == config) || (NULL == key_data))
+	for (size_t i = 0U; (i < length) && (TM1639_OK == result); i++)
+	{
+		// Check if high nibble is zero and low nibble is valid (0-F)
+		if ((digits[i] & 0xF0U) != 0x00U)
+		{
+			result = TM1639_ERR_INVALID_CHAR;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * @brief Validate TM1639 digit update parameters.
+ *
+ * @param[in] config        TM1639 driver configuration.
+ * @param[in] digits        Pointer to the BCD digit array.
+ * @param[in] length        Number of entries stored in @p digits.
+ * @param[in] dot_position  Decimal point position or TM1639_NO_DECIMAL_POINT.
+ *
+ * @return TM1639_OK if all parameters are valid, error code otherwise.
+ */
+static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
+                                                  const uint8_t* digits,
+                                                  const size_t length,
+                                                  const uint8_t dot_position)
+{
+	tm1639_result_t result = TM1639_OK;
+
+	// Single compound condition reduces cyclomatic complexity
+	if ((NULL == config) ||
+	    (NULL == digits) ||
+	    (length != TM1639_DIGIT_COUNT) ||
+	    ((dot_position > 7U) && (dot_position != TM1639_NO_DECIMAL_POINT)))
 	{
 		result = TM1639_ERR_INVALID_PARAM;
 	}
-	else
+
+	return result;
+}
+
+/**
+ * @brief Convert BCD digits into TM1639 segment data.
+ *
+ * @param[in,out] config      TM1639 driver configuration.
+ * @param[in]     digits      Pointer to the BCD digit array.
+ * @param[in]     dot_position Decimal point position or TM1639_NO_DECIMAL_POINT.
+ *
+ * @return TM1639_OK when the preparation buffer was updated successfully.
+ */
+static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t* digits, const uint8_t dot_position)
+{
+	// Segment patterns for custom character set
+	// Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
+	static const uint8_t tm1639_custom_patterns[16] = {
+		0x3FU, 0x06U, 0x5BU, 0x4FU, // 0x00-0x03: 0, 1, 2, 3
+		0x66U, 0x6DU, 0x7DU, 0x07U, // 0x04-0x07: 4, 5, 6, 7
+		0x7FU, 0x6FU, 0x6DU, 0x1CU, // 0x08-0x0B: 8, 9, S, t
+		0x5EU, 0x40U, 0x08U, 0x00U // 0x0C-0x0F: d, -, _, (blank)
+	};
+
+	tm1639_result_t result = TM1639_OK;
+
+	for (uint8_t i = 0U; (i < TM1639_DIGIT_COUNT) && (TM1639_OK == result); i++)
 	{
-		tm1639_start(config);
-		// Set key reading mode
-		if (tm1639_write_byte(config, TM1639_CMD_DATA_READ_KEYS) != 1)
+		// Extract BCD digit and get pattern
+		uint8_t bcd_digit = digits[i] & 0x0FU;
+		uint8_t segment_data = tm1639_custom_patterns[bcd_digit];
+
+		// Add decimal point using conditional expression (no if-statement)
+		segment_data |= (i == dot_position) ? TM1639_DECIMAL_POINT_MASK : 0U;
+
+		// Calculate address and validate bounds
+		uint8_t addr = i * 2U;
+		if (addr < TM1639_DISPLAY_BUFFER_SIZE)
 		{
-			result = TM1639_ERR_SPI_WRITE;
+			config->prep_buffer[addr] = segment_data;
 		}
 		else
 		{
-			// Read key scan data (2 bytes)
-			result = tm1639_read_bytes(config, key_data, 2U);
+			result = TM1639_ERR_ADDRESS_RANGE;
 		}
-		tm1639_stop(config);
+	}
+
+	if (TM1639_OK == result)
+	{
+		config->buffer_modified = true;
 	}
 
 	return result;
 }
 
-/**
- * @brief Read key states
- */
-tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys)
+output_driver_t* tm1639_init(uint8_t chip_id,
+                             output_result_t (*select_interface)(uint8_t chip_id, bool select),
+                             spi_inst_t *spi,
+                             uint8_t dio_pin,
+                             uint8_t clk_pin)
+{
+	output_driver_t *config = NULL;
+	uint8_t valid = 1U;
+
+	config = pvPortMalloc(sizeof(output_driver_t));
+	if (NULL == config)
+	{
+		valid = 0U;
+	}
+
+	// Parameter validation
+	if ((1U == valid) &&
+	    ((chip_id >= (uint8_t)MAX_SPI_INTERFACES) ||
+	     (NULL == select_interface) ||
+	     (NULL == spi) ||
+	     (dio_pin >= (uint8_t)NUM_GPIO) ||
+	     (clk_pin >= (uint8_t)NUM_GPIO)))
+	{
+		valid = 0U;
+	}
+
+	// Only initialize if all parameters are valid
+	if (1U == valid)
+	{
+		config->chip_id = chip_id;
+		config->select_interface = select_interface;
+		config->spi = spi;
+		config->dio_pin = dio_pin;
+		config->clk_pin = clk_pin;
+
+		// Initialize buffer and state
+		(void)memset(config->active_buffer, 0, sizeof(config->active_buffer));
+		(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
+		config->buffer_modified = false;
+		config->brightness = 7U;
+		config->display_on = false;
+		config->set_digits = &tm1639_set_digits;
+		config->set_leds = &tm1639_set_leds;
+
+		// Clear display on startup
+		if (TM1639_OK != tm1639_clear(config))
+		{
+			valid = 0U;
+		}
+
+		// Set maximum brightness
+		if (TM1639_OK != tm1639_set_brightness(config, 7U))
+		{
+			valid = 0U;
+		}
+
+		// Turn on display
+		if (TM1639_OK != tm1639_display_on(config))
+		{
+			valid = 0U;
+		}
+	}
+
+	// Free resources and set pointer to NULL on error
+	if ((1U != valid) && (NULL != config))
+	{
+		vPortFree(config);
+		config = NULL;
+	}
+
+	return config;
+}
+
+tm1639_result_t tm1639_display_on(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
-
-	if ((NULL == config) || (NULL == keys))
+	if (NULL == config)
 	{
 		result = TM1639_ERR_INVALID_PARAM;
 	}
 	else
 	{
-		uint8_t key_data[2] = {0U, 0U};
-		result = tm1639_read_keys(config, key_data);
-
-		if (TM1639_OK == result)
-		{
-			uint8_t count = 0U;
-			for (uint8_t ks_idx = 0U; ks_idx < 2U; ks_idx++)
-			{
-				uint8_t byte = key_data[ks_idx];
-				uint8_t ks_base = (uint8_t)((ks_idx * 2U) + 1U);
-
-				if (0U != (byte & 0x04U))
-				{
-					keys[count].ks = ks_base;
-					keys[count].k = 0U;
-					count++;
-				}
-				if (0U != (byte & 0x08U))
-				{
-					keys[count].ks = ks_base;
-					keys[count].k = 1U;
-					count++;
-				}
-				if (0U != (byte & 0x40U))
-				{
-					keys[count].ks = (uint8_t)(ks_base + 1U);
-					keys[count].k = 0U;
-					count++;
-				}
-				if (0U != (byte & 0x80U))
-				{
-					keys[count].ks = (uint8_t)(ks_base + 1U);
-					keys[count].k = 1U;
-					count++;
-				}
-			}
-		}
+		config->display_on = true;
+		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON | config->brightness); // DISPLAY_ON | brightness
 	}
 
 	return result;
 }
 
-/**
- * @brief Turn the display off
- */
 tm1639_result_t tm1639_display_off(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
@@ -716,10 +629,37 @@ tm1639_result_t tm1639_display_off(output_driver_t *config)
 	return result;
 }
 
-/**
- * @brief Clear the display (set all segments off)
- *
- */
+output_result_t tm1639_set_digits(output_driver_t *config,
+                                  const uint8_t *digits,
+                                  const size_t length,
+                                  const uint8_t dot_position)
+{
+	tm1639_result_t tm_result;
+
+	// Step 1: Validate parameters
+	tm_result = tm1639_validate_parameters(config, digits, length, dot_position);
+
+	// Step 2: Validate BCD encoding
+	if (TM1639_OK == tm_result)
+	{
+		tm_result = tm1639_validate_custom_array(digits, length);
+	}
+
+	// Step 3: Process digits
+	if (TM1639_OK == tm_result)
+	{
+		tm_result = tm1639_process_digits(config, digits, dot_position);
+	}
+
+	// Step 4: Update display
+	if (TM1639_OK == tm_result)
+	{
+		tm_result = tm1639_update(config);
+	}
+
+	return tm1639_to_output_result(tm_result);
+}
+
 tm1639_result_t tm1639_clear(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
@@ -778,169 +718,6 @@ tm1639_result_t tm1639_clear(output_driver_t *config)
 	return result;
 }
 
-/**
- * @brief Update the display with the current preparation buffer contents
- *
- * This function updates the display with the contents of the prep buffer
- * and swaps the active and prep buffers. Only updates if buffer_modified is true.
- *
- * @param config Pointer to TM1639 configuration structure
- * @return int Error code, 0 if successful
- */
-static tm1639_result_t tm1639_update(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		// Only update if buffer has been modified
-		if (config->buffer_modified)
-		{
-			result = tm1639_flush(config);
-		}
-	}
-
-	return result;
-}
-
-/**
- * @brief Validate custom character digit array
- * @param digits Pointer to custom digit array
- * @param length Number of digits to validate
- * @return TM1639_OK if all digits are valid, error code otherwise
- */
-static tm1639_result_t tm1639_validate_custom_array(const uint8_t* digits, const size_t length)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	for (size_t i = 0U; (i < length) && (TM1639_OK == result); i++)
-	{
-		// Check if high nibble is zero and low nibble is valid (0-F)
-		if ((digits[i] & 0xF0U) != 0x00U)
-		{
-			result = TM1639_ERR_INVALID_CHAR;
-		}
-	}
-
-	return result;
-}
-
-/**
- * @brief Validate function parameters
- * @param[in] config Pointer to configuration
- * @param[in] digits Pointer to digit array
- * @param[in] length Array length
- * @param[in] dot_position Decimal point position
- * @return TM1639_OK if all parameters are valid, error code otherwise
- */
-static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
-                                                  const uint8_t* digits,
-                                                  const size_t length,
-                                                  const uint8_t dot_position)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Single compound condition reduces cyclomatic complexity
-	if ((NULL == config) ||
-	    (NULL == digits) ||
-	    (length != TM1639_DIGIT_COUNT) ||
-	    ((dot_position > 7U) && (dot_position != TM1639_NO_DECIMAL_POINT)))
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-
-	return result;
-}
-
-/**
- * @brief Process digits and update preparation buffer
- * @param[in,out] config Pointer to configuration
- * @param[in] digits Pointer to BCD digit array
- * @param[in] dot_position Decimal point position
- * @return TM1639_OK on success, error code otherwise
- */
-static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t* digits, const uint8_t dot_position)
-{
-	// Segment patterns for custom character set
-	// Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
-	static const uint8_t tm1639_custom_patterns[16] = {
-		0x3FU, 0x06U, 0x5BU, 0x4FU, // 0x00-0x03: 0, 1, 2, 3
-		0x66U, 0x6DU, 0x7DU, 0x07U, // 0x04-0x07: 4, 5, 6, 7
-		0x7FU, 0x6FU, 0x6DU, 0x1CU, // 0x08-0x0B: 8, 9, S, t
-		0x5EU, 0x40U, 0x08U, 0x00U // 0x0C-0x0F: d, -, _, (blank)
-	};
-
-	tm1639_result_t result = TM1639_OK;
-
-	for (uint8_t i = 0U; (i < TM1639_DIGIT_COUNT) && (TM1639_OK == result); i++)
-	{
-		// Extract BCD digit and get pattern
-		uint8_t bcd_digit = digits[i] & 0x0FU;
-		uint8_t segment_data = tm1639_custom_patterns[bcd_digit];
-
-		// Add decimal point using conditional expression (no if-statement)
-		segment_data |= (i == dot_position) ? TM1639_DECIMAL_POINT_MASK : 0U;
-
-		// Calculate address and validate bounds
-		uint8_t addr = i * 2U;
-		if (addr < TM1639_DISPLAY_BUFFER_SIZE)
-		{
-			config->prep_buffer[addr] = segment_data;
-		}
-		else
-		{
-			result = TM1639_ERR_ADDRESS_RANGE;
-		}
-	}
-
-	if (TM1639_OK == result)
-	{
-		config->buffer_modified = true;
-	}
-
-	return result;
-}
-
-/**
- * @brief Set BCD digits on the display
- */
-output_result_t tm1639_set_digits(output_driver_t *config,
-                                  const uint8_t *digits,
-                                  const size_t length,
-                                  const uint8_t dot_position)
-{
-	tm1639_result_t tm_result;
-
-	// Step 1: Validate parameters
-	tm_result = tm1639_validate_parameters(config, digits, length, dot_position);
-
-	// Step 2: Validate BCD encoding
-	if (TM1639_OK == tm_result)
-	{
-		tm_result = tm1639_validate_custom_array(digits, length);
-	}
-
-	// Step 3: Process digits
-	if (TM1639_OK == tm_result)
-	{
-		tm_result = tm1639_process_digits(config, digits, dot_position);
-	}
-
-	// Step 4: Update display
-	if (TM1639_OK == tm_result)
-	{
-		tm_result = tm1639_update(config);
-	}
-
-	return tm1639_to_output_result(tm_result);
-}
-
-/**
- * @brief Set LEDs for matrix display
- */
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)
 {
 	tm1639_result_t tm_result = TM1639_OK;
@@ -967,22 +744,4 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 	}
 
 	return tm1639_to_output_result(tm_result);
-}
-
-/**
- * @brief Deinitialize the TM1639 driver and release resources
- */
-tm1639_result_t tm1639_deinit(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (!config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		// Turn off display
-		result = tm1639_display_off(config);
-	}
-	return result;
 }

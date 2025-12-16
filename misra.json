@@ -1,6 +1,7 @@
 {
-    "script": "misra",
+    "script": "misra.py",
     "args": [
-        "--rule-texts=/workspaces/signalbridge-controller/misra.txt"
+        "--rule-texts=./misra.txt",
+        "--no-summary"
     ]
 }

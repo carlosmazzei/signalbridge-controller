@@ -125,12 +125,17 @@ jobs:
         with:
           submodules: 'recursive'
 
+      - name: Run workspace setup
+        run: |
+          chmod +x .devcontainer/post-create.sh
+          .devcontainer/post-create.sh
+
       # Verify toolchain installation
       - name: Verify installed toolchain version
         run: arm-none-eabi-gcc --version
 
       # Comprehensive debugging of paths and directory structure
-      - name: Debug - Show directory structure and paths
+      - name: Show directory structure and paths
         run: |
           echo "==================== DEBUGGING PATHS ===================="
           echo "Current working directory: $(pwd)"
@@ -222,6 +227,14 @@ jobs:
           find build-release -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
           echo "=========================================================="
 
+      # Publish the full release build directory for downstream analysis jobs
+      - name: Upload build-release directory
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-release
+          path: build-release
+          retention-days: 5
+
       # Archive documentation if it exists
       - name: Archive Doxygen Documentation
         run: |
@@ -239,7 +252,7 @@ jobs:
           echo "=========================================================="
 
       # Debug artifacts before upload
-      - name: Debug - Show artifacts
+      - name: Show artifacts
         run: |
           echo "==================== ARTIFACTS ===================="
           echo "=== Looking for build artifacts ==="
@@ -251,7 +264,7 @@ jobs:
 
       # Store build artifacts
       - name: Store Build Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pico-build
           path: |
@@ -261,9 +274,9 @@ jobs:
           retention-days: 10
 
   unit-tests:
-    name: Run Unit Tests
+    name: Quality Checks
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-devcontainer]
+    needs: [detect-changes, build-firmware]
     if: |
       (needs.detect-changes.outputs.firmware-changed == 'true' ||
        needs.detect-changes.outputs.devcontainer-changed == 'true' ||
@@ -281,6 +294,42 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Run workspace setup
+        run: |
+          chmod +x .devcontainer/post-create.sh
+          .devcontainer/post-create.sh
+
+      - name: Download build-release directory
+        uses: actions/download-artifact@v6
+        with:
+          name: build-release
+          path: build-release
+
+      - name: Restore build-release directory
+        run: |
+          # Ensure the full release build output (including generated headers) is present for cppcheck analysis
+          if [ ! -d build-release ]; then
+            echo "❌ build-release directory not found after artifact download"
+            exit 1
+          fi
+
+          # Ensure the compilation database from the release build is available at the repo root
+          if [ ! -f build-release/compile_commands.json ]; then
+            echo "❌ compile_commands.json missing from build-release"
+            ls -la build-release || true
+            exit 1
+          fi
+
+          cp build-release/compile_commands.json ./compile_commands.json
+
+          echo "Restored build-release contents:"
+          ls -la build-release | head
+          echo "compile_commands.json present:"
+          ls -l ./compile_commands.json
+
+      - name: Run Cppcheck (MISRA)
+        run: ./scripts/run_cppcheck.sh
+
       - name: Configure tests
         run: cmake --preset host-tests
 
@@ -294,7 +343,7 @@ jobs:
         run: cmake --build --preset host-tests-coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: build-tests/coverage
@@ -306,17 +355,26 @@ jobs:
           files: build-tests/coverage.info
           flags: unittests
 
+      - name: SonarQube analysis
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          args: >
+            --define "sonar.cfamily.compile-commands=build-tests/compile_commands.json"
+            --define "sonar.coverageReportPaths=build-tests/coverage/sonarqube.xml"
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   # Release job (only runs on releases)
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: build-firmware
+    needs: [detect-changes, unit-tests, build-firmware]
     if: github.event_name == 'release' && github.event.action == 'published'
     
     steps:
       # Download artifacts from build job
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: pico-build
           path: artifacts

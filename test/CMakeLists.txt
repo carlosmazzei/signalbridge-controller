@@ -119,15 +119,18 @@ add_custom_target(test_all
 if(ENABLE_COVERAGE)
     find_program(LCOV_PATH lcov)
     find_program(GENHTML_PATH genhtml)
-    
-    if(LCOV_PATH AND GENHTML_PATH)
+    find_program(GCOVR_PATH gcovr)
+
+    if(LCOV_PATH AND GENHTML_PATH AND GCOVR_PATH)
         # Also expose coverage as a post-tests CTest step via fixtures
         add_test(NAME generate_coverage
             COMMAND ${CMAKE_COMMAND}
                 -DLCOV_PATH=${LCOV_PATH}
                 -DGENHTML_PATH=${GENHTML_PATH}
+                -DGCOVR_PATH=${GCOVR_PATH}
                 -DCOVERAGE_DIR=${CMAKE_BINARY_DIR}/coverage
                 -DWORK_DIR=${CMAKE_BINARY_DIR}/test
+                -DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/..
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateCoverage.cmake
         )
         set_tests_properties(generate_coverage PROPERTIES
@@ -143,11 +146,12 @@ if(ENABLE_COVERAGE)
             COMMAND ${LCOV_PATH} --ignore-errors unused --remove coverage.info '/usr/*' --output-file coverage.info
             COMMAND ${LCOV_PATH} --ignore-errors unused --remove coverage.info '*/lib/*' --output-file coverage.info
             COMMAND ${GENHTML_PATH} coverage.info --output-directory coverage
+            COMMAND ${GCOVR_PATH} --sonarqube coverage/sonarqube.xml --root ${CMAKE_CURRENT_SOURCE_DIR}/.. --object-directory ${CMAKE_BINARY_DIR}
             COMMAND ${CMAKE_COMMAND} -E echo "Coverage report generated in ${CMAKE_BINARY_DIR}/coverage/index.html"
             COMMENT "Generating coverage report"
             DEPENDS test_cobs test_error_management test_outputs test_tm1639 test_inputs
         )
     else()
-        message(STATUS "lcov or genhtml not found. Coverage target disabled.")
+        message(STATUS "lcov, genhtml, or gcovr not found. Coverage target disabled.")
     endif()
 endif()

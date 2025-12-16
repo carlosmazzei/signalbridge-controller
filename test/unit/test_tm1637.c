@@ -8,7 +8,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 
-#include "outputs.h"
+#include "app_outputs.h"
 #include "tm1637.h"
 
 // Provide a stubbed select_interface used by tm1637 during bit-banged transfers
@@ -77,4 +77,3 @@ int main(void)
 
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
-

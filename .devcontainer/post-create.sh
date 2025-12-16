@@ -7,8 +7,40 @@ set -e
 
 echo "=== Post-Creation Setup ==="
 
-# Navigate to workspace
-cd "${CONTAINERWORKSPACEFOLDER:-/workspaces/$(basename $PWD)}"
+# Navigate to workspace regardless of runtime (VS Code devcontainer or CI)
+WORKSPACE_DIR=""
+if [ -n "${CONTAINERWORKSPACEFOLDER:-}" ] && [ -d "${CONTAINERWORKSPACEFOLDER}" ]; then
+    WORKSPACE_DIR="${CONTAINERWORKSPACEFOLDER}"
+else
+    CURRENT_DIR="$(pwd)"
+    DEFAULT_WORKSPACE="/workspaces/$(basename "$CURRENT_DIR")"
+    if [ -d "$DEFAULT_WORKSPACE" ]; then
+        WORKSPACE_DIR="$DEFAULT_WORKSPACE"
+    else
+        WORKSPACE_DIR="$CURRENT_DIR"
+    fi
+fi
+
+cd "$WORKSPACE_DIR"
+
+# Ensure downstream commands that rely on CONTAINERWORKSPACEFOLDER keep working
+export CONTAINERWORKSPACEFOLDER="${CONTAINERWORKSPACEFOLDER:-$WORKSPACE_DIR}"
+
+# GitHub-hosted runners mount /workspace with root ownership, so mark it safe for git
+if [ -d ".git" ]; then
+    if [ ! -w ".git/config" ]; then
+        echo "Fixing .git ownership for current user..."
+        if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u)":"$(id -g)" .git || echo "⚠️  Unable to adjust .git ownership"
+        else
+            echo "⚠️  sudo not available; git submodule operations may fail due to permissions"
+        fi
+    fi
+
+    if ! git config --global --get-all safe.directory | grep -Fx "$WORKSPACE_DIR" >/dev/null 2>&1; then
+        git config --global --add safe.directory "$WORKSPACE_DIR"
+    fi
+fi
 
 # Check if submodules are properly initialized
 if [ -f ".gitmodules" ]; then
@@ -57,6 +89,15 @@ fi
 if [ ! -d "build" ]; then
     echo "Creating build directory..."
     mkdir -p build
+fi
+
+# Install MISRA addon for cppcheck
+echo "Installing MISRA C:2012 addon for cppcheck..."
+if [ -f ".devcontainer/install_misra_addon.sh" ]; then
+    chmod +x .devcontainer/install_misra_addon.sh
+    .devcontainer/install_misra_addon.sh
+else
+    echo "⚠️  MISRA addon installation script not found"
 fi
 
 # Verify VS Code configuration files
@@ -144,7 +185,11 @@ fi
 # Display useful information
 echo ""
 echo "=== Environment Variables (docker container) ==="
-env | sort
+if [ -n "${CI:-}" ]; then
+    echo "(environment redacted in CI environment)"
+else
+    env | sort
+fi
 echo ""
 echo "=== Development Environment Ready ==="
 echo "Workspace: $(pwd)"

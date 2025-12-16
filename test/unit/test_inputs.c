@@ -6,242 +6,150 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <setjmp.h>
-#include <cmocka.h>
-#include "inputs.h"
+#include <stdint.h>
 
-// Mock hardware dependencies and FreeRTOS are now provided by hardware_mocks.c
+#include <cmocka.h>
+
+#include "error_management.h"
+#include "app_context.h"
+#include "app_inputs.h"
+
+// -----------------------------------------------------------------------------
+// Queue wrapper state
+// -----------------------------------------------------------------------------
+
+static bool mock_queue_create_should_fail = false;
+static uintptr_t mock_queue_seed = 0x100U;
+static QueueHandle_t last_deleted_queue = NULL;
+static uint32_t queue_create_calls = 0U;
+
+QueueHandle_t __wrap_xQueueGenericCreate(UBaseType_t length, UBaseType_t item_size, uint8_t queue_type)
+{
+    (void)length;
+    (void)item_size;
+    (void)queue_type;
+
+    queue_create_calls++;
+
+    if (mock_queue_create_should_fail)
+    {
+        return NULL;
+    }
+
+    mock_queue_seed += 0x10U;
+    QueueHandle_t handle = (QueueHandle_t)(uintptr_t)mock_queue_seed;
+    app_context_set_data_event_queue(handle);
+    return handle;
+}
+
+void __wrap_vQueueDelete(QueueHandle_t queue)
+{
+    last_deleted_queue = queue;
+    app_context_set_data_event_queue(NULL);
+}
+
+static void reset_queue_state(void)
+{
+    mock_queue_create_should_fail = false;
+    mock_queue_seed = 0x100U;
+    last_deleted_queue = NULL;
+    queue_create_calls = 0U;
+}
+
+// -----------------------------------------------------------------------------
+// Test fixtures
+// -----------------------------------------------------------------------------
 
 static int setup(void **state)
 {
-    (void) state;
-    // Setup before each test
+    (void)state;
+
+    reset_queue_state();
+    statistics_reset_all_counters();
+    app_context_reset_queues();
+
     return 0;
 }
 
 static int teardown(void **state)
 {
-    (void) state;
-    // Cleanup after each test
+    (void)state;
+    app_context_reset_queues();
     return 0;
 }
 
-static void test_input_init_valid_config(void **state)
+// -----------------------------------------------------------------------------
+// Tests
+// -----------------------------------------------------------------------------
+
+static void test_input_init_returns_ok(void **state)
 {
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = 4,
-        .key_settling_time_ms = 50,
-        .adc_channels = 8,
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = (QueueHandle_t)0x12345678, // Mock queue handle
-        .encoder_mask = {true, false, true, false, false, false, false, false}
-    };
-    
-    input_result_t result = input_init(&config);
+    (void)state;
+
+    statistics_reset_all_counters();
+    queue_create_calls = 0U;
+
+    input_result_t result = input_init();
     assert_int_equal(INPUT_OK, result);
+    assert_int_equal(1U, queue_create_calls);
+    assert_non_null(app_context_get_data_event_queue());
 }
 
-static void test_input_init_invalid_rows(void **state)
+static void test_input_init_idempotent(void **state)
 {
-    (void) state;
-    input_config_t config = {
-        .rows = KEYPAD_MAX_ROWS + 1,  // Invalid: too many rows
-        .columns = 4,
-        .key_settling_time_ms = 50,
-        .adc_channels = 8,
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
+    (void)state;
+
+    statistics_reset_all_counters();
+    queue_create_calls = 0U;
+
+    assert_int_equal(INPUT_OK, input_init());
+    QueueHandle_t first_queue = app_context_get_data_event_queue();
+
+    assert_int_equal(INPUT_OK, input_init());
+    assert_ptr_not_equal(first_queue, app_context_get_data_event_queue());
+    assert_ptr_equal(first_queue, last_deleted_queue);
 }
 
-static void test_input_init_invalid_columns(void **state)
+static void test_input_init_reports_queue_creation_failure(void **state)
 {
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = KEYPAD_MAX_COLS + 1,  // Invalid: too many columns
-        .key_settling_time_ms = 50,
-        .adc_channels = 8,
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
+    (void)state;
+
+    statistics_reset_all_counters();
+    queue_create_calls = 0U;
+
+    mock_queue_create_should_fail = true;
+
+    assert_int_equal(0U, statistics_get_counter(INPUT_QUEUE_INIT_ERROR));
+
+    input_result_t result = input_init();
+    assert_int_equal(INPUT_ERROR, result);
+    assert_int_equal(1U, statistics_get_counter(INPUT_QUEUE_INIT_ERROR));
+    assert_null(app_context_get_data_event_queue());
 }
 
-static void test_input_init_invalid_adc_channels(void **state)
+static void test_input_init_deletes_existing_queue(void **state)
 {
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = 4,
-        .key_settling_time_ms = 50,
-        .adc_channels = 17,  // Invalid: too many ADC channels (max 16)
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
+    (void)state;
+
+    statistics_reset_all_counters();
+    queue_create_calls = 0U;
+
+    QueueHandle_t existing = (QueueHandle_t)0xDEADBEEF;
+    app_context_set_data_event_queue(existing);
+    last_deleted_queue = NULL;
+
+    assert_int_equal(INPUT_OK, input_init());
+    assert_ptr_equal(existing, last_deleted_queue);
 }
 
-static void test_input_init_zero_key_settling_time(void **state)
-{
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = 4,
-        .key_settling_time_ms = 0,  // Invalid: zero settling time
-        .adc_channels = 8,
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
-}
-
-static void test_input_init_zero_adc_settling_time(void **state)
-{
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = 4,
-        .key_settling_time_ms = 50,
-        .adc_channels = 8,
-        .adc_settling_time_ms = 0,  // Invalid: zero settling time
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
-}
-
-static void test_input_init_zero_encoder_settling_time(void **state)
-{
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = 4,
-        .key_settling_time_ms = 50,
-        .adc_channels = 8,
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 0,  // Invalid: zero settling time
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
-}
-
-static void test_input_init_null_queue(void **state)
-{
-    (void) state;
-    input_config_t config = {
-        .rows = 4,
-        .columns = 4,
-        .key_settling_time_ms = 50,
-        .adc_channels = 8,
-        .adc_settling_time_ms = 10,
-        .encoder_settling_time_ms = 20,
-        .input_event_queue = NULL,  // Invalid: NULL queue
-        .encoder_mask = {false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_INVALID_CONFIG, result);
-}
-
-static void test_input_init_boundary_valid_values(void **state)
-{
-    (void) state;
-    input_config_t config = {
-        .rows = KEYPAD_MAX_ROWS,     // Boundary: maximum valid rows
-        .columns = KEYPAD_MAX_COLS,  // Boundary: maximum valid columns
-        .key_settling_time_ms = 1,   // Boundary: minimum valid settling time
-        .adc_channels = 16,          // Boundary: maximum valid ADC channels
-        .adc_settling_time_ms = 1,   // Boundary: minimum valid settling time
-        .encoder_settling_time_ms = 1, // Boundary: minimum valid settling time
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {true, true, true, true, true, true, true, true}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_OK, result);
-}
-
-static void test_input_init_minimal_valid_config(void **state)
-{
-    (void) state;
-    input_config_t config = {
-        .rows = 1,
-        .columns = 1,
-        .key_settling_time_ms = 1,
-        .adc_channels = 1,
-        .adc_settling_time_ms = 1,
-        .encoder_settling_time_ms = 1,
-        .input_event_queue = (QueueHandle_t)0x12345678,
-        .encoder_mask = {false, false, false, false, false, false, false, false}
-    };
-    
-    input_result_t result = input_init(&config);
-    assert_int_equal(INPUT_OK, result);
-}
-
-// Wrapper to intercept gpio_put calls
-void __wrap_gpio_put(uint pin, bool value)
-{
-    check_expected(pin);
-    check_expected(value);
-}
-
-static void test_adc_mux_select(void **state)
-{
-    (void) state;
-    // Expect each pin to be set according to channel bits (0x0F)
-    expect_value(__wrap_gpio_put, pin, ADC_MUX_A);
-    expect_value(__wrap_gpio_put, value, true);
-    expect_value(__wrap_gpio_put, pin, ADC_MUX_B);
-    expect_value(__wrap_gpio_put, value, true);
-    expect_value(__wrap_gpio_put, pin, ADC_MUX_C);
-    expect_value(__wrap_gpio_put, value, true);
-    expect_value(__wrap_gpio_put, pin, ADC_MUX_D);
-    expect_value(__wrap_gpio_put, value, true);
-    adc_mux_select(0x0F);
-}
-
-int main(void) 
+int main(void)
 {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup_teardown(test_input_init_valid_config, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_invalid_rows, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_invalid_columns, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_invalid_adc_channels, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_zero_key_settling_time, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_zero_adc_settling_time, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_zero_encoder_settling_time, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_null_queue, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_boundary_valid_values, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_input_init_minimal_valid_config, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_adc_mux_select, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_input_init_returns_ok, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_input_init_idempotent, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_input_init_reports_queue_creation_failure, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_input_init_deletes_existing_queue, setup, teardown),
     };
-    
+
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

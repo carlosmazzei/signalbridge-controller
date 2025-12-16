@@ -2,8 +2,9 @@
 add_library(signalbridge_core STATIC
     cobs.c
     error_management.c
-    inputs.c
-    outputs.c
+    app_outputs.c
+    app_inputs.c
+    app_context.c
     tm1639.c
     tm1637.c
 )
@@ -72,6 +73,9 @@ add_executable(pi_controller)
 # Main application source files
 target_sources(pi_controller PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/app_comm.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/app_context.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/app_tasks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/hooks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
 )

@@ -15,6 +15,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Watchdog timer delay
+#define WATCHDOG_GRACE_PERIOD_MS 5000U
+
 // Error LED configuration
 #define ERROR_LED_PIN PICO_DEFAULT_LED_PIN
 
@@ -24,20 +27,21 @@
 #define PATTERN_PAUSE_MS 2000    // Pause between pattern repeats
 
 // Watchdog scratch register usage
-#define WATCHDOG_ERROR_TYPE_REG    0
-#define WATCHDOG_ERROR_COUNT_REG   1
-#define WATCHDOG_BOOT_MAGIC_REG    2
+#define WATCHDOG_ERROR_COUNT_REG       0
+#define WATCHDOG_ERROR_LAST_TYPE_REG   1
 
-#define ERROR_MAGIC_VALUE     0xDEADBEEF
-#define CLEAN_BOOT_MAGIC      0x600DC0DE
-
+/**
+ * @enum error_type_t
+ * @brief Enumerates different error types in the system.
+ */
 typedef enum {
 	ERROR_NONE = 0,
 	ERROR_WATCHDOG_TIMEOUT = 1,
 	ERROR_FREERTOS_STACK = 2,
 	ERROR_PICO_SDK_PANIC = 3,
 	ERROR_SCHEDULER_FAILED = 4,
-	ERROR_RESOURCE_ALLOCATION = 5
+	ERROR_RESOURCE_ALLOCATION = 5,
+	ERROR_USB_INIT = 6,
 } error_type_t;
 
 /**
@@ -45,6 +49,7 @@ typedef enum {
  * @brief Enumerates different error types in the system.
  */
 typedef enum statistics_counter_enum_t {
+	// Main error enums
 	QUEUE_SEND_ERROR,
 	QUEUE_RECEIVE_ERROR,
 	CDC_QUEUE_SEND_ERROR,
@@ -59,6 +64,19 @@ typedef enum statistics_counter_enum_t {
 	UNKNOWN_CMD_ERROR,
 	BYTES_SENT,
 	BYTES_RECEIVED,
+	RESOURCE_ALLOCATION_ERROR,
+
+	// Output error enums
+	OUTPUT_CONTROLLER_ID_ERROR,
+	OUTPUT_INIT_ERROR,
+	OUTPUT_DRIVER_INIT_ERROR,
+	OUTPUT_INVALID_PARAM_ERROR,
+
+	// Input error enums
+	INPUT_QUEUE_INIT_ERROR,
+	INPUT_QUEUE_FULL_ERROR,
+	INPUT_INIT_ERROR,
+
 	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
 } statistics_counter_enum_t;
 
@@ -123,16 +141,25 @@ bool statistics_is_error_state(void);
 error_type_t statistics_get_error_type(void);
 
 /**
- * @brief Clear the error state and set error type to ERROR_NONE.
+ * @brief Record a recoverable error for diagnostics.
+ *
+ * @param[in] type Recoverable error type being raised.
  */
-void statistics_clear_error(void);
+void error_management_set_error_state(error_type_t type);
 
 /**
- * @brief Set the error state persistently in the watchdog registers.
+ * @brief Immediately halt execution and display a fatal error pattern.
  *
- * @param[in] type The type of error to set.
+ * This function does not return. It disables interrupts and enters
+ * an infinite loop displaying the error pattern for the specified error type.
+ *
  */
-void set_error_state_persistent(error_type_t type);
+void __attribute__((noreturn)) fatal_halt(error_type_t type);
+
+/**
+ * @brief Check if an error type supports automatic recovery.
+ */
+bool error_management_is_fatal(error_type_t type);
 
 /**
  * @brief Show a blinking error pattern on the error LED.
@@ -147,12 +174,5 @@ void show_error_pattern_blocking(error_type_t error_type);
  * @param[in] timeout_ms Timeout value in milliseconds
  */
 void setup_watchdog_with_error_detection(uint32_t timeout_ms);
-
-/**
- * @brief Update the watchdog timer safely.
- *
- * This function updates the watchdog timer only if the system is not in an error state.
- */
-void update_watchdog_safe(void);
 
 #endif // ERROR_MANAGEMENT_H

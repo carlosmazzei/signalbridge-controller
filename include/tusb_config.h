@@ -108,4 +108,4 @@ extern "C" {
 }
 #endif
 
-#endif /* _TUSB_CONFIG_H_ */
+#endif // _TUSB_CONFIG_H_
