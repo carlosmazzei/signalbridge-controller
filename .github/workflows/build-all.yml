@@ -357,7 +357,7 @@ jobs:
           flags: unittests
 
       - name: SonarQube analysis
-        uses: SonarSource/sonarqube-scan-action@v6
+        uses: SonarSource/sonarqube-scan-action@v7
         with:
           args: >
             --define "sonar.cfamily.compile-commands=build-tests/compile_commands.json"
