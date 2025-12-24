@@ -278,6 +278,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes, build-firmware]
     if: |
+      always() &&
       (needs.detect-changes.outputs.firmware-changed == 'true' ||
        needs.detect-changes.outputs.devcontainer-changed == 'true' ||
        github.event_name == 'workflow_dispatch') &&
@@ -369,7 +370,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: [detect-changes, unit-tests, build-firmware]
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: always() && github.event_name == 'release' && github.event.action == 'published'
     
     steps:
       # Download artifacts from build job
