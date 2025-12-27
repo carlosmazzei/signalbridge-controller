@@ -31,11 +31,11 @@ static void test_tm1639_constants(void **state)
 {
     (void) state;
     // Test TM1639 command constants are correctly defined
-    assert_int_equal(0x40, TM1639_CMD_DATA_WRITE);
-    assert_int_equal(0x44, TM1639_CMD_FIXED_ADDR);
-    assert_int_equal(0xC0, TM1639_CMD_ADDR_BASE);
-    assert_int_equal(0x80, TM1639_CMD_DISPLAY_OFF);
-    assert_int_equal(0x88, TM1639_CMD_DISPLAY_ON);
+    assert_int_equal(0x02, TM1639_CMD_DATA_WRITE);
+    assert_int_equal(0x22, TM1639_CMD_FIXED_ADDR);
+    assert_int_equal(0x03, TM1639_CMD_ADDR_BASE);
+    assert_int_equal(0x01, TM1639_CMD_DISPLAY_OFF);
+    assert_int_equal(0x11, TM1639_CMD_DISPLAY_ON);
 }
 
 static void test_tm1639_buffer_constants(void **state)

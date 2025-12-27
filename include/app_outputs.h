@@ -87,9 +87,9 @@
  */
 #define DEVICE_CONFIG { \
 		DEVICE_TM1639_DIGIT, /* Device 0 */ \
-		DEVICE_TM1637_DIGIT, /* Device 1 */ \
-		DEVICE_TM1639_DIGIT, /* Device 2 */ \
-		DEVICE_TM1639_LED, /* Device 3 */ \
+		DEVICE_NONE, /* Device 1 */ \
+		DEVICE_NONE, /* Device 2 */ \
+		DEVICE_NONE, /* Device 3 */ \
 		DEVICE_NONE, /* Device 4 */ \
 		DEVICE_NONE, /* Device 5 */ \
 		DEVICE_NONE, /* Device 6 */ \

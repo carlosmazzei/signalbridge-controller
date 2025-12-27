@@ -20,12 +20,12 @@
  * @name TM1639 command opcodes
  * @{
  */
-#define TM1639_CMD_DATA_WRITE      0x40U /**< Auto-increment data write. */
-#define TM1639_CMD_DATA_READ_KEYS  0x42U /**< Key scanning data read. */
-#define TM1639_CMD_FIXED_ADDR      0x44U /**< Fixed address write. */
-#define TM1639_CMD_DISPLAY_OFF     0x80U /**< Display off command. */
-#define TM1639_CMD_DISPLAY_ON      0x88U /**< Display on command base. */
-#define TM1639_CMD_ADDR_BASE       0xC0U /**< Base address command. */
+#define TM1639_CMD_DATA_WRITE      0x02U /**< Auto-increment data write (bit-reversed for MSB-first SPI). */
+#define TM1639_CMD_DATA_READ_KEYS  0x42U /**< Key scanning data read (bit-reversed for MSB-first SPI). */
+#define TM1639_CMD_FIXED_ADDR      0x22U /**< Fixed address write (bit-reversed for MSB-first SPI). */
+#define TM1639_CMD_DISPLAY_OFF     0x01U /**< Display off command (bit-reversed for MSB-first SPI). */
+#define TM1639_CMD_DISPLAY_ON      0x11U /**< Display on command base (bit-reversed for MSB-first SPI). */
+#define TM1639_CMD_ADDR_BASE       0x03U /**< Base address command (bit-reversed for MSB-first SPI). */
 /** @} */
 
 /** Number of TM1639 display registers. */
