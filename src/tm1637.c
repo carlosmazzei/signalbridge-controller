@@ -47,6 +47,8 @@ static output_result_t tm1637_to_output_result(tm1637_result_t tm_result)
 	return result;
 }
 
+static output_result_t tm1637_set_display(output_driver_t *config, bool display_on);
+static output_result_t tm1637_set_brightness_output(output_driver_t *config, uint8_t level);
 
 // ---- Bit-bang helpers (open-drain emulation) ----
 
@@ -272,6 +274,7 @@ static tm1637_result_t tm1637_set_brightness(output_driver_t *config, uint8_t le
 	{
 		uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
 		config->brightness = set_level;
+		config->display_on = true;
 
 		// Display control command with brightness level
 		uint8_t cmd = (uint8_t)TM1637_CMD_DISPLAY_ON | set_level;
@@ -279,6 +282,43 @@ static tm1637_result_t tm1637_set_brightness(output_driver_t *config, uint8_t le
 	}
 
 	return result;
+}
+
+/**
+ * @brief Toggle the TM1637 display state.
+ *
+ * @param[in,out] config      Driver configuration.
+ * @param[in]     display_on  true to enable, false to disable.
+ *
+ * @return OUTPUT_OK on success or an output error code otherwise.
+ */
+static output_result_t tm1637_set_display(output_driver_t *config, bool display_on)
+{
+	tm1637_result_t tm_result;
+
+	if (display_on)
+	{
+		tm_result = tm1637_display_on(config);
+	}
+	else
+	{
+		tm_result = tm1637_display_off(config);
+	}
+
+	return tm1637_to_output_result(tm_result);
+}
+
+/**
+ * @brief Update TM1637 brightness level.
+ *
+ * @param[in,out] config Driver configuration.
+ * @param[in]     level  Brightness level (0-7).
+ *
+ * @return OUTPUT_OK on success or an output error code otherwise.
+ */
+static output_result_t tm1637_set_brightness_output(output_driver_t *config, uint8_t level)
+{
+	return tm1637_to_output_result(tm1637_set_brightness(config, level));
 }
 
 tm1637_result_t tm1637_display_on(output_driver_t *config)

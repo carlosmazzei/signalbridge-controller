@@ -84,6 +84,9 @@ static output_result_t init_mux(void)
 	gpio_put(SPI_MUX_B_PIN, 1);
 	gpio_put(SPI_MUX_C_PIN, 1);
 
+	// @todo: Remove after testing
+	gpio_put(SPI_MUX_CS, 1);
+
 	output_result_t output_result  = OUTPUT_OK;
 	if (result != TM1639_OK)
 	{
@@ -163,7 +166,7 @@ static output_result_t init_driver(void)
 			                                               spi0,
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
-			if (!output_drivers.driver_handles[i])
+			if (NULL == output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
 				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
@@ -179,7 +182,7 @@ static output_result_t init_driver(void)
 			                                               spi0,
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
-			if (!output_drivers.driver_handles[i])
+			if (NULL == output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
 				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
@@ -241,7 +244,7 @@ output_result_t output_init(void)
 
 	// Initialize SPI
 	spi_init(spi0, SPI_FREQUENCY);
-	spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_LSB_FIRST);
+	spi_set_format(spi0, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
 	gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
 	gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
@@ -268,11 +271,8 @@ output_result_t output_init(void)
 	pwm_config_set_clkdiv(&config, 10.f);
 	pwm_init(slice_num, &config, true);
 
-	output_result_t result_init = init_driver();
-	if (result_init != OUTPUT_OK)
-	{
-		statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
-	}
+	// Initialize drivers (for 7 segment display)
+	(void)init_driver();
 
 	return result;
 }
@@ -281,31 +281,53 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 {
 	output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
+	uint8_t command = 0U;
 
 	/**
 	 * @par Parameter validation
 	 * Checks for:
 	 * - Null pointer
-	 * - Minimum payload length
-	 * - Valid controller ID (1-based, must be within range)
 	 */
-	if ((NULL == payload) ||
-	    (length < (uint8_t)6) ||
-	    ((uint8_t)0 == payload[0]) ||
-	    (payload[0] > (uint8_t)MAX_SPI_INTERFACES))
+	if ((NULL == payload) || ((uint8_t)0 == payload[0]))
 	{
 		statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 	else
 	{
-		physical_cs = payload[0] - (uint8_t)1;
+		const uint8_t header = payload[0];
+		const uint8_t controller_id = (header >> DISPLAY_CMD_ID_SHIFT) & (uint8_t)0x07U;
+		command = header & DISPLAY_CMD_MASK;
+
+		if (controller_id >= (uint8_t)MAX_SPI_INTERFACES)
+		{
+			statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
+			result = OUTPUT_ERR_INVALID_PARAM;
+		}
+		else
+		{
+			physical_cs = controller_id - (uint8_t)1;
+
+			if ((DISPLAY_CMD_SET_DIGITS == command) &&
+			    (length < (uint8_t)6))
+			{
+				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
+				result = OUTPUT_ERR_INVALID_PARAM;
+			}
+			else if ((DISPLAY_CMD_SET_BRIGHTNESS == command) &&
+			         (length < (uint8_t)2))
+			{
+				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
+				result = OUTPUT_ERR_INVALID_PARAM;
+			}
+		}
 
 		/**
 		 * @par Device type validation
 		 * Checks if the device type is supported for display output.
 		 */
-		if (((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
+		if ((OUTPUT_OK == result) &&
+		    ((uint8_t)DEVICE_GENERIC_DIGIT != device_config_map[physical_cs]) &&
 		    ((uint8_t)DEVICE_TM1639_DIGIT != device_config_map[physical_cs]) &&
 		    ((uint8_t)DEVICE_TM1637_DIGIT != device_config_map[physical_cs]))
 		{
@@ -328,7 +350,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	 * @par BCD processing and driver call
 	 * Processes BCD data and sends it to the driver if all checks passed.
 	 */
-	if ((OUTPUT_OK == result) && (length >= (uint8_t)6))
+	if ((OUTPUT_OK == result) && (DISPLAY_CMD_SET_DIGITS == command))
 	{
 		uint8_t digits[8];
 		digits[0] = (payload[1] >> (uint8_t)4) & (uint8_t)0x0F;
@@ -349,9 +371,28 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		{
 			// If the driver handle is invalid, try to deselect the chip and set error
 			(void)select_interface(physical_cs, false);
-			statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 			result = OUTPUT_ERR_DISPLAY_OUT;
 		}
+	}
+	else if ((OUTPUT_OK == result) && (DISPLAY_CMD_SET_BRIGHTNESS == command))
+	{
+		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
+		const uint8_t brightness = payload[1];
+
+		if ((handle != NULL) && (handle->set_brightness))
+		{
+			result = handle->set_brightness(handle, brightness);
+		}
+		else
+		{
+			(void)select_interface(physical_cs, false);
+			result = OUTPUT_ERR_DISPLAY_OUT;
+		}
+	}
+	else
+	{
+		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
+		result = OUTPUT_ERR_INVALID_PARAM;
 	}
 
 	/**
@@ -426,7 +467,6 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 			else
 			{
 				(void)select_interface(physical_cs, false);
-				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
 				result = OUTPUT_ERR_DISPLAY_OUT;
 			}
 		}
