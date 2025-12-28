@@ -19,10 +19,13 @@ typedef unsigned int uint;
 #define GPIO_FUNC_SIO 4
 #define GPIO_FUNC_NULL 0
 
-// SPI defines  
+// SPI defines
 #define SPI_CPOL_0 0
 #define SPI_CPHA_0 0
+#define SPI_CPOL_1 1
+#define SPI_CPHA_1 1
 #define SPI_LSB_FIRST true
+#define SPI_MSB_FIRST false
 
 // External declarations for shared types (avoid redefinition)
 extern struct spi_inst_t *spi0;
@@ -42,7 +45,7 @@ void adc_init(void);
 // UART constants
 extern void* uart0;
 void uart_init(void* uart, uint baudrate);
-void uart_set_baudrate(void* uart, uint baudrate);  
+void uart_set_baudrate(void* uart, uint baudrate);
 void uart_set_hw_flow(void* uart, bool cts, bool rts);
 void uart_set_format(void* uart, uint data_bits, uint stop_bits, uint parity);
 void uart_set_fifo_enabled(void* uart, bool enabled);

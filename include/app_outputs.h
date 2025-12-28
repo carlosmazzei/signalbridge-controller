@@ -79,6 +79,20 @@
 /** @} */
 
 /**
+ * @name Display control protocol helpers
+ * @{
+ */
+/** Bit offset for the controller ID stored in the display command header. */
+#define DISPLAY_CMD_ID_SHIFT 5U
+/** Mask for the command bits stored in the display command header. */
+#define DISPLAY_CMD_MASK 0x1FU
+/** Command value for updating BCD digits. */
+#define DISPLAY_CMD_SET_DIGITS 0x00U
+/** Command value for updating brightness (0 = off, 1-7 = on). */
+#define DISPLAY_CMD_SET_BRIGHTNESS 0x01U
+/** @} */
+
+/**
  * @brief Compile-time device assignment for each controller slot.
  *
  * The table is indexed by the 1-based controller identifier received from the
@@ -87,9 +101,9 @@
  */
 #define DEVICE_CONFIG { \
 		DEVICE_TM1639_DIGIT, /* Device 0 */ \
-		DEVICE_TM1637_DIGIT, /* Device 1 */ \
-		DEVICE_TM1639_DIGIT, /* Device 2 */ \
-		DEVICE_TM1639_LED, /* Device 3 */ \
+		DEVICE_NONE, /* Device 1 */ \
+		DEVICE_NONE, /* Device 2 */ \
+		DEVICE_NONE, /* Device 3 */ \
 		DEVICE_NONE, /* Device 4 */ \
 		DEVICE_NONE, /* Device 5 */ \
 		DEVICE_NONE, /* Device 6 */ \
@@ -121,6 +135,7 @@ struct output_driver_t {
 	output_result_t (*select_interface)(uint8_t chip_id, bool select); /**< Mux control callback. */
 	output_result_t (*set_digits)(output_driver_t *config, const uint8_t *digits, size_t length, uint8_t dot_position); /**< Digit update callback. */
 	output_result_t (*set_leds)(output_driver_t *config, uint8_t leds, uint8_t ledstate); /**< LED update callback. */
+	output_result_t (*set_brightness)(output_driver_t *config, uint8_t brightness); /**< Brightness update callback (0-7). */
 	spi_inst_t *spi; /**< SPI instance used by the device (if applicable). */
 	uint8_t dio_pin; /**< GPIO pin used as DIO for TM1637 bit-banging. */
 	uint8_t clk_pin; /**< GPIO pin used as CLK for TM1637 bit-banging. */
@@ -155,7 +170,18 @@ output_result_t output_init(void);
 /**
  * @brief Dispatch a display update payload to the matching driver.
  *
- * @param[in] payload Encoded BCD digit stream received from the host.
+ * Payload structure:
+ * Byte 0: bits 7-5 controller slot ID (0-7), bits 4-0 command
+ * Byte 1: BCD digit pair 1 (high nibble: digit 0, low nibble: digit 1)
+ * Byte 2: BCD digit pair 2 (high nibble: digit 2, low nibble: digit 3)
+ * Byte 3: BCD digit pair 3 (high nibble: digit 4, low nibble: digit 5)
+ * Byte 4: BCD digit pair 4 (high nibble: digit 6, low nibble: digit 7)
+ * Byte 5: Decimal point position (0-7 for position, 0xFF for no decimal point)
+ *
+ * When DISPLAY_CMD_SET_BRIGHTNESS is used, Byte 1 holds the brightness level
+ * (0 = off, 1-7 = on).
+ *
+ * @param[in] payload Encoded display payload received from the host.
  * @param[in] length  Number of bytes available in @p payload.
  *
  * @retval OUTPUT_OK            The update was queued successfully.

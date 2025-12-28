@@ -26,7 +26,6 @@
  */
 static output_result_t tm1639_to_output_result(tm1639_result_t tm_result);
 static tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_t cmd);
-static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
 static inline void tm1639_start(const output_driver_t *config);
 static inline void tm1639_stop(const output_driver_t *config);
 static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data);
@@ -43,6 +42,8 @@ static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
                                                   const size_t length,
                                                   const uint8_t dot_position);
 static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t *digits, const uint8_t dot_position);
+static tm1639_result_t tm1639_display_on(output_driver_t *config);
+static tm1639_result_t tm1639_display_off(output_driver_t *config);
 
 /**
  * @brief Convert tm1639_result_t to output_result_t
@@ -68,40 +69,6 @@ static output_result_t tm1639_to_output_result(tm1639_result_t tm_result)
 	default:
 		result = OUTPUT_ERR_DISPLAY_OUT;
 		break;
-	}
-
-	return result;
-}
-
-/**
- * @brief Set the display brightness level (0-7).
- *
- * This function sets the brightness level of the TM1639 display. The brightness value
- * is clamped to the range 0 to 7. The function updates the driver configuration and
- * sends the appropriate command to the TM1639 device.
- *
- * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
- *
- * @return TM1639_OK on success,
- *         TM1639_ERR_INVALID_PARAM if config is NULL,
- *         or error code from tm1639_send_command.
- */
-static tm1639_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
-		config->brightness = set_level;
-
-		// Display control command with brightness level
-		uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_ON | level;
-		result = tm1639_send_command(config, cmd);
 	}
 
 	return result;
@@ -313,6 +280,7 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 					}
 				}
 			}
+
 			tm1639_stop(config); // STB goes high to end transaction
 		}
 		else
@@ -485,43 +453,74 @@ static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
  */
 static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t* digits, const uint8_t dot_position)
 {
-	// Segment patterns for custom character set
-	// Bits: dp-g-f-e-d-c-b-a (MSB to LSB)
-	static const uint8_t tm1639_custom_patterns[16] = {
-		0x3FU, 0x06U, 0x5BU, 0x4FU, // 0x00-0x03: 0, 1, 2, 3
-		0x66U, 0x6DU, 0x7DU, 0x07U, // 0x04-0x07: 4, 5, 6, 7
-		0x7FU, 0x6FU, 0x6DU, 0x1CU, // 0x08-0x0B: 8, 9, S, t
-		0x5EU, 0x40U, 0x08U, 0x00U // 0x0C-0x0F: d, -, _, (blank)
+	// 1. Standard Patterns (Segments a-g, dp) - Active High (1=ON)
+	// We use standard patterns here because we will transpose them manually.
+	static const uint8_t standard_patterns[16] = {
+		0x3F, 0x06, 0x5B, 0x4F, // 0, 1, 2, 3
+		0x66, 0x6D, 0x7D, 0x07, // 4, 5, 6, 7
+		0x7F, 0x6F, 0x77, 0x7C, // 8, 9, A, b
+		0x39, 0x5E, 0x79, 0x71 // C, d, E, F
 	};
+
+	// 2. Clear the buffer (Active Low logic usually requires 0s, but here
+	//    the 'Data' selects the DIGIT. 0 = Digit OFF, 1 = Digit ON).
+	//    Let's initialize to 0x00 (All digits OFF).
+	for (uint8_t k = 0; k < TM1639_DISPLAY_BUFFER_SIZE; k++) {
+		config->prep_buffer[k] = 0x00;
+	}
 
 	tm1639_result_t result = TM1639_OK;
 
-	for (uint8_t i = 0U; (i < TM1639_DIGIT_COUNT) && (TM1639_OK == result); i++)
+	// 3. Transpose Logic: Loop through each DIGIT
+	for (uint8_t digit_idx = 0; digit_idx < TM1639_DIGIT_COUNT; digit_idx++)
 	{
-		// Extract BCD digit and get pattern
-		uint8_t bcd_digit = digits[i] & 0x0FU;
-		uint8_t segment_data = tm1639_custom_patterns[bcd_digit];
+		uint8_t bcd = digits[digit_idx] & 0x0F;
+		uint8_t pattern = standard_patterns[bcd];
 
-		// Add decimal point using conditional expression (no if-statement)
-		segment_data |= (i == dot_position) ? TM1639_DECIMAL_POINT_MASK : 0U;
+		// Add Decimal Point if needed (Standard Pattern uses Bit 7 for DP)
+		if (digit_idx == dot_position)
+		{
+			pattern |= 0x80;
+		}
 
-		// Calculate address and validate bounds
-		uint8_t addr = i * 2U;
-		if (addr < TM1639_DISPLAY_BUFFER_SIZE)
+		// 4. Distribute the pattern bits to the Segment Addresses
+		// The TM1638 maps standard bits (0-7) to Segments (A-DP).
+		// On your board, Addresses 0x00-0x0E correspond to these Segments.
+
+		for (uint8_t seg_bit = 0; seg_bit < 8; seg_bit++)
 		{
-			config->prep_buffer[addr] = segment_data;
+			// Check if this segment (A, B, C...) is ON for this digit
+			if ((pattern >> seg_bit) & 0x01)
+			{
+				// Calculate Address for this Segment
+				// Seg A (Bit 0) -> Addr 0x00
+				// Seg B (Bit 1) -> Addr 0x02 ...
+				uint8_t seg_addr = seg_bit * 2;
+
+				// Determine which Bit represents this DIGIT
+				// Since Pico is MSB-First and TM1638 is LSB-First:
+				// Digit 1 (Index 0) -> TM1638 SEG1 (Bit 0) -> Pico sends Bit 7 (0x80)
+				// Digit 2 (Index 1) -> TM1638 SEG2 (Bit 1) -> Pico sends Bit 6 (0x40)
+				uint8_t digit_mask = (0x80 >> digit_idx);
+
+				// Write the Digit Mask to the Segment Address
+				if (seg_addr < TM1639_DISPLAY_BUFFER_SIZE)
+				{
+					config->prep_buffer[seg_addr] |= digit_mask;
+				}
+			}
 		}
-		else
-		{
-			result = TM1639_ERR_ADDRESS_RANGE;
-		}
+	}
+
+	// 5. Fill Odd Addresses with 0x00 (Unused in this mode)
+	for (uint8_t k = 1; k < TM1639_DISPLAY_BUFFER_SIZE; k += 2) {
+		config->prep_buffer[k] = 0x00;
 	}
 
 	if (TM1639_OK == result)
 	{
 		config->buffer_modified = true;
 	}
-
 	return result;
 }
 
@@ -568,6 +567,7 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 		config->display_on = false;
 		config->set_digits = &tm1639_set_digits;
 		config->set_leds = &tm1639_set_leds;
+		config->set_brightness = &tm1639_set_brightness;
 
 		// Clear display on startup
 		if (TM1639_OK != tm1639_clear(config))
@@ -586,6 +586,12 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 		{
 			valid = 0U;
 		}
+
+		// Test (set digits)
+		if (TM1639_OK != tm1639_set_digits(config, (const uint8_t[]){0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 8, TM1639_NO_DECIMAL_POINT))
+		{
+			valid = 0U;
+		}
 	}
 
 	// Free resources and set pointer to NULL on error
@@ -598,7 +604,7 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 	return config;
 }
 
-tm1639_result_t tm1639_display_on(output_driver_t *config)
+static tm1639_result_t tm1639_display_on(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
 	if (NULL == config)
@@ -608,13 +614,12 @@ tm1639_result_t tm1639_display_on(output_driver_t *config)
 	else
 	{
 		config->display_on = true;
-		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON | config->brightness); // DISPLAY_ON | brightness
+		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON);     // DISPLAY_ON | brightness (bit-reversed)
 	}
-
 	return result;
 }
 
-tm1639_result_t tm1639_display_off(output_driver_t *config)
+static tm1639_result_t tm1639_display_off(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
 	if (NULL == config)
@@ -660,11 +665,41 @@ output_result_t tm1639_set_digits(output_driver_t *config,
 	return tm1639_to_output_result(tm_result);
 }
 
+output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
+{
+	tm1639_result_t result = TM1639_OK;
+	if (NULL == config)
+	{
+		result = TM1639_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		uint8_t set_level = (level > (uint8_t)8) ? (uint8_t)8 : level;
+		config->brightness = set_level;
+		if (set_level > 0U)
+		{
+			set_level -= 1;
+			config->display_on = true;
+			// Display control command with brightness level (MSB-first SPI, bit-reversed command)
+			(void)tm1639_display_on(config);
+			uint8_t reversed_level = (uint8_t)(((set_level & 0x01U) << 2U) | (set_level & 0x02U) | ((set_level & 0x04U) >> 2U));
+			uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_ON | (uint8_t)(reversed_level << 5U);
+			result = tm1639_send_command(config, cmd);
+		}
+		else
+		{
+			config->display_on = false;
+			(void)tm1639_display_off(config);
+		}
+	}
+
+	return tm1639_to_output_result(result);
+}
+
 tm1639_result_t tm1639_clear(output_driver_t *config)
 {
 	tm1639_result_t result = TM1639_OK;
 
-	// MISRA-C: Parameter validation
 	if (NULL == config)
 	{
 		result = TM1639_ERR_INVALID_PARAM;
@@ -679,7 +714,7 @@ tm1639_result_t tm1639_clear(output_driver_t *config)
 		// Step 1: Send data command for auto-increment mode
 		tm1639_start(config); // STB goes low
 
-		// Auto-increment mode, write data: 01000000 (0x40)
+		// Auto-increment mode, write data: 01000000 (0x40) - Invert for MSB first SPI
 		if (tm1639_write_byte(config, TM1639_CMD_DATA_WRITE) != 1)
 		{
 			result = TM1639_ERR_SPI_WRITE;
