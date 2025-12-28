@@ -84,9 +84,6 @@ static output_result_t init_mux(void)
 	gpio_put(SPI_MUX_B_PIN, 1);
 	gpio_put(SPI_MUX_C_PIN, 1);
 
-	// @todo: Remove after testing
-	gpio_put(SPI_MUX_CS, 1);
-
 	output_result_t output_result  = OUTPUT_OK;
 	if (result != TM1639_OK)
 	{
