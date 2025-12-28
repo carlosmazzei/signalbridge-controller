@@ -97,6 +97,7 @@ If containers are not available, install CMake, Doxygen, Python 3, the GNU Arm E
 
 ### Command interface
 `include/commands.h` defines the command set: PWM and LED updates, analog readings, keypad events, rotary encoder data, display control, diagnostic queries (task status, USB status, error counters), configuration updates, and debug channels. Message parsing lives in `src/app_comm.c` and connects host requests to the processing pipeline.
+For protocol framing, payload layouts, and pre-COBS example frames, see `docs/COMMANDS.md`.
 
 ### Diagnostics and resilience
 - Statistics counters in `include/error_management.h` track queue send/receive errors, CDC transmit issues, output and input initialization errors, malformed messages, COBS decode failures, buffer overruns, checksum problems, unknown commands, and bytes sent/received. A resource allocation counter highlights critical setup failures.
