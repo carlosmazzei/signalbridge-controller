@@ -1,5 +1,5 @@
 {
-    "bash": "5.2.37-2+b5",
+    "bash": "5.2.37-2+b7",
     "build-essential": "12.12",
     "cmake": "3.31.6-2",
     "cppcheck": "2.17.1-2",
@@ -8,7 +8,7 @@
     "flawfinder": "2.0.19-1.1",
     "gcc-arm-none-eabi": "15:14.2.rel1-1",
     "gdb-multiarch": "16.3-1",
-    "gpg": "2.4.7-21+b3",
+    "gpg": "2.4.7-21+deb13u1+b1",
     "openocd": "0.12.0-3+b2",
     "git": "1:2.47.3-0+deb13u1",
     "libnewlib-arm-none-eabi": "4.5.0.20241231-1",
