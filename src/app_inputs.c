@@ -108,7 +108,7 @@ input_result_t input_init(void)
 		                      (1UL << ADC_MUX_D));
 
 		gpio_init_mask(gpio_mask);
-		gpio_set_dir_masked(gpio_mask, 0xFFU);
+		gpio_set_dir_masked(gpio_mask, gpio_mask);
 		gpio_set_dir(KEYPAD_ROW_INPUT, false);
 		gpio_put_masked(gpio_mask, 0x00U); // Set all pins to low
 
@@ -414,13 +414,12 @@ void encoder_read_task(void *pvParameters)
 				continue;
 			}
 
-			uint8_t encoder_base = r * (input_config.columns / 2U);
 			keypad_cs_rows(true);
 			keypad_set_rows(r);
 
 			for (uint8_t c = 0U; c < (input_config.columns / 2U); c++)
 			{
-				encoder_base += c;
+				uint8_t encoder_base = (uint8_t)(r * (input_config.columns / 2U)) + c;
 				keypad_cs_columns(true);
 				keypad_set_columns(c);
 				vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
@@ -444,10 +443,12 @@ void encoder_read_task(void *pvParameters)
 				if (4 == encoder_state[encoder_base].count_encoder)
 				{
 					encoder_generate_event(encoder_base, 1);
-				}                                  // then the index for enc_states
+					encoder_state[encoder_base].count_encoder = 0;
+				}
 				if (-4 == encoder_state[encoder_base].count_encoder)
 				{
 					encoder_generate_event(encoder_base, 0);
+					encoder_state[encoder_base].count_encoder = 0;
 				}
 
 				keypad_cs_columns(false);

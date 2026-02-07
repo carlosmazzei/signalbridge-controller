@@ -380,6 +380,7 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 		config->display_on = false;
 		config->set_digits = &tm1637_set_digits;
 		config->set_leds = &tm1637_set_leds;
+		config->set_brightness = &tm1637_set_brightness_output;
 
 		// Clear display on startup
 		if (TM1637_OK != tm1637_clear(config))

@@ -114,8 +114,8 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 	// Check if chip_select is within valid range
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
-		result = OUTPUT_ERR_INVALID_PARAM;
 		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
+		return OUTPUT_ERR_INVALID_PARAM;
 	}
 
 	if (select)
@@ -279,6 +279,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
 	uint8_t command = 0U;
+	bool mutex_taken = false;
 
 	/**
 	 * @par Parameter validation
@@ -337,10 +338,16 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	 * @par Mutex acquisition
 	 * Tries to take the SPI mutex if parameters are valid.
 	 */
-	if ((OUTPUT_OK == result) &&
-	    (pdTRUE != xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
+	if (OUTPUT_OK == result)
 	{
-		result = OUTPUT_ERR_SEMAPHORE;
+		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+		{
+			mutex_taken = true;
+		}
+		else
+		{
+			result = OUTPUT_ERR_SEMAPHORE;
+		}
 	}
 
 	/**
@@ -386,7 +393,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 			result = OUTPUT_ERR_DISPLAY_OUT;
 		}
 	}
-	else
+	else if (OUTPUT_OK == result)
 	{
 		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
@@ -394,11 +401,14 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 
 	/**
 	 * @par Mutex release
-	 * Releases the SPI mutex (if it was taken).
+	 * Releases the SPI mutex only when it was successfully acquired.
 	 */
-	if (pdFALSE == xSemaphoreGive(spi_mutex))
+	if (mutex_taken)
 	{
-		result = OUTPUT_ERR_SEMAPHORE;
+		if (pdFALSE == xSemaphoreGive(spi_mutex))
+		{
+			result = OUTPUT_ERR_SEMAPHORE;
+		}
 	}
 
 	return result;
@@ -408,6 +418,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 {
 	output_result_t result = OUTPUT_OK;
 	uint8_t physical_cs;
+	bool mutex_taken = false;
 
 	/**
 	 * @par Parameter validation
@@ -449,6 +460,8 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	{
 		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
 		{
+			mutex_taken = true;
+
 			/**
 			 * @par LED processing and driver call
 			 * Processes LED data and sends it to the driver if all checks passed.
@@ -475,11 +488,14 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 
 	/**
 	 * @par Mutex release
-	 * Releases the SPI mutex (if it was taken).
+	 * Releases the SPI mutex only when it was successfully acquired.
 	 */
-	if (pdTRUE != xSemaphoreGive(spi_mutex))
+	if (mutex_taken)
 	{
-		result = OUTPUT_ERR_SEMAPHORE;
+		if (pdTRUE != xSemaphoreGive(spi_mutex))
+		{
+			result = OUTPUT_ERR_SEMAPHORE;
+		}
 	}
 
 	return result;
