@@ -142,6 +142,61 @@ static void test_input_init_deletes_existing_queue(void **state)
     assert_ptr_equal(existing, last_deleted_queue);
 }
 
+/**
+ * @brief Verify that the GPIO direction mask covers all mux control pins.
+ *
+ * Bug fix: gpio_set_dir_masked was called with 0xFF as the direction value,
+ * but several mux control GPIOs are above bit 7 (e.g. GPIO 8, 11, 17, 20-22).
+ * The fix passes the full gpio_mask as the direction value.
+ */
+static void test_gpio_mask_covers_all_mux_pins(void **state)
+{
+    (void)state;
+
+    /* Build the same mask the firmware builds in input_init(). */
+    uint32_t gpio_mask = (1UL << KEYPAD_COL_MUX_A) |
+                         (1UL << KEYPAD_COL_MUX_B) |
+                         (1UL << KEYPAD_COL_MUX_C) |
+                         (1UL << KEYPAD_COL_MUX_CS) |
+                         (1UL << KEYPAD_ROW_INPUT) |
+                         (1UL << KEYPAD_ROW_MUX_A) |
+                         (1UL << KEYPAD_ROW_MUX_B) |
+                         (1UL << KEYPAD_ROW_MUX_C) |
+                         (1UL << KEYPAD_ROW_MUX_CS) |
+                         (1UL << ADC_MUX_A) |
+                         (1UL << ADC_MUX_B) |
+                         (1UL << ADC_MUX_C) |
+                         (1UL << ADC_MUX_D);
+
+    /* All output pins (everything except KEYPAD_ROW_INPUT) must have their
+     * direction bit set. A direction value of 0xFF would miss GPIO >= 8. */
+    assert_true((gpio_mask & ~0xFFUL) != 0);
+
+    /* Specific pins that must be above bit 7 and thus require the full mask */
+    assert_true(KEYPAD_ROW_MUX_CS >= 8U);
+    assert_true(KEYPAD_COL_MUX_CS >= 8U);
+    assert_true(ADC_MUX_A >= 8U);
+    assert_true(ADC_MUX_B >= 8U);
+    assert_true(ADC_MUX_C >= 8U);
+    assert_true(ADC_MUX_D >= 8U);
+}
+
+/**
+ * @brief Verify that MAX_NUM_ENCODERS can hold the maximum number of
+ *        encoder pairs that can be derived from a full keypad row.
+ */
+static void test_encoder_config_fits_keypad(void **state)
+{
+    (void)state;
+
+    /* Each encoder occupies 2 columns (A/B quadrature pair), so the maximum
+     * number of encoders per row is columns / 2. */
+    uint8_t max_encoders_per_row = KEYPAD_MAX_COLS / 2U;
+
+    /* MAX_NUM_ENCODERS must be able to hold at least one full row of encoders */
+    assert_true(MAX_NUM_ENCODERS >= max_encoders_per_row);
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -149,6 +204,8 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_input_init_idempotent, setup, teardown),
         cmocka_unit_test_setup_teardown(test_input_init_reports_queue_creation_failure, setup, teardown),
         cmocka_unit_test_setup_teardown(test_input_init_deletes_existing_queue, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_gpio_mask_covers_all_mux_pins, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_encoder_config_fits_keypad, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -8,6 +8,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include "cobs.h"
+#include "app_config.h"
 #include <string.h>
 
 static void test_cobs_encode_empty_data(void **state)
@@ -196,7 +197,58 @@ static void test_cobs_roundtrip_encode_decode(void **state)
     assert_memory_equal(original, decoded, sizeof(original));
 }
 
-int main(void) 
+/**
+ * @brief Verify MAX_ENCODED_BUFFER_SIZE fits the worst-case COBS encoding of
+ *        a full-size message (header + data + checksum).
+ *
+ * Bug fix: MAX_ENCODED_BUFFER_SIZE was previously computed from DATA_BUFFER_SIZE
+ * alone, not from the full message size, causing a buffer overflow.
+ */
+static void test_cobs_max_encoded_buffer_fits_full_message(void **state)
+{
+    (void)state;
+
+    /* Simulate encoding the largest possible message:
+     * HEADER_SIZE (3) + DATA_BUFFER_SIZE (20) + CHECKSUM_SIZE (1) = 24 bytes.
+     * Fill with non-zero bytes for worst-case (no zero splitting). */
+    uint8_t message[HEADER_SIZE + DATA_BUFFER_SIZE + CHECKSUM_SIZE];
+    for (size_t i = 0; i < sizeof(message); i++)
+    {
+        message[i] = (uint8_t)(i + 1U);
+    }
+
+    uint8_t encoded[MAX_ENCODED_BUFFER_SIZE];
+    size_t encoded_len = cobs_encode(message, sizeof(message), encoded);
+
+    /* Encoded length must fit within MAX_ENCODED_BUFFER_SIZE, with room for
+     * the trailing packet marker byte appended at send time. */
+    assert_true(encoded_len + 1U <= MAX_ENCODED_BUFFER_SIZE);
+}
+
+/**
+ * @brief COBS round-trip with a full-size message ensures no corruption.
+ */
+static void test_cobs_roundtrip_full_message(void **state)
+{
+    (void)state;
+
+    uint8_t message[HEADER_SIZE + DATA_BUFFER_SIZE + CHECKSUM_SIZE];
+    for (size_t i = 0; i < sizeof(message); i++)
+    {
+        message[i] = (uint8_t)(i * 11U); /* mix of zeros and non-zeros */
+    }
+
+    uint8_t encoded[MAX_ENCODED_BUFFER_SIZE];
+    uint8_t decoded[sizeof(message)];
+
+    size_t enc_len = cobs_encode(message, sizeof(message), encoded);
+    size_t dec_len = cobs_decode(encoded, enc_len, decoded);
+
+    assert_int_equal(sizeof(message), dec_len);
+    assert_memory_equal(message, decoded, sizeof(message));
+}
+
+int main(void)
 {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_cobs_encode_empty_data),
@@ -215,7 +267,10 @@ int main(void)
         cmocka_unit_test(test_cobs_decode_delimiter_found),
         
         cmocka_unit_test(test_cobs_roundtrip_encode_decode),
+
+        cmocka_unit_test(test_cobs_max_encoded_buffer_fits_full_message),
+        cmocka_unit_test(test_cobs_roundtrip_full_message),
     };
-    
+
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

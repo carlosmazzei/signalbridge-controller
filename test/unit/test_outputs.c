@@ -464,7 +464,7 @@ static void test_display_out_rejects_invalid_payload(void **state)
 
 	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(NULL, 0));
 	assert_int_equal(1, statistics_get_counter(OUTPUT_CONTROLLER_ID_ERROR));
-	assert_int_equal(1, statistics_get_counter(OUTPUT_INVALID_PARAM_ERROR));
+	assert_int_equal(0, statistics_get_counter(OUTPUT_INVALID_PARAM_ERROR));
 
 	statistics_reset_all_counters();
 
@@ -472,7 +472,7 @@ static void test_display_out_rejects_invalid_payload(void **state)
 	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(short_payload, sizeof(short_payload)));
 	if (has_display)
 	{
-		assert_int_equal(2, statistics_get_counter(OUTPUT_INVALID_PARAM_ERROR));
+		assert_int_equal(1, statistics_get_counter(OUTPUT_INVALID_PARAM_ERROR));
 	}
 	else
 	{
@@ -598,11 +598,11 @@ static void test_display_out_semaphore_failure(void **state)
 	                      0x56,
 	                      0x78,
 	                      0};
-	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(payload, sizeof(payload)));
+	assert_int_equal(OUTPUT_ERR_SEMAPHORE, display_out(payload, sizeof(payload)));
 
 	assert_int_equal(0, (int)recorded_set_digits_calls);
 	assert_int_equal(1, (int)mock_take_calls);
-	assert_int_equal(1, (int)mock_give_calls);
+	assert_int_equal(0, (int)mock_give_calls);
 }
 
 static void test_display_out_brightness_updates_driver(void **state)
@@ -757,7 +757,98 @@ static void test_led_out_semaphore_failure(void **state)
 
 	assert_int_equal(0, (int)recorded_set_leds_calls);
 	assert_int_equal(1, (int)mock_take_calls);
-	assert_int_equal(1, (int)mock_give_calls);
+	assert_int_equal(0, (int)mock_give_calls);
+}
+
+/**
+ * @brief Verify that display_out does NOT call xSemaphoreGive when the mutex
+ *        was never acquired (early validation failure path).
+ *
+ * Bug fix: display_out previously called xSemaphoreGive unconditionally,
+ * which would overwrite the real error result with OUTPUT_ERR_SEMAPHORE.
+ */
+static void test_display_out_no_give_without_take_on_null(void **state)
+{
+	(void)state;
+
+	statistics_reset_all_counters();
+	clear_recorded_outputs();
+
+	/* NULL payload triggers early validation failure — mutex never acquired */
+	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(NULL, 0));
+	assert_int_equal(0, (int)mock_take_calls);
+	assert_int_equal(0, (int)mock_give_calls);
+}
+
+/**
+ * @brief Verify that display_out does not double-count OUTPUT_INVALID_PARAM_ERROR
+ *        when an early validation error occurs.
+ *
+ * Bug fix: the final else clause in the command dispatch would fire even on
+ * already-failed paths, incrementing the error counter a second time.
+ */
+static void test_display_out_no_double_count_on_early_error(void **state)
+{
+	(void)state;
+	uint8_t controller_id = 1U;
+
+	if (!find_first_display_controller(&controller_id))
+	{
+		skip();
+	}
+
+	statistics_reset_all_counters();
+	clear_recorded_outputs();
+
+	/* Short payload triggers OUTPUT_INVALID_PARAM_ERROR once in the length check.
+	 * The final else clause must NOT increment it again. */
+	uint8_t short_payload[2] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS), 0};
+	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(short_payload, sizeof(short_payload)));
+	assert_int_equal(1, statistics_get_counter(OUTPUT_INVALID_PARAM_ERROR));
+}
+
+/**
+ * @brief Verify that led_out does NOT call xSemaphoreGive when validation
+ *        fails before the mutex is acquired.
+ */
+static void test_led_out_no_give_without_take_on_null(void **state)
+{
+	(void)state;
+
+	statistics_reset_all_counters();
+	clear_recorded_outputs();
+
+	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, led_out(NULL, 0));
+	assert_int_equal(0, (int)mock_take_calls);
+	assert_int_equal(0, (int)mock_give_calls);
+}
+
+/**
+ * @brief Verify that display_out returns OUTPUT_ERR_SEMAPHORE (not
+ *        OUTPUT_ERR_INVALID_PARAM) when the semaphore cannot be acquired.
+ */
+static void test_display_out_semaphore_failure_returns_correct_error(void **state)
+{
+	(void)state;
+	uint8_t controller_id = 1U;
+
+	if (!find_first_display_controller(&controller_id))
+	{
+		skip();
+	}
+
+	statistics_reset_all_counters();
+	clear_recorded_outputs();
+	mock_take_result = pdFALSE;
+
+	uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
+	                      0x12, 0x34, 0x56, 0x78, 0};
+	output_result_t result = display_out(payload, sizeof(payload));
+
+	/* Must be SEMAPHORE, not INVALID_PARAM */
+	assert_int_equal(OUTPUT_ERR_SEMAPHORE, result);
+	/* Mutex Give must not be called when Take failed */
+	assert_int_equal(0, (int)mock_give_calls);
 }
 
 // Wrapper for pwm_set_gpio_level to capture arguments
@@ -798,6 +889,10 @@ int main(void)
 		cmocka_unit_test_setup_teardown(test_led_out_succeeds_and_calls_driver, setup, teardown),
 		cmocka_unit_test_setup_teardown(test_led_out_missing_driver_reports_error, setup, teardown),
 		cmocka_unit_test_setup_teardown(test_led_out_semaphore_failure, setup, teardown),
+		cmocka_unit_test_setup_teardown(test_display_out_no_give_without_take_on_null, setup, teardown),
+		cmocka_unit_test_setup_teardown(test_display_out_no_double_count_on_early_error, setup, teardown),
+		cmocka_unit_test_setup_teardown(test_led_out_no_give_without_take_on_null, setup, teardown),
+		cmocka_unit_test_setup_teardown(test_display_out_semaphore_failure_returns_correct_error, setup, teardown),
 		cmocka_unit_test_setup_teardown(test_set_pwm_duty, setup, teardown),
 	};
 

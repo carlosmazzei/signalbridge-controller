@@ -496,8 +496,7 @@ static void cdc_write_task(void *pvParameters)
 				taskYIELD();
 			}
 
-			uint32_t flushed = tud_cdc_write_flush();
-			total_written += flushed;
+			(void)tud_cdc_write_flush();
 			statistics_add_to_counter(BYTES_SENT, (uint32_t)total_written);
 		}
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
