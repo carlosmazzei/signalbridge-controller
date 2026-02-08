@@ -36,6 +36,13 @@ add_unit_test(test_tm1637
     hardware_mocks.c
 )
 
+# Test for app_comm module (CDC packet sizing)
+add_unit_test(test_app_comm
+    test_app_comm.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/app_comm.c
+    WRAP_FUNCTIONS xQueueGenericSend
+)
+
 # Standalone COBS test (no hardware dependencies)
 add_executable(test_cobs_standalone test_cobs_standalone.c)
 target_link_libraries(test_cobs_standalone ${CMOCKA_LIBRARIES})
