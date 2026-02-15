@@ -194,7 +194,7 @@ static void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU;
 		key_event.data[0] |= state;
 		key_event.data_length = 1;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &key_event, pdMS_TO_TICKS(1000)))
+		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &key_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
 		{
 			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
 		}
@@ -268,7 +268,7 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
 		adc_event.data[1] = (value & 0xFF00U) >> 8;
 		adc_event.data[2] = value & 0x00FFU;
 		adc_event.data_length = 3;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &adc_event, pdMS_TO_TICKS(1000)))
+		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &adc_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
 		{
 			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
 		}
@@ -385,7 +385,7 @@ static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 		encoder_event.data[0] |= rotary << 4;
 		encoder_event.data[1] |= direction;
 		encoder_event.data_length = 2;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, pdMS_TO_TICKS(1000)))
+		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
 		{
 			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
 		}
@@ -467,6 +467,19 @@ void encoder_read_task(void *pvParameters)
  * @brief Set the encoder mask to enable or disable encoders.
  *
  * @param[in] mask Bitmask to enable or disable individual encoders.
+ */
+/**
+ * @brief Set encoder enable mask (reserved for future use)
+ *
+ * This function is currently unused but reserved for dynamic encoder
+ * enable/disable functionality. Potential use cases:
+ * - Runtime configuration of active encoders
+ * - Power-saving mode (disable unused encoders)
+ * - Diagnostic mode (test individual encoders)
+ *
+ * @param[in] mask Bitmask indicating which encoders to enable (bit N = encoder N)
+ *
+ * @note Currently static. Can be exposed via app_inputs.h if needed.
  */
 static void encoder_set_mask(uint8_t mask)
 {

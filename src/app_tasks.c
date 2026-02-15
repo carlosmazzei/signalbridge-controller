@@ -335,7 +335,7 @@ static void uart_event_task(void *pvParameters)
 		QueueHandle_t queue = app_context_get_encoded_queue();
 		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
 		{
-			if ((NULL == queue) || (xQueueSend(queue, &receive_buffer[i], pdMS_TO_TICKS(5)) != pdTRUE))
+			if ((NULL == queue) || (xQueueSend(queue, &receive_buffer[i], pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS)) != pdTRUE))
 			{
 				statistics_increment_counter(QUEUE_SEND_ERROR);
 			}
@@ -381,7 +381,7 @@ static void decode_reception_task(void *pvParameters)
 		QueueHandle_t queue = app_context_get_encoded_queue();
 		if (NULL == queue)
 		{
-			vTaskDelay(pdMS_TO_TICKS(5));
+			vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
 			continue;
 		}
 
@@ -445,7 +445,7 @@ static void process_outbound_task(void *pvParameters)
 		QueueHandle_t data_queue = app_context_get_data_event_queue();
 		if (NULL == data_queue)
 		{
-			vTaskDelay(pdMS_TO_TICKS(5));
+			vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
 			statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
 			continue;
 		}
@@ -476,7 +476,7 @@ static void cdc_write_task(void *pvParameters)
 		{
 			while (!app_context_is_cdc_ready())
 			{
-				vTaskDelay(pdMS_TO_TICKS(5));
+				vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
 			}
 
 			size_t total_written = 0U;
@@ -544,7 +544,7 @@ static void led_status_task(void *pvParameters)
 				gpio_put(ERROR_LED_PIN, 0);
 			}
 
-			vTaskDelay(pdMS_TO_TICKS(100));
+			vTaskDelay(pdMS_TO_TICKS(LED_POLL_INTERVAL_MS));
 		}
 
 		watchdog_update();

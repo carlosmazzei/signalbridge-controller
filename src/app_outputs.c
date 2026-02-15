@@ -201,16 +201,31 @@ static output_result_t init_driver(void)
  *
  * @param[in] baudrate UART baud rate (e.g. 115200).
  */
+/**
+ * @brief Initialize UART0 for future debug/logging use
+ *
+ * This function is currently called during output_init() but the UART
+ * is not actively used. It reserves GPIO12/13 and configures the peripheral
+ * for potential future features:
+ * - Debug logging output
+ * - External device communication
+ * - Diagnostic console
+ *
+ * @param[in] baudrate UART baud rate in bits per second
+ *
+ * @note If UART functionality is not needed in production, this function
+ *       and its call in output_init() can be removed to free GPIO pins.
+ */
 static void uart0_init(uint32_t baudrate)
 {
 	// Initialize UART0 hardware
 	uart_init(uart0, baudrate);
 
 	// Set GPIO 12 as UART0 TX
-	gpio_set_function(12, GPIO_FUNC_UART);
+	gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
 
 	// Set GPIO 13 as UART0 RX
-	gpio_set_function(13, GPIO_FUNC_UART);
+	gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
 
 	// Optional: Enable FIFO
 	uart_set_fifo_enabled(uart0, true);

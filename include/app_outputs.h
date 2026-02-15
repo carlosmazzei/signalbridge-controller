@@ -59,6 +59,16 @@
 /** @} */
 
 /**
+ * @name UART configuration
+ * @{
+ */
+/** UART0 TX GPIO pin (reserved for future debug output). */
+#define UART0_TX_PIN 12U
+/** UART0 RX GPIO pin (reserved for future debug input). */
+#define UART0_RX_PIN 13U
+/** @} */
+
+/**
  * @name Logical device identifiers
  * @{
  */
