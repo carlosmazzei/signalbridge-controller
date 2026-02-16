@@ -24,6 +24,7 @@
  */
 
 #include "tusb.h"
+#include "pico/unique_id.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -219,7 +220,7 @@ char const* string_desc_arr [] =
 	(const char[]) { 0x09, 0x04 },  // 0: is supported language is English (0x0409)
 	"Signalbridge",                 // 1: Manufacturer
 	"Signalbridge Device",          // 2: Product
-	"123456",                       // 3: Serials, should use chip ID
+	NULL,                           // 3: Serial number (chip unique ID, set at runtime)
 	"Signalbridge CDC",             // 4: CDC Interface
 };
 
@@ -246,7 +247,19 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 		if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) )
 			return NULL;
 
-		const char* str = string_desc_arr[index];
+		const char* str;
+
+		if (index == 3)
+		{
+			static char serial[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
+			if (!serial[0])
+				pico_get_unique_board_id_string(serial, sizeof(serial));
+			str = serial;
+		}
+		else
+		{
+			str = string_desc_arr[index];
+		}
 
 		// Cap at max char
 		chr_count = (uint8_t) strlen(str);

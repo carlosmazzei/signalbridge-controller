@@ -54,6 +54,16 @@
 #define DATA_EVENT_QUEUE_SIZE 500U
 
 /**
+ * @brief Timeout for sending events to data queues (milliseconds).
+ */
+#define INPUT_QUEUE_SEND_TIMEOUT_MS 1000U
+
+/**
+ * @brief Retry delay for queue polling in task loops (milliseconds).
+ */
+#define QUEUE_RETRY_DELAY_MS 5U
+
+/**
  * @brief Marker indicating the end of a COBS packet.
  */
 #define PACKET_MARKER (uint8_t)0x00
