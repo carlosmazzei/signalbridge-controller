@@ -40,6 +40,7 @@ add_unit_test(test_tm1637
 add_unit_test(test_app_comm
     test_app_comm.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/app_comm.c
+    hardware_mocks.c
     WRAP_FUNCTIONS xQueueGenericSend
 )
 
