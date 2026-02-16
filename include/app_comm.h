@@ -12,6 +12,11 @@
 #include "app_config.h"
 
 /**
+ * @brief Sentinel value indicating invalid task index in status response.
+ */
+#define INVALID_TASK_INDEX 0xFFU
+
+/**
  * @struct cdc_packet_t
  * @brief Holds CDC output queue packets.
  */

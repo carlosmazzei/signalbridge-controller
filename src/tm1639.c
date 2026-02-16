@@ -271,7 +271,7 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 			{
 				// Write all 16 bytes from active buffer
 				// MISRA-C: Declare loop variable with reduced scope
-				for (uint8_t i = 0U; (i < 16U) && (TM1639_OK == result); i++)
+				for (uint8_t i = 0U; (i < TM1639_DISPLAY_BUFFER_SIZE) && (TM1639_OK == result); i++)
 				{
 					if (tm1639_write_byte(config, config->active_buffer[i]) != 1)
 					{
@@ -736,7 +736,7 @@ tm1639_result_t tm1639_clear(output_driver_t *config)
 			{
 				// Write 16 zero bytes to clear all display registers
 				// MISRA-C: Declare loop variable with reduced scope
-				for (uint8_t i = 0U; (i < 16U) && (TM1639_OK == result); i++)
+				for (uint8_t i = 0U; (i < TM1639_DISPLAY_BUFFER_SIZE) && (TM1639_OK == result); i++)
 				{
 					if (tm1639_write_byte(config, 0U) != 1)
 					{

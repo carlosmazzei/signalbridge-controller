@@ -25,6 +25,7 @@
 #define BLINK_ON_MS      150     // LED on time
 #define BLINK_OFF_MS     150     // Time between blinks in pattern
 #define PATTERN_PAUSE_MS 2000    // Pause between pattern repeats
+#define LED_POLL_INTERVAL_MS 100 // LED status check interval for connected state
 
 // Watchdog scratch register usage
 #define WATCHDOG_ERROR_COUNT_REG       0

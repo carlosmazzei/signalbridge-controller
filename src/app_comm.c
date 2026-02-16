@@ -84,7 +84,7 @@ static void send_heap_status(uint8_t index)
 
 	if (index > (uint8_t)NUM_TASKS)
 	{
-		data[0] = 0xFFU;
+		data[0] = INVALID_TASK_INDEX;
 		app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, 1U);
 		done = true;
 	}
