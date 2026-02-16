@@ -197,11 +197,6 @@ static output_result_t init_driver(void)
 }
 
 /**
- * @brief Initialise UART0 on GPIO 12 (TX) and GPIO 13 (RX).
- *
- * @param[in] baudrate UART baud rate (e.g. 115200).
- */
-/**
  * @brief Initialize UART0 for future debug/logging use
  *
  * This function is currently called during output_init() but the UART

@@ -464,11 +464,6 @@ void encoder_read_task(void *pvParameters)
 }
 
 /**
- * @brief Set the encoder mask to enable or disable encoders.
- *
- * @param[in] mask Bitmask to enable or disable individual encoders.
- */
-/**
  * @brief Set encoder enable mask (reserved for future use)
  *
  * This function is currently unused but reserved for dynamic encoder
