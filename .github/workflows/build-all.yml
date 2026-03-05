@@ -301,7 +301,7 @@ jobs:
           .devcontainer/post-create.sh
 
       - name: Download build-release directory
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: build-release
           path: build-release
@@ -375,7 +375,7 @@ jobs:
     steps:
       # Download artifacts from build job
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pico-build
           path: artifacts
