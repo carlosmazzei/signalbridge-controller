@@ -147,7 +147,7 @@ static void send_heap_status(uint8_t index)
 
 void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
 {
-	uint8_t uart_outbound_buffer[DATA_BUFFER_SIZE];
+	uint8_t uart_outbound_buffer[MESSAGE_SIZE];
 	bool error = false;
 
 	if (NULL == send_data)
@@ -156,7 +156,7 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
 		error = true;
 	}
 
-	if ((!error) && (length > (DATA_BUFFER_SIZE - HEADER_SIZE - CHECKSUM_SIZE)))
+	if ((!error) && (length > DATA_BUFFER_SIZE))
 	{
 		statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
 		error = true;
@@ -180,7 +180,7 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
 		                                       (size_t)length + HEADER_SIZE + CHECKSUM_SIZE,
 		                                       encode_buffer);
 
-		if ((num_encoded + 1U) >= MAX_ENCODED_BUFFER_SIZE)
+		if ((num_encoded + 1U) > MAX_ENCODED_BUFFER_SIZE)
 		{
 			statistics_increment_counter(BUFFER_OVERFLOW_ERROR);
 		}

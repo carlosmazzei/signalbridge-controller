@@ -244,7 +244,7 @@ void keypad_task(void *pvParameters)
 			keypad_cs_columns(false);
 		}
 
-		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 }
@@ -363,7 +363,7 @@ void adc_read_task(void *pvParameters)
 		// Deselect the CS pin of the ADC mux
 		adc_mux_select(0);
 
-		task_props->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 }
@@ -458,7 +458,7 @@ void encoder_read_task(void *pvParameters)
 		}
 
 		// Get free heap for the task
-		task_prop->high_watermark = (uint8_t)uxTaskGetStackHighWaterMark(NULL);
+		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 	}
 }

@@ -76,6 +76,7 @@ void pwm_set_wrap(uint32_t slice, uint16_t wrap) { (void)slice; (void)wrap; }
 void pwm_set_chan_level(uint32_t slice, uint32_t chan, uint16_t level) {
     (void)slice; (void)chan; (void)level;
 }
+void pwm_set_gpio_level(uint pin, uint16_t level) { (void)pin; (void)level; }
 void pwm_set_enabled(uint32_t slice, bool enabled) { (void)slice; (void)enabled; }
 uint32_t pwm_gpio_to_channel(uint32_t gpio) { (void)gpio; return 0; }
 pwm_config pwm_get_default_config(void) { pwm_config cfg = {0}; return cfg; }
@@ -97,6 +98,10 @@ void gpio_set_function(uint32_t gpio, uint32_t fn) { (void)gpio; (void)fn; }
 int spi_write_blocking(spi_inst_t *spi, const uint8_t *src, size_t len) { (void)spi; (void)src; return (int)len; }
 
 // FreeRTOS real implementation now used - no more mocks needed
+size_t xPortGetMinimumEverFreeHeapSize(void)
+{
+    return 0U;
+}
 
 // Constants
 #define PICO_DEFAULT_LED_PIN 25
