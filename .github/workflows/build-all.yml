@@ -229,7 +229,7 @@ jobs:
 
       # Publish the full release build directory for downstream analysis jobs
       - name: Upload build-release directory
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: build-release
           path: build-release
@@ -264,7 +264,7 @@ jobs:
 
       # Store build artifacts
       - name: Store Build Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pico-build
           path: |
@@ -301,7 +301,7 @@ jobs:
           .devcontainer/post-create.sh
 
       - name: Download build-release directory
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: build-release
           path: build-release
@@ -344,7 +344,7 @@ jobs:
         run: cmake --build --preset host-tests-coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: build-tests/coverage
@@ -375,7 +375,7 @@ jobs:
     steps:
       # Download artifacts from build job
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pico-build
           path: artifacts
