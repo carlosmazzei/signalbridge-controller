@@ -45,6 +45,7 @@ void mock_time_config(uint32_t initial_value, uint32_t step)
 }
 
 void busy_wait_ms(uint32_t ms) { (void)ms; }
+void busy_wait_us_32(uint32_t delay_us) { (void)delay_us; }
 uint32_t time_us_32(void)
 {
     uint32_t now = mock_time_current;
