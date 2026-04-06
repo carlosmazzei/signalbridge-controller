@@ -72,4 +72,5 @@
         "connectionId": "carlosmazzei",
         "projectKey": "carlosmazzei_signalbridge-controller"
     },
+    "C_Cpp.errorSquiggles": "enabled",
 }

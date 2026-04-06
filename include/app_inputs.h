@@ -108,12 +108,14 @@ typedef struct input_config_t
 {
 	uint8_t rows;                             /**< Number of keypad rows to scan. */
 	uint8_t columns;                          /**< Number of keypad columns to scan. */
-	uint16_t key_settling_time_ms;            /**< Debounce delay applied between column selects. */
+	uint16_t key_settling_time_ms;            /**< Scan-cycle interval (ms); debounce window = key_settling_time_ms * required samples. */
 	uint8_t adc_channels;                     /**< Number of ADC channels populated on the board. */
 	uint16_t adc_settling_time_ms;            /**< Delay between ADC channel selections. */
 	QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
 	bool encoder_mask[MAX_NUM_ENCODERS];      /**< Bitmap flagging which rows host encoders. */
 	uint16_t encoder_settling_time_ms;        /**< Delay between encoder samples. */
+	uint16_t col_mux_settling_us;             /**< 74HC138 column decoder propagation settling delay (µs). */
+	uint16_t row_mux_settling_us;             /**< 74HC4051 row MUX enable settling delay (µs). */
 } input_config_t;
 
 /**

@@ -28,11 +28,13 @@
 static input_config_t input_config = {
 	.columns                  = 8,
 	.rows                     = 8,
-	.key_settling_time_ms     = 20,
+	.key_settling_time_ms     = 10,
 	.adc_channels             = 16,
 	.adc_settling_time_ms     = 100,
 	.encoder_settling_time_ms = 10,
-	.encoder_mask             = { [7] = true }
+	.encoder_mask             = { [7] = true },
+	.col_mux_settling_us      = 1U,  /* 74HC138: tPD ~12 ns; 1 µs provides 83x margin */
+	.row_mux_settling_us      = 1U   /* 74HC4051: tEN ~100 ns; 1 µs provides 10x margin */
 };
 
 /**
@@ -213,8 +215,8 @@ void keypad_task(void *pvParameters)
 			keypad_set_columns(c);
 			keypad_cs_columns(true);
 
-			// Settle the column
-			vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
+			// 74HC138 propagation settling
+			busy_wait_us_32(input_config.col_mux_settling_us);
 
 			for (uint8_t r = 0; r < input_config.rows; r++)
 			{
@@ -225,6 +227,9 @@ void keypad_task(void *pvParameters)
 
 				keypad_set_rows(r); // Also set the ADC channels
 				keypad_cs_rows(true);
+
+				// 74HC4051 enable settling before reading
+				busy_wait_us_32(input_config.row_mux_settling_us);
 
 				uint8_t keycode = keypad_index(r, c);
 				bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
@@ -246,6 +251,9 @@ void keypad_task(void *pvParameters)
 
 		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
+
+		// Scan-cycle interval: controls debounce window (window = key_settling_time_ms * required samples)
+		vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
 	}
 }
 
