@@ -128,7 +128,6 @@ typedef struct input_config_t
 	QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
 	encoder_map_t encoder_map[MAX_NUM_ENCODERS]; /**< Per-encoder position mappings. */
 	uint8_t num_encoders;                     /**< Number of configured encoder entries. */
-	uint16_t encoder_settling_time_ms;        /**< Delay between encoder samples. */
 	uint16_t col_mux_settling_us;             /**< 74HC138 column decoder propagation settling delay (µs). */
 	uint16_t row_mux_settling_us;             /**< 74HC4051 row MUX enable settling delay (µs). */
 } input_config_t;

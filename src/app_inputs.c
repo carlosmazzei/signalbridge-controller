@@ -31,7 +31,6 @@ static input_config_t input_config = {
 	.key_settling_time_ms     = 10,
 	.adc_channels             = 16,
 	.adc_settling_time_ms     = 100,
-	.encoder_settling_time_ms = 10,
 	.num_encoders             = 4U,
 	.encoder_map              = {
 		{ .row = 7U, .col = 0U, .enabled = true },
@@ -89,8 +88,7 @@ static bool check_config_params(const input_config_t *config)
 	    (config->rows > KEYPAD_MAX_ROWS) ||
 	    (config->adc_channels > 16U) ||
 	    (0U == config->key_settling_time_ms) ||
-	    (0U == config->adc_settling_time_ms) ||
-	    (0U == config->encoder_settling_time_ms))
+	    (0U == config->adc_settling_time_ms))
 	{
 		result = false;
 	}
@@ -500,16 +498,17 @@ void encoder_read_task(void *pvParameters)
 			/* Select row */
 			keypad_cs_rows(true);
 			keypad_set_rows(r);
+			busy_wait_us_32(input_config.row_mux_settling_us);
 
 			/* Read channel A */
 			keypad_cs_columns(true);
 			keypad_set_columns(c);
-			vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
+			busy_wait_us_32(input_config.col_mux_settling_us);
 			bool ch_a = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
 
 			/* Read channel B */
 			keypad_set_columns(c + 1U);
-			vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
+			busy_wait_us_32(input_config.col_mux_settling_us);
 			bool ch_b = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
 
 			keypad_cs_columns(false);
@@ -536,11 +535,8 @@ void encoder_read_task(void *pvParameters)
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
-		/* When no encoders are configured, avoid busy-looping */
-		if (0U == input_config.num_encoders)
-		{
-			vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
-		}
+		/* Yield to other tasks; 1 tick ≈ 0.5 ms at 2 kHz gives ~2 kHz poll rate */
+		vTaskDelay(1);
 	}
 }
 
