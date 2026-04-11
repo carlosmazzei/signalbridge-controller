@@ -184,6 +184,10 @@ static void test_gpio_mask_covers_all_mux_pins(void **state)
 /**
  * @brief Verify that MAX_NUM_ENCODERS can hold the maximum number of
  *        encoder pairs that can be derived from a full keypad row.
+ *
+ * With per-position encoder mapping, each encoder occupies one entry
+ * in the encoder_map array.  A full row of encoders still needs
+ * columns / 2 entries.
  */
 static void test_encoder_config_fits_keypad(void **state)
 {
@@ -197,6 +201,63 @@ static void test_encoder_config_fits_keypad(void **state)
     assert_true(MAX_NUM_ENCODERS >= max_encoders_per_row);
 }
 
+/**
+ * @brief Verify that encoder_skip is correctly built from the default config.
+ *
+ * The default config maps 4 encoders on row 7 at column pairs (0,1),
+ * (2,3), (4,5), (6,7).  All 8 positions on row 7 should be marked as
+ * encoder positions, and no other row should be affected.
+ */
+static void test_encoder_skip_built_from_default_config(void **state)
+{
+    (void)state;
+
+    assert_int_equal(INPUT_OK, input_init());
+
+    /* Row 7: all 8 columns should be marked as encoder positions */
+    for (uint8_t c = 0U; c < KEYPAD_COLUMNS; c++)
+    {
+        assert_true(input_is_encoder_position(7U, c));
+    }
+}
+
+/**
+ * @brief Verify that rows not hosting encoders are not marked in the skip lookup.
+ */
+static void test_encoder_non_encoder_positions_not_skipped(void **state)
+{
+    (void)state;
+
+    assert_int_equal(INPUT_OK, input_init());
+
+    /* Rows 0-6 should have no encoder positions with the default config */
+    for (uint8_t r = 0U; r < 7U; r++)
+    {
+        for (uint8_t c = 0U; c < KEYPAD_COLUMNS; c++)
+        {
+            assert_false(input_is_encoder_position(r, c));
+        }
+    }
+}
+
+/**
+ * @brief Verify the public getter matches direct expectations.
+ */
+static void test_input_is_encoder_position_getter(void **state)
+{
+    (void)state;
+
+    assert_int_equal(INPUT_OK, input_init());
+
+    /* Spot-check: (7,0) is encoder, (0,0) is not */
+    assert_true(input_is_encoder_position(7U, 0U));
+    assert_false(input_is_encoder_position(0U, 0U));
+
+    /* Spot-check: (7,3) is encoder (col 2 encoder uses 2,3), (6,3) is not */
+    assert_true(input_is_encoder_position(7U, 3U));
+    assert_false(input_is_encoder_position(6U, 3U));
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -206,6 +267,9 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_input_init_deletes_existing_queue, setup, teardown),
         cmocka_unit_test_setup_teardown(test_gpio_mask_covers_all_mux_pins, setup, teardown),
         cmocka_unit_test_setup_teardown(test_encoder_config_fits_keypad, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_encoder_skip_built_from_default_config, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_encoder_non_encoder_positions_not_skipped, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_input_is_encoder_position_getter, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
