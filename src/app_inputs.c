@@ -31,8 +31,13 @@ static input_config_t input_config = {
 	.key_settling_time_ms     = 10,
 	.adc_channels             = 16,
 	.adc_settling_time_ms     = 100,
-	.encoder_settling_time_ms = 10,
-	.encoder_mask             = { [7] = true },
+	.num_encoders             = 4U,
+	.encoder_map              = {
+		{ .row = 7U, .col = 0U, .enabled = true },
+		{ .row = 7U, .col = 2U, .enabled = true },
+		{ .row = 7U, .col = 4U, .enabled = true },
+		{ .row = 7U, .col = 6U, .enabled = true },
+	},
 	.col_mux_settling_us      = 1U,  /* 74HC138: tPD ~12 ns; 1 µs provides 83x margin */
 	.row_mux_settling_us      = 1U   /* 74HC4051: tEN ~100 ns; 1 µs provides 10x margin */
 };
@@ -41,6 +46,32 @@ static input_config_t input_config = {
  * @brief State array for each key in the keypad matrix.
  */
 static uint8_t keypad_state[KEYPAD_ROWS * KEYPAD_COLUMNS];
+
+/**
+ * @brief Per-position lookup indicating which matrix cells are mapped to encoders.
+ *
+ * Built by @ref build_encoder_skip() from @ref input_config during @ref input_init().
+ * The keypad task consults this array to skip encoder-mapped positions.
+ */
+static bool encoder_skip[KEYPAD_ROWS][KEYPAD_COLUMNS];
+
+/**
+ * @brief Populate @ref encoder_skip from the current encoder map configuration.
+ */
+static void build_encoder_skip(void)
+{
+	(void)memset(encoder_skip, 0, sizeof(encoder_skip));
+	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
+	{
+		if (input_config.encoder_map[i].enabled)
+		{
+			uint8_t r = input_config.encoder_map[i].row;
+			uint8_t c = input_config.encoder_map[i].col;
+			encoder_skip[r][c] = true;
+			encoder_skip[r][c + 1U] = true;
+		}
+	}
+}
 
 /**
  * @brief Check configuration parameters
@@ -57,10 +88,43 @@ static bool check_config_params(const input_config_t *config)
 	    (config->rows > KEYPAD_MAX_ROWS) ||
 	    (config->adc_channels > 16U) ||
 	    (0U == config->key_settling_time_ms) ||
-	    (0U == config->adc_settling_time_ms) ||
-	    (0U == config->encoder_settling_time_ms))
+	    (0U == config->adc_settling_time_ms))
 	{
 		result = false;
+	}
+
+	if (config->num_encoders > MAX_NUM_ENCODERS)
+	{
+		result = false;
+	}
+
+	for (uint8_t i = 0U; (i < config->num_encoders) && result; i++)
+	{
+		if (config->encoder_map[i].enabled)
+		{
+			/* Channel B is at col + 1, so col + 1 must be < columns */
+			if ((config->encoder_map[i].row >= config->rows) ||
+			    ((config->encoder_map[i].col + 1U) >= config->columns))
+			{
+				result = false;
+			}
+
+			/* Reject overlapping positions on the same row */
+			for (uint8_t j = 0U; (j < i) && result; j++)
+			{
+				if (config->encoder_map[j].enabled &&
+				    (config->encoder_map[i].row == config->encoder_map[j].row))
+				{
+					uint8_t ci = config->encoder_map[i].col;
+					uint8_t cj = config->encoder_map[j].col;
+					uint8_t diff = (ci > cj) ? (ci - cj) : (cj - ci);
+					if (diff < 2U)
+					{
+						result = false;
+					}
+				}
+			}
+		}
 	}
 
 	return result;
@@ -93,6 +157,7 @@ input_result_t input_init(void)
 	{
 		// Initialize keypad configuration
 		(void)memset(keypad_state, 0, sizeof(keypad_state));
+		build_encoder_skip();
 
 		// Setup IO pins using gpio_init_mask to configure multiple pins at once
 		uint32_t gpio_mask = ((1UL << KEYPAD_COL_MUX_A) |
@@ -119,6 +184,11 @@ input_result_t input_init(void)
 	}
 
 	return result;
+}
+
+bool input_is_encoder_position(uint8_t row, uint8_t col)
+{
+	return encoder_skip[row][col];
 }
 
 /**
@@ -220,9 +290,9 @@ void keypad_task(void *pvParameters)
 
 			for (uint8_t r = 0; r < input_config.rows; r++)
 			{
-				if (true == input_config.encoder_mask[r])
+				if (encoder_skip[r][c])
 				{
-					continue; // Skip encoder
+					continue; /* Skip position mapped to an encoder */
 				}
 
 				keypad_set_rows(r); // Also set the ADC channels
@@ -402,12 +472,12 @@ static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 
 void encoder_read_task(void *pvParameters)
 {
-	const int8_t encoder_states[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+	const int8_t encoder_lut[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 
 	task_props_t * task_prop = (task_props_t*) pvParameters;
 
-	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
+	for (uint8_t i = 0U; i < MAX_NUM_ENCODERS; i++)
 	{
 		encoder_state[i].old_encoder = 0;
 		encoder_state[i].count_encoder = 0;
@@ -415,59 +485,58 @@ void encoder_read_task(void *pvParameters)
 
 	while (true)
 	{
-		for (uint8_t r = 0; r < input_config.rows; r++)
+		for (uint8_t i = 0U; i < input_config.num_encoders; i++)
 		{
-			if (false == input_config.encoder_mask[r])
+			if (!input_config.encoder_map[i].enabled)
 			{
 				continue;
 			}
 
+			uint8_t r = input_config.encoder_map[i].row;
+			uint8_t c = input_config.encoder_map[i].col;
+
+			/* Select row */
 			keypad_cs_rows(true);
 			keypad_set_rows(r);
+			busy_wait_us_32(input_config.row_mux_settling_us);
 
-			for (uint8_t c = 0U; c < (input_config.columns / 2U); c++)
-			{
-				uint8_t encoder_base = (uint8_t)(r * (input_config.columns / 2U)) + c;
-				keypad_cs_columns(true);
-				keypad_set_columns(c);
-				vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
-				bool e11 = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
+			/* Read channel A */
+			keypad_cs_columns(true);
+			keypad_set_columns(c);
+			busy_wait_us_32(input_config.col_mux_settling_us);
+			bool ch_a = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
 
-				keypad_set_columns(c + 1U);
-				vTaskDelay(pdMS_TO_TICKS(input_config.encoder_settling_time_ms));
-				bool e12 = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
+			/* Read channel B */
+			keypad_set_columns(c + 1U);
+			busy_wait_us_32(input_config.col_mux_settling_us);
+			bool ch_b = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
 
-				/**
-				 * @par Calculate the encoder state
-				 * Remember previous state by shifting the lower bits up
-				 * AND the lower 2 bits of port a, then OR them with var old_Encoder1 to set new value
-				 * the lower 4 bits of old_Encoder1 are
-				 */
-				encoder_state[encoder_base].old_encoder <<= 2;
-				encoder_state[encoder_base].old_encoder |= (uint8_t)(e11 ? 1U : 0U);
-				encoder_state[encoder_base].old_encoder |= ((uint8_t)(e12 ? 1U : 0U) << 1U) & 0x03U;
-				encoder_state[encoder_base].count_encoder += encoder_states[encoder_state[encoder_base].old_encoder & 0x0FU];
-
-				if (4 == encoder_state[encoder_base].count_encoder)
-				{
-					encoder_generate_event(encoder_base, 1);
-					encoder_state[encoder_base].count_encoder = 0;
-				}
-				if (-4 == encoder_state[encoder_base].count_encoder)
-				{
-					encoder_generate_event(encoder_base, 0);
-					encoder_state[encoder_base].count_encoder = 0;
-				}
-
-				keypad_cs_columns(false);
-			}
-
+			keypad_cs_columns(false);
 			keypad_cs_rows(false);
+
+			/* Quadrature state machine: shift previous state, OR in new sample */
+			encoder_state[i].old_encoder <<= 2U;
+			encoder_state[i].old_encoder |= (uint8_t)(ch_a ? 1U : 0U);
+			encoder_state[i].old_encoder |= (uint8_t)((uint8_t)(ch_b ? 1U : 0U) << 1U) & 0x03U;
+			encoder_state[i].count_encoder += encoder_lut[encoder_state[i].old_encoder & 0x0FU];
+
+			if (4 == encoder_state[i].count_encoder)
+			{
+				encoder_generate_event(i, 1U);
+				encoder_state[i].count_encoder = 0;
+			}
+			if (-4 == encoder_state[i].count_encoder)
+			{
+				encoder_generate_event(i, 0U);
+				encoder_state[i].count_encoder = 0;
+			}
 		}
 
-		// Get free heap for the task
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
+
+		/* Yield to other tasks; 1 tick ≈ 0.5 ms at 2 kHz gives ~2 kHz poll rate */
+		vTaskDelay(1);
 	}
 }
 
@@ -486,8 +555,9 @@ void encoder_read_task(void *pvParameters)
  */
 static void encoder_set_mask(uint8_t mask)
 {
-	for (uint8_t i = 0; i < MAX_NUM_ENCODERS; i++)
+	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
 	{
-		input_config.encoder_mask[i] = mask & (1U << i);
+		input_config.encoder_map[i].enabled = ((mask & (1U << i)) != 0U);
 	}
+	build_encoder_skip();
 }

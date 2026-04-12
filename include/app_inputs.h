@@ -102,6 +102,20 @@
 /** @} */
 
 /**
+ * @brief Per-encoder position mapping within the keypad matrix.
+ *
+ * Each encoder occupies two adjacent columns (channel A at @c col,
+ * channel B at @c col + 1) on the specified @c row.  Mapped positions
+ * are excluded from keypad scanning automatically.
+ */
+typedef struct encoder_map_t
+{
+	uint8_t row;     /**< Row index where this encoder is wired. */
+	uint8_t col;     /**< Base column index (channel A); channel B is col + 1. */
+	bool enabled;    /**< Whether this encoder mapping is active. */
+} encoder_map_t;
+
+/**
  * @brief Run-time configuration for the input subsystem.
  */
 typedef struct input_config_t
@@ -112,8 +126,8 @@ typedef struct input_config_t
 	uint8_t adc_channels;                     /**< Number of ADC channels populated on the board. */
 	uint16_t adc_settling_time_ms;            /**< Delay between ADC channel selections. */
 	QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
-	bool encoder_mask[MAX_NUM_ENCODERS];      /**< Bitmap flagging which rows host encoders. */
-	uint16_t encoder_settling_time_ms;        /**< Delay between encoder samples. */
+	encoder_map_t encoder_map[MAX_NUM_ENCODERS]; /**< Per-encoder position mappings. */
+	uint8_t num_encoders;                     /**< Number of configured encoder entries. */
 	uint16_t col_mux_settling_us;             /**< 74HC138 column decoder propagation settling delay (µs). */
 	uint16_t row_mux_settling_us;             /**< 74HC4051 row MUX enable settling delay (µs). */
 } input_config_t;
@@ -183,5 +197,17 @@ void adc_read_task(void *pvParameters);
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void encoder_read_task(void *pvParameters);
+
+/**
+ * @brief Query whether a keypad matrix position is mapped to an encoder.
+ *
+ * @param[in] row Row index to check.
+ * @param[in] col Column index to check.
+ *
+ * @retval true  The position is part of an encoder pair and is excluded
+ *               from keypad scanning.
+ * @retval false The position is a regular key.
+ */
+bool input_is_encoder_position(uint8_t row, uint8_t col);
 
 #endif // KEYPAD_H
