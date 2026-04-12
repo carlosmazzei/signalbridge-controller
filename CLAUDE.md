@@ -7,12 +7,16 @@ Embedded firmware for Raspberry Pi Pico (RP2040) that acts as a USB-connected I/
 - **Target**: RP2040 (dual Cortex-M0+), Raspberry Pi Pico board
 - **RTOS**: FreeRTOS SMP (V11.2.0) — 9 tasks across 2 cores, 2kHz tick
 - **SDK**: Pico SDK 2.1.1+ (vendored in `lib/pico-sdk`)
-- **Language**: C11
+- **Language**: C11 (C++17 set for Pico SDK compatibility)
+- **Build**: CMake presets, Unix Makefiles generator
 - **License**: GPL v3
 
 ## Build Commands
 
 ```bash
+# First-time setup: initialize submodules
+git submodule update --init --recursive
+
 # Embedded release build
 cmake --preset pico-release && cmake --build --preset pico-release
 
@@ -34,7 +38,14 @@ Output firmware: `build-release/src/pi_controller.uf2`
 - **Location**: `test/unit/`
 - **Hardware mocks**: `test/unit/hardware_mocks.c` and `test/unit/mock_headers/`
 - **Run**: `ctest --preset host-tests` (4 parallel jobs, output on failure)
+- **Targeted**: `ctest --preset host-tests -R <test_name_regex>`
 - Tests use `--wrap` linker flags to mock FreeRTOS and hardware functions
+
+### TDD Workflow (Red → Green → Refactor)
+
+1. **Red**: Write a failing, behavior-focused unit test that captures the new requirement or bug.
+2. **Green**: Implement the minimal firmware logic to make the test pass.
+3. **Refactor**: Clean up names, structure, and duplication without changing behavior; keep tests green.
 
 ## Static Analysis
 
@@ -55,6 +66,41 @@ Output firmware: `build-release/src/pi_controller.uf2`
 - **Formatter**: Uncrustify (`uncrustify.cfg`)
 - Format all: `find src include -name "*.c" -o -name "*.h" | xargs uncrustify -c uncrustify.cfg --replace --no-backup`
 - Clangd LSP config in `.clangd`
+- Prefer explicit widths (`uint8_t`, `uint32_t`), U-suffix literals, and defensive casts
+- Prefer small, single-purpose helpers with clear data staging
+
+### Code Examples
+
+```c
+// Explicit widths, U-suffix, defensive cast
+static inline uint8_t calculate_checksum(const uint8_t *data, uint8_t length)
+{
+    uint8_t checksum = 0U;
+    for (uint8_t i = 0U; i < length; i++)
+    {
+        checksum ^= data[i];
+    }
+    return checksum;
+}
+
+// Single-purpose helper with clear data staging
+static void send_status(uint8_t index)
+{
+    uint8_t payload[5] = {0U, 0U, 0U, 0U, 0U};
+
+    if (index < (uint8_t)NUM_STATISTICS_COUNTERS)
+    {
+        payload[0] = index;
+        const uint32_t value = statistics_get_counter((statistics_counter_enum_t)index);
+        payload[1] = (uint8_t)((value >> 24U) & 0xFFU);
+        payload[2] = (uint8_t)((value >> 16U) & 0xFFU);
+        payload[3] = (uint8_t)((value >> 8U) & 0xFFU);
+        payload[4] = (uint8_t)(value & 0xFFU);
+    }
+
+    app_comm_send_packet(BOARD_ID, PC_ERROR_STATUS_CMD, payload, sizeof(payload));
+}
+```
 
 ## Project Structure
 
@@ -86,4 +132,23 @@ assets/        — Logos and diagrams
 - FreeRTOS queues connect tasks; avoid shared mutable state without mutex protection
 - Test new logic with CMocka mocks; use `--wrap` for hardware/RTOS function interception
 - Keep stack usage low — functions are warned at 3.5KB (`-Wstack-usage=3584`)
-- Run `ctest --preset host-tests` before committing to verify nothing is broken
+- Run tests and static analysis before committing to verify nothing is broken
+- Update documentation when behavior or logic changes
+- Use TDD for new behavior or bug fixes
+
+## Operational Boundaries
+
+**ALWAYS**
+- Run `ctest --preset host-tests` before committing
+- Run lint/static analysis before finishing
+- Update documentation when behavior/logic changes
+
+**ASK FIRST**
+- Installing new dependencies
+- Modifying persistent storage layout
+- Deleting files
+
+**NEVER**
+- Commit secrets or credentials
+- Create throwaway test scripts
+- Refactor outside the scoped change request
