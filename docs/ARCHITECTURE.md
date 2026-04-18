@@ -43,7 +43,7 @@ Three queues coordinate data movement and enforce isolation between producers an
 Queues provide thread-safe communication between tasks. Core affinity reduces contention, and each task contributes to watchdog updates to detect hangs. Communication queues use short waits or polling to keep USB paths responsive, while the event queue blocks until the host reads data to avoid dropping user input.
 
 ## Error Management and Diagnostics
-Fourteen counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, and bytes transmitted or received. Critical errors persist in watchdog scratch registers, and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.
+Twenty-two counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, bytes transmitted or received, and output/input driver errors. Critical errors persist in watchdog scratch registers, and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.
 
 ## Suggested Improvements
 Key recommendations for strengthening the architecture include:
