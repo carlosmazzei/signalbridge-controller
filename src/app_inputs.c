@@ -204,11 +204,11 @@ static inline void keypad_cs_rows(bool select)
 /**
  * @brief Control the chip select (CS) for the keypad column multiplexer.
  *
- * @param[in] select `true` to enable the column bank (active low).
+ * @param[in] select `true` to enable the column bank (active high).
  */
 static inline void keypad_cs_columns(bool select)
 {
-	gpio_put(KEYPAD_COL_MUX_CS, !select); // Active low pin
+	gpio_put(KEYPAD_COL_MUX_CS, select); // Active high pin
 }
 
 /**
@@ -273,9 +273,106 @@ static void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 	}
 }
 
+/**
+ * @brief Enqueue a rotary encoder event with the detected direction.
+ *
+ * @param[in] rotary Encoder identifier (0-based index).
+ * @param[in] direction Direction flag (`1` clockwise, `0` counter-clockwise).
+ */
+static void encoder_generate_event(uint8_t rotary, uint16_t direction)
+{
+	if (NULL != app_context_get_data_event_queue())
+	{
+		data_events_t encoder_event;
+		encoder_event.data[0] = 0;
+		encoder_event.data[1] = 0;
+		encoder_event.command = PC_ROTARY_CMD;
+		encoder_event.data[0] |= rotary << 4;
+		encoder_event.data[1] |= direction;
+		encoder_event.data_length = 2;
+		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
+		{
+			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+		}
+	}
+}
+
+/**
+ * @brief Quadrature lookup table used by the encoder state machine.
+ *
+ * The four LSBs encode the previous and current A/B samples. Each entry
+ * provides the detent delta (-1, 0, or +1) for that transition.
+ */
+static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+
+/**
+ * @brief Sample all enabled rotary encoders and emit rotation events.
+ *
+ * Called from within @ref keypad_task so keypad scanning and encoder sampling
+ * share the same GPIO mux bus without contention.
+ *
+ * @param[in,out] encoder_state Per-encoder quadrature state array.
+ */
+static void scan_encoders(encoder_states_t encoder_state[MAX_NUM_ENCODERS])
+{
+	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
+	{
+		if (!input_config.encoder_map[i].enabled)
+		{
+			continue;
+		}
+
+		uint8_t r = input_config.encoder_map[i].row;
+		uint8_t c = input_config.encoder_map[i].col;
+
+		/* Select row */
+		keypad_cs_rows(true);
+		keypad_set_rows(r);
+		busy_wait_us_32(input_config.row_mux_settling_us);
+
+		/* Read channel A */
+		keypad_cs_columns(true);
+		keypad_set_columns(c);
+		busy_wait_us_32(input_config.col_mux_settling_us);
+		bool ch_a = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
+
+		/* Read channel B */
+		keypad_set_columns(c + 1U);
+		busy_wait_us_32(input_config.col_mux_settling_us);
+		bool ch_b = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
+
+		keypad_cs_columns(false);
+		keypad_cs_rows(false);
+
+		/* Quadrature state machine: shift previous state, OR in new sample */
+		encoder_state[i].old_encoder <<= 2U;
+		encoder_state[i].old_encoder |= (uint8_t)(ch_a ? 1U : 0U);
+		encoder_state[i].old_encoder |= (uint8_t)((uint8_t)(ch_b ? 1U : 0U) << 1U) & 0x03U;
+		encoder_state[i].count_encoder += encoder_lut[encoder_state[i].old_encoder & 0x0FU];
+
+		if (4 == encoder_state[i].count_encoder)
+		{
+			encoder_generate_event(i, 1U);
+			encoder_state[i].count_encoder = 0;
+		}
+		if (-4 == encoder_state[i].count_encoder)
+		{
+			encoder_generate_event(i, 0U);
+			encoder_state[i].count_encoder = 0;
+		}
+	}
+}
+
 void keypad_task(void *pvParameters)
 {
 	task_props_t * task_props = (task_props_t*) pvParameters;
+	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+
+	for (uint8_t i = 0U; i < MAX_NUM_ENCODERS; i++)
+	{
+		encoder_state[i].old_encoder = 0;
+		encoder_state[i].count_encoder = 0;
+	}
 
 	while (true)
 	{
@@ -317,6 +414,11 @@ void keypad_task(void *pvParameters)
 			}
 
 			keypad_cs_columns(false);
+
+			/* Sample encoders between columns to keep polling rate high
+			 * (~columns / key_settling_time_ms Hz) while sharing the MUX
+			 * bus with the keypad scan without contention. */
+			scan_encoders(encoder_state);
 		}
 
 		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
@@ -443,100 +545,6 @@ void adc_read_task(void *pvParameters)
 
 		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
-	}
-}
-
-/**
- * @brief Enqueue a rotary encoder event with the detected direction.
- *
- * @param[in] rotary Encoder identifier (0-based index).
- * @param[in] direction Direction flag (`1` clockwise, `0` counter-clockwise).
- */
-static void encoder_generate_event(uint8_t rotary, uint16_t direction)
-{
-	if (NULL != app_context_get_data_event_queue())
-	{
-		data_events_t encoder_event;
-		encoder_event.data[0] = 0;
-		encoder_event.data[1] = 0;
-		encoder_event.command = PC_ROTARY_CMD;
-		encoder_event.data[0] |= rotary << 4;
-		encoder_event.data[1] |= direction;
-		encoder_event.data_length = 2;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
-		{
-			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
-		}
-	}
-}
-
-void encoder_read_task(void *pvParameters)
-{
-	const int8_t encoder_lut[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
-	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
-
-	task_props_t * task_prop = (task_props_t*) pvParameters;
-
-	for (uint8_t i = 0U; i < MAX_NUM_ENCODERS; i++)
-	{
-		encoder_state[i].old_encoder = 0;
-		encoder_state[i].count_encoder = 0;
-	}
-
-	while (true)
-	{
-		for (uint8_t i = 0U; i < input_config.num_encoders; i++)
-		{
-			if (!input_config.encoder_map[i].enabled)
-			{
-				continue;
-			}
-
-			uint8_t r = input_config.encoder_map[i].row;
-			uint8_t c = input_config.encoder_map[i].col;
-
-			/* Select row */
-			keypad_cs_rows(true);
-			keypad_set_rows(r);
-			busy_wait_us_32(input_config.row_mux_settling_us);
-
-			/* Read channel A */
-			keypad_cs_columns(true);
-			keypad_set_columns(c);
-			busy_wait_us_32(input_config.col_mux_settling_us);
-			bool ch_a = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
-
-			/* Read channel B */
-			keypad_set_columns(c + 1U);
-			busy_wait_us_32(input_config.col_mux_settling_us);
-			bool ch_b = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
-
-			keypad_cs_columns(false);
-			keypad_cs_rows(false);
-
-			/* Quadrature state machine: shift previous state, OR in new sample */
-			encoder_state[i].old_encoder <<= 2U;
-			encoder_state[i].old_encoder |= (uint8_t)(ch_a ? 1U : 0U);
-			encoder_state[i].old_encoder |= (uint8_t)((uint8_t)(ch_b ? 1U : 0U) << 1U) & 0x03U;
-			encoder_state[i].count_encoder += encoder_lut[encoder_state[i].old_encoder & 0x0FU];
-
-			if (4 == encoder_state[i].count_encoder)
-			{
-				encoder_generate_event(i, 1U);
-				encoder_state[i].count_encoder = 0;
-			}
-			if (-4 == encoder_state[i].count_encoder)
-			{
-				encoder_generate_event(i, 0U);
-				encoder_state[i].count_encoder = 0;
-			}
-		}
-
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
-
-		/* Yield to other tasks; 1 tick ≈ 0.5 ms at 2 kHz gives ~2 kHz poll rate */
-		vTaskDelay(1);
 	}
 }
 

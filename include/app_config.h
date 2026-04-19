@@ -83,7 +83,6 @@
 #define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 #define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 #define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
-#define mainENCODER_TASK_PRIORITY       (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 
 /**
  * @brief FreeRTOS stack sizes for the tasks.
@@ -95,7 +94,6 @@
 #define PROCESS_OUTBOUND_STACK_SIZE (3U * configMINIMAL_STACK_SIZE)
 #define ADC_READ_STACK_SIZE         (4U * configMINIMAL_STACK_SIZE)
 #define KEYPAD_STACK_SIZE           (5U * configMINIMAL_STACK_SIZE)
-#define ENCODER_READ_STACK_SIZE     (5U * configMINIMAL_STACK_SIZE)
 
 /**
  * @brief Task core affinity masks.
@@ -113,7 +111,6 @@
 #define PROCESS_OUTBOUND_TASK_CORE_AFFINITY CORE_1_AFFINITY
 #define ADC_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY
 #define KEYPAD_TASK_CORE_AFFINITY           CORE_1_AFFINITY
-#define ENCODER_READ_TASK_CORE_AFFINITY     CORE_1_AFFINITY
 
 /**
  * @enum task_enum_t
@@ -126,8 +123,7 @@ typedef enum task_enum_t {
 	DECODE_RECEPTION_TASK, /**< Task that decodes inbound COBS packets */
 	PROCESS_OUTBOUND_TASK, /**< Task that processes outbound events */
 	ADC_READ_TASK,         /**< ADC reader task */
-	KEYPAD_TASK,           /**< Keypad polling task */
-	ENCODER_READ_TASK,     /**< Rotary encoder task */
+	KEYPAD_TASK,           /**< Keypad polling + rotary encoder task */
 	LED_STATUS_TASK,       /**< System status LED task */
 	NUM_TASKS              /**< Number of tasks in the system */
 } task_enum_t;

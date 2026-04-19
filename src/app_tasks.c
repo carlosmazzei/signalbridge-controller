@@ -173,18 +173,6 @@ bool app_tasks_create_application(void)
 		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
-	if (success)
-	{
-		success = create_task_with_affinity(encoder_read_task,
-		                                    "encoder_task",
-		                                    ENCODER_READ_STACK_SIZE,
-		                                    (void *)app_context_task_props(ENCODER_READ_TASK),
-		                                    mainENCODER_TASK_PRIORITY,
-		                                    ENCODER_READ_TASK,
-		                                    ENCODER_READ_TASK_CORE_AFFINITY,
-		                                    ERROR_RESOURCE_ALLOCATION);
-	}
-
 	return success;
 }
 
@@ -282,7 +270,6 @@ void app_tasks_cleanup_application(void)
 	delete_task_if_exists(PROCESS_OUTBOUND_TASK);
 	delete_task_if_exists(ADC_READ_TASK);
 	delete_task_if_exists(KEYPAD_TASK);
-	delete_task_if_exists(ENCODER_READ_TASK);
 	delete_task_if_exists(LED_STATUS_TASK);
 }
 
