@@ -11,6 +11,12 @@ add_unit_test(test_cobs
     test_cobs.c
 )
 
+# Test for the inbound byte-to-frame assembler (pure, no RTOS)
+add_unit_test(test_encoded_framer
+    test_encoded_framer.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/encoded_framer.c
+)
+
 # Test for inputs module (validates config only)
 add_unit_test(test_inputs
     test_inputs.c

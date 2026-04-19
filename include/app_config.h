@@ -12,9 +12,13 @@
 #include "task.h"
 
 /**
- * @brief Size of the COBS-encoded reception queue.
+ * @brief Size of the COBS-encoded reception queue, expressed in frames.
+ *
+ * Each queue slot holds a complete @ref encoded_frame_t produced by the
+ * inbound framer, so the queue provides burst buffering equivalent to
+ * @ref ENCODED_QUEUE_SIZE fully-assembled packets.
  */
-#define ENCODED_QUEUE_SIZE 2048U
+#define ENCODED_QUEUE_SIZE 128U
 
 /**
  * @brief Size of the CDC transmit queue.
@@ -61,7 +65,7 @@
 /**
  * @brief Retry delay for queue polling in task loops (milliseconds).
  */
-#define QUEUE_RETRY_DELAY_MS 5U
+#define QUEUE_RETRY_DELAY_MS 1U
 
 /**
  * @brief Marker indicating the end of a COBS packet.
