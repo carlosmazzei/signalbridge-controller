@@ -1,6 +1,7 @@
 # Create single static library for all modules (always available for testing)
 add_library(signalbridge_core STATIC
     cobs.c
+    encoded_framer.c
     error_management.c
     app_outputs.c
     app_inputs.c

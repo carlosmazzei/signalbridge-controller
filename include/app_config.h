@@ -12,9 +12,13 @@
 #include "task.h"
 
 /**
- * @brief Size of the COBS-encoded reception queue.
+ * @brief Size of the COBS-encoded reception queue, expressed in frames.
+ *
+ * Each queue slot holds a complete @ref encoded_frame_t produced by the
+ * inbound framer, so the queue provides burst buffering equivalent to
+ * @ref ENCODED_QUEUE_SIZE fully-assembled packets.
  */
-#define ENCODED_QUEUE_SIZE 2048U
+#define ENCODED_QUEUE_SIZE 128U
 
 /**
  * @brief Size of the CDC transmit queue.
@@ -61,7 +65,7 @@
 /**
  * @brief Retry delay for queue polling in task loops (milliseconds).
  */
-#define QUEUE_RETRY_DELAY_MS 5U
+#define QUEUE_RETRY_DELAY_MS 1U
 
 /**
  * @brief Marker indicating the end of a COBS packet.
@@ -83,7 +87,6 @@
 #define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 #define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 #define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
-#define mainENCODER_TASK_PRIORITY       (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 
 /**
  * @brief FreeRTOS stack sizes for the tasks.
@@ -95,7 +98,6 @@
 #define PROCESS_OUTBOUND_STACK_SIZE (3U * configMINIMAL_STACK_SIZE)
 #define ADC_READ_STACK_SIZE         (4U * configMINIMAL_STACK_SIZE)
 #define KEYPAD_STACK_SIZE           (5U * configMINIMAL_STACK_SIZE)
-#define ENCODER_READ_STACK_SIZE     (5U * configMINIMAL_STACK_SIZE)
 
 /**
  * @brief Task core affinity masks.
@@ -113,7 +115,6 @@
 #define PROCESS_OUTBOUND_TASK_CORE_AFFINITY CORE_1_AFFINITY
 #define ADC_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY
 #define KEYPAD_TASK_CORE_AFFINITY           CORE_1_AFFINITY
-#define ENCODER_READ_TASK_CORE_AFFINITY     CORE_1_AFFINITY
 
 /**
  * @enum task_enum_t
@@ -126,8 +127,7 @@ typedef enum task_enum_t {
 	DECODE_RECEPTION_TASK, /**< Task that decodes inbound COBS packets */
 	PROCESS_OUTBOUND_TASK, /**< Task that processes outbound events */
 	ADC_READ_TASK,         /**< ADC reader task */
-	KEYPAD_TASK,           /**< Keypad polling task */
-	ENCODER_READ_TASK,     /**< Rotary encoder task */
+	KEYPAD_TASK,           /**< Keypad polling + rotary encoder task */
 	LED_STATUS_TASK,       /**< System status LED task */
 	NUM_TASKS              /**< Number of tasks in the system */
 } task_enum_t;

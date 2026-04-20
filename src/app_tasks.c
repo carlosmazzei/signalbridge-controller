@@ -22,6 +22,7 @@
 #include "app_context.h"
 #include "app_inputs.h"
 #include "data_event.h"
+#include "encoded_framer.h"
 #include "error_management.h"
 
 static void uart_event_task(void *pvParameters);
@@ -173,18 +174,6 @@ bool app_tasks_create_application(void)
 		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
-	if (success)
-	{
-		success = create_task_with_affinity(encoder_read_task,
-		                                    "encoder_task",
-		                                    ENCODER_READ_STACK_SIZE,
-		                                    (void *)app_context_task_props(ENCODER_READ_TASK),
-		                                    mainENCODER_TASK_PRIORITY,
-		                                    ENCODER_READ_TASK,
-		                                    ENCODER_READ_TASK_CORE_AFFINITY,
-		                                    ERROR_RESOURCE_ALLOCATION);
-	}
-
 	return success;
 }
 
@@ -208,7 +197,7 @@ bool app_tasks_create_comm(void)
 
 	if (success)
 	{
-		encoded_queue = create_queue_or_flag(ENCODED_QUEUE_SIZE, sizeof(uint8_t), ERROR_USB_INIT);
+		encoded_queue = create_queue_or_flag(ENCODED_QUEUE_SIZE, sizeof(encoded_frame_t), ERROR_USB_INIT);
 		app_context_set_encoded_queue(encoded_queue);
 		if (NULL == encoded_queue)
 		{
@@ -282,7 +271,6 @@ void app_tasks_cleanup_application(void)
 	delete_task_if_exists(PROCESS_OUTBOUND_TASK);
 	delete_task_if_exists(ADC_READ_TASK);
 	delete_task_if_exists(KEYPAD_TASK);
-	delete_task_if_exists(ENCODER_READ_TASK);
 	delete_task_if_exists(LED_STATUS_TASK);
 }
 
@@ -309,7 +297,13 @@ static void cleanup_comm_subsystem(void)
 }
 
 /**
- * @brief Task that reads raw CDC bytes and enqueues them for decoding.
+ * @brief Task that reads raw CDC bytes, assembles complete COBS frames and
+ *        enqueues them for decoding.
+ *
+ * Bytes are read in bulk from the TinyUSB endpoint into a local buffer and
+ * fed into an @ref encoded_framer_t state machine.  Only complete frames are
+ * pushed to the encoded queue, which drastically reduces per-byte queue
+ * overhead compared to the previous byte-level approach.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -317,6 +311,10 @@ static void uart_event_task(void *pvParameters)
 {
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
+	encoded_framer_t framer;
+	encoded_frame_t frame;
+
+	encoded_framer_reset(&framer);
 
 	for (;;)
 	{
@@ -333,13 +331,28 @@ static void uart_event_task(void *pvParameters)
 		statistics_add_to_counter(BYTES_RECEIVED, count);
 
 		QueueHandle_t queue = app_context_get_encoded_queue();
-		for (uint32_t i = 0; (i < count) && (i < MAX_ENCODED_BUFFER_SIZE); i++)
+
+		for (uint32_t i = 0U; i < count; i++)
 		{
-			if ((NULL == queue) || (xQueueSend(queue, &receive_buffer[i], pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS)) != pdTRUE))
+			const framer_result_t result = encoded_framer_push_byte(&framer, receive_buffer[i], &frame);
+			switch (result)
 			{
-				statistics_increment_counter(QUEUE_SEND_ERROR);
+			case FRAMER_FRAME_READY:
+				if ((NULL == queue) || (xQueueSend(queue, &frame, pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS)) != pdTRUE))
+				{
+					statistics_increment_counter(QUEUE_SEND_ERROR);
+				}
+				break;
+			case FRAMER_EMPTY_FRAME:
+				statistics_increment_counter(COBS_DECODE_ERROR);
+				break;
+			case FRAMER_OVERFLOW:
+				statistics_increment_counter(RECEIVE_BUFFER_OVERFLOW_ERROR);
+				break;
+			case FRAMER_NEED_MORE_DATA:
+			default:
+				break;
 			}
-			watchdog_update();
 		}
 	}
 }
@@ -369,8 +382,8 @@ static void cdc_task(void *pvParameters)
 static void decode_reception_task(void *pvParameters)
 {
 	task_props_t *task_prop = (task_props_t *)pvParameters;
-	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
-	size_t receive_buffer_index = 0U;
+	encoded_frame_t frame;
+	uint8_t decode_buffer[MAX_ENCODED_BUFFER_SIZE];
 
 	for (;;)
 	{
@@ -385,45 +398,27 @@ static void decode_reception_task(void *pvParameters)
 			continue;
 		}
 
-		// Wait indefinitely for data
-		uint8_t data = 0U;
-		if (pdFALSE == xQueueReceive(queue, &data, portMAX_DELAY))
+		// Wait indefinitely for a complete encoded frame
+		if (pdFALSE == xQueueReceive(queue, &frame, portMAX_DELAY))
 		{
 			statistics_increment_counter(QUEUE_RECEIVE_ERROR);
 			continue;
 		}
 
-		if (PACKET_MARKER == data)
+		if (0U == frame.length)
 		{
-			if (0U == receive_buffer_index)
-			{
-				statistics_increment_counter(COBS_DECODE_ERROR);
-				receive_buffer_index = 0U;
-				continue;
-			}
-
-			uint8_t decode_buffer[MAX_ENCODED_BUFFER_SIZE];
-			const size_t num_decoded = cobs_decode(receive_buffer, receive_buffer_index, decode_buffer);
-			receive_buffer_index = 0U;
-
-			if (num_decoded > 0U)
-			{
-				app_comm_process_inbound(decode_buffer, num_decoded);
-			}
-			else
-			{
-				statistics_increment_counter(COBS_DECODE_ERROR);
-			}
+			statistics_increment_counter(COBS_DECODE_ERROR);
+			continue;
 		}
-		else if (receive_buffer_index < (MAX_ENCODED_BUFFER_SIZE - 1U))
+
+		const size_t num_decoded = cobs_decode(frame.data, frame.length, decode_buffer);
+		if (num_decoded > 0U)
 		{
-			receive_buffer[receive_buffer_index] = data;
-			receive_buffer_index++;
+			app_comm_process_inbound(decode_buffer, num_decoded);
 		}
 		else
 		{
-			statistics_increment_counter(RECEIVE_BUFFER_OVERFLOW_ERROR);
-			receive_buffer_index = 0U;
+			statistics_increment_counter(COBS_DECODE_ERROR);
 		}
 	}
 }
