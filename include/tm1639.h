@@ -135,14 +135,21 @@ output_result_t tm1639_set_digits(output_driver_t *config,
 output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
 
 /**
- * @brief Update a raw LED register on the TM1639 controller.
+ * @brief Update one column of the 8x8 LED matrix driven by the TM1639.
  *
- * @param[in,out] config Driver handle obtained from @ref tm1639_init().
- * @param[in]     leds   Register index to update (0-15).
- * @param[in]     ledstate Segment pattern to store at @p leds.
+ * The TM1639 display memory is laid out as eight GRIDs of two bytes each,
+ * with SEG1-SEG8 at the even address and SEG9-SEG10 at the odd one. This
+ * helper maps the logical column index to the correct even register
+ * (@p leds * 2) and forces the adjacent SEG9/SEG10 byte to zero so the
+ * matrix stays clean of unused segments.
  *
- * @retval OUTPUT_OK              Register contents were committed to hardware.
- * @retval OUTPUT_ERR_INVALID_PARAM The register index is outside the valid range.
+ * @param[in,out] config   Driver handle obtained from @ref tm1639_init().
+ * @param[in]     leds     Column index of the 8x8 matrix (0-7, 0-based).
+ * @param[in]     ledstate Bitmask of the eight LEDs of the column; bit N
+ *                         controls row N of the selected column.
+ *
+ * @retval OUTPUT_OK              Column state was committed to hardware.
+ * @retval OUTPUT_ERR_INVALID_PARAM @p config is NULL or @p leds is outside 0-7.
  * @retval OUTPUT_ERR_DISPLAY_OUT  Communication with the controller failed.
  */
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate);

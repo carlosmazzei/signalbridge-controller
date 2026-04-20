@@ -31,9 +31,11 @@ add_unit_test(test_outputs
     WRAP_FUNCTIONS pwm_set_gpio_level tm1639_init tm1637_init xQueueCreateMutex xQueueSemaphoreTake xQueueGenericSend
 )
 
-# Test for tm1639 module (constant validation)
+# Test for tm1639 module (constant validation + set_leds behavior)
 add_unit_test(test_tm1639
     test_tm1639.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/tm1639.c
+    hardware_mocks.c
 )
 
 # Test for tm1637 module (protocol/basic behavior)
