@@ -168,8 +168,9 @@ typedef struct encoder_states_t
  * @brief Configure GPIO, ADC and encoder metadata for subsequent input tasks.
  *
  * The function validates the provided configuration and primes the internal
- * state machines.  On success, the calling code can start the keypad, ADC and
- * encoder tasks which will make use of the cached settings.
+ * state machines.  On success, the calling code can start the keypad and ADC
+ * tasks which will make use of the cached settings.  Rotary encoder sampling
+ * is performed inline by @ref keypad_task so there is no separate encoder task.
  *
  * @retval INPUT_OK             Configuration accepted and hardware initialised.
  * @retval INPUT_INVALID_CONFIG One or more parameters are outside the
@@ -190,13 +191,6 @@ void keypad_task(void *pvParameters);
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void adc_read_task(void *pvParameters);
-
-/**
- * @brief FreeRTOS task that decodes rotary encoder transitions.
- *
- * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
- */
-void encoder_read_task(void *pvParameters);
 
 /**
  * @brief Query whether a keypad matrix position is mapped to an encoder.

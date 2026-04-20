@@ -14,7 +14,7 @@ static app_context_t s_app_context = {
 	.encoded_reception_queue = NULL,
 	.data_event_queue        = NULL,
 	.cdc_transmit_queue      = NULL,
-	.task_props              = {{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}},
+	.task_props              = {{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}},
 	.cdc_rts                 = ATOMIC_VAR_INIT(false),
 	.cdc_dtr                 = ATOMIC_VAR_INIT(false)
 };
