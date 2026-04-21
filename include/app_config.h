@@ -79,6 +79,17 @@
 #define QUEUE_RETRY_DELAY_MS 1U
 
 /**
+ * @brief Safety timeout used by @ref uart_event_task while blocked on a
+ *        TinyUSB RX notification (milliseconds).
+ *
+ * The TinyUSB @c tud_cdc_rx_cb callback wakes the task as soon as bytes are
+ * available.  This timeout provides a fallback so the task still services
+ * the FIFO, updates its stack watermark and feeds the watchdog even if a
+ * notification is ever missed.
+ */
+#define UART_EVENT_TASK_WAIT_MS 1000U
+
+/**
  * @brief Marker indicating the end of a COBS packet.
  */
 #define PACKET_MARKER (uint8_t)0x00
