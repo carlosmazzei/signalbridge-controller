@@ -32,6 +32,11 @@ if(NOT HOST_BUILD)
     set(FAMILY rp2040)
     set(BOARD pico_sdk)
 
+    # Drive TinyUSB off the FreeRTOS OSAL so tud_task_ext() actually blocks
+    # on its event queue instead of polling.  Must be set before the Pico SDK
+    # (and hence tinyusb's family.cmake) is loaded.
+    set(TINYUSB_OPT_OS OPT_OS_FREERTOS)
+
     # Pull in SDK (must be before project)
     set(PICO_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/pico-sdk/")
     include(lib/pico-sdk/pico_sdk_init.cmake)

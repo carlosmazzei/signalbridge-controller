@@ -90,6 +90,17 @@
 #define UART_EVENT_TASK_WAIT_MS 1000U
 
 /**
+ * @brief Safety timeout used by @ref cdc_task while blocked on the TinyUSB
+ *        event queue (milliseconds).
+ *
+ * With @c CFG_TUSB_OS=OPT_OS_FREERTOS, @c tud_task_ext() sleeps on a kernel
+ * queue and is woken by the USB IRQ.  The bounded wait ensures the task
+ * still pets the watchdog and refreshes its stack watermark when no USB
+ * activity is happening.
+ */
+#define CDC_TASK_SAFETY_TIMEOUT_MS 1000U
+
+/**
  * @brief Marker indicating the end of a COBS packet.
  */
 #define PACKET_MARKER (uint8_t)0x00
@@ -137,7 +148,7 @@
  */
 #define CDC_TASK_CORE_AFFINITY              CORE_0_AFFINITY
 #define UART_EVENT_TASK_CORE_AFFINITY       CORE_0_AFFINITY
-#define LED_STATUS_TASK_CORE_AFFINITY       CORE_0_AFFINITY
+#define LED_STATUS_TASK_CORE_AFFINITY       CORE_1_AFFINITY
 #define DECODE_RECEPTION_TASK_CORE_AFFINITY CORE_1_AFFINITY
 #define PROCESS_OUTBOUND_TASK_CORE_AFFINITY CORE_1_AFFINITY
 #define ADC_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY

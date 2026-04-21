@@ -377,7 +377,13 @@ static void uart_event_task(void *pvParameters)
 }
 
 /**
- * @brief TinyUSB device task responsible for polling the USB stack.
+ * @brief TinyUSB device task responsible for servicing the USB stack.
+ *
+ * With CFG_TUSB_OS=OPT_OS_FREERTOS, tud_task_ext() blocks on the TinyUSB
+ * event queue until an IRQ posts work, so this task consumes no CPU while
+ * the bus is idle.  A bounded timeout is used instead of WAIT_FOREVER so
+ * the task still wakes periodically to pet the watchdog and refresh the
+ * stack watermark when the link is quiet.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -386,10 +392,9 @@ static void cdc_task(void *pvParameters)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
-		tud_task();
+		tud_task_ext(CDC_TASK_SAFETY_TIMEOUT_MS, false);
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
-		taskYIELD();
 	}
 }
 
