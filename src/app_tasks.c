@@ -310,7 +310,7 @@ static void cleanup_comm_subsystem(void)
 static void uart_event_task(void *pvParameters)
 {
 	task_props_t *task_prop = (task_props_t *)pvParameters;
-	uint8_t receive_buffer[MAX_ENCODED_BUFFER_SIZE];
+	uint8_t receive_buffer[CDC_READ_CHUNK_SIZE];
 	encoded_framer_t framer;
 	encoded_frame_t frame;
 
@@ -487,7 +487,8 @@ static void cdc_write_task(void *pvParameters)
 					total_written += written;
 				}
 
-				tud_task();
+				/* tud_task() is serviced exclusively by cdc_task to avoid
+				 * reentering the TinyUSB device stack from two tasks. */
 				taskYIELD();
 			}
 
