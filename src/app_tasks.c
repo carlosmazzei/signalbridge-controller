@@ -300,10 +300,19 @@ static void cleanup_comm_subsystem(void)
  * @brief Task that reads raw CDC bytes, assembles complete COBS frames and
  *        enqueues them for decoding.
  *
- * Bytes are read in bulk from the TinyUSB endpoint into a local buffer and
- * fed into an @ref encoded_framer_t state machine.  Only complete frames are
- * pushed to the encoded queue, which drastically reduces per-byte queue
- * overhead compared to the previous byte-level approach.
+ * The task is event-driven: the TinyUSB CDC RX callback
+ * (@c tud_cdc_rx_cb in @ref app_comm.c) issues a task notification whenever
+ * new bytes are pushed into the RX FIFO, waking this task.  Between
+ * notifications the task blocks on @c ulTaskNotifyTake and does not burn
+ * CPU.  A safety timeout of @ref UART_EVENT_TASK_WAIT_MS is used so that the
+ * task still periodically services the FIFO and refreshes the watchdog even
+ * if a notification is missed (for example during startup, before the host
+ * is connected, or if the callback fires before the task handle is
+ * registered in the application context).
+ *
+ * Each wake-up drains the FIFO to empty in bulk chunks of
+ * @ref CDC_READ_CHUNK_SIZE bytes, feeding bytes into an @ref encoded_framer_t
+ * state machine.  Only complete frames are pushed to the encoded queue.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -321,44 +330,60 @@ static void uart_event_task(void *pvParameters)
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
 
-		if (!tud_cdc_n_available(0))
-		{
-			taskYIELD();
-			continue;
-		}
-
-		const uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
-		statistics_add_to_counter(BYTES_RECEIVED, count);
-
 		QueueHandle_t queue = app_context_get_encoded_queue();
 
-		for (uint32_t i = 0U; i < count; i++)
+		/* Drain the CDC RX FIFO completely before going back to sleep.
+		 * tud_cdc_n_read() returns 0 when the FIFO is empty, which
+		 * terminates the inner loop; further bytes will trigger
+		 * tud_cdc_rx_cb and wake the task again. */
+		for (;;)
 		{
-			const framer_result_t result = encoded_framer_push_byte(&framer, receive_buffer[i], &frame);
-			switch (result)
+			const uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
+			if (0U == count)
 			{
-			case FRAMER_FRAME_READY:
-				if ((NULL == queue) || (xQueueSend(queue, &frame, pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS)) != pdTRUE))
-				{
-					statistics_increment_counter(QUEUE_SEND_ERROR);
-				}
-				break;
-			case FRAMER_EMPTY_FRAME:
-				statistics_increment_counter(COBS_DECODE_ERROR);
-				break;
-			case FRAMER_OVERFLOW:
-				statistics_increment_counter(RECEIVE_BUFFER_OVERFLOW_ERROR);
-				break;
-			case FRAMER_NEED_MORE_DATA:
-			default:
 				break;
 			}
+			statistics_add_to_counter(BYTES_RECEIVED, count);
+
+			for (uint32_t i = 0U; i < count; i++)
+			{
+				const framer_result_t result = encoded_framer_push_byte(&framer, receive_buffer[i], &frame);
+				switch (result)
+				{
+				case FRAMER_FRAME_READY:
+					if ((NULL == queue) || (xQueueSend(queue, &frame, pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS)) != pdTRUE))
+					{
+						statistics_increment_counter(QUEUE_SEND_ERROR);
+					}
+					break;
+				case FRAMER_EMPTY_FRAME:
+					statistics_increment_counter(COBS_DECODE_ERROR);
+					break;
+				case FRAMER_OVERFLOW:
+					statistics_increment_counter(RECEIVE_BUFFER_OVERFLOW_ERROR);
+					break;
+				case FRAMER_NEED_MORE_DATA:
+				default:
+					break;
+				}
+			}
 		}
+
+		/* Block until tud_cdc_rx_cb notifies us or the safety timeout
+		 * elapses.  Timeout keeps the task alive for watchdog /
+		 * watermark updates even when the host is idle. */
+		(void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(UART_EVENT_TASK_WAIT_MS));
 	}
 }
 
 /**
- * @brief TinyUSB device task responsible for polling the USB stack.
+ * @brief TinyUSB device task responsible for servicing the USB stack.
+ *
+ * With CFG_TUSB_OS=OPT_OS_FREERTOS, tud_task_ext() blocks on the TinyUSB
+ * event queue until an IRQ posts work, so this task consumes no CPU while
+ * the bus is idle.  A bounded timeout is used instead of WAIT_FOREVER so
+ * the task still wakes periodically to pet the watchdog and refresh the
+ * stack watermark when the link is quiet.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -367,10 +392,9 @@ static void cdc_task(void *pvParameters)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	for (;;)
 	{
-		tud_task();
+		tud_task_ext(CDC_TASK_SAFETY_TIMEOUT_MS, false);
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
-		taskYIELD();
 	}
 }
 

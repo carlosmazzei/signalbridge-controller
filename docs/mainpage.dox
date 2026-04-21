@@ -44,7 +44,7 @@
  * | Task | Responsibility |
  * | ---- | -------------- |
  * | `cdc_task` | Services TinyUSB and pumps the device stack. |
- * | `uart_event_task` | Reads CDC bytes in bulk and assembles complete COBS frames via @ref encoded_framer.h. |
+ * | `uart_event_task` | Event-driven task woken by the TinyUSB RX callback; drains the CDC FIFO and assembles complete COBS frames via @ref encoded_framer.h. |
  * | `decode_reception_task` | Dequeues assembled frames, decodes them and hands them to @ref app_comm_process_inbound(). |
  * | `process_outbound_task` | Converts queued @ref data_events_t into CDC packets. |
  * | `cdc_write_task` | Streams encoded frames to the host while honouring flow control. |

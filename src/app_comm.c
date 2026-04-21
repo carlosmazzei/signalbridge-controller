@@ -34,6 +34,33 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 }
 
 /**
+ * @brief Callback invoked by the TinyUSB device stack when new CDC bytes are
+ *        available in the RX FIFO.
+ *
+ * Runs in the context of @c tud_task (i.e. @ref cdc_task), not in an ISR, so
+ * the plain task notification API is used to wake @ref uart_event_task.  The
+ * handle is resolved via the application context; if the consumer task has
+ * not been created yet the notification is simply skipped and the safety
+ * timeout inside @ref uart_event_task's wait will still drain whatever is in
+ * the FIFO.
+ *
+ * @param[in] itf Interface number (only interface 0 is serviced).
+ */
+void tud_cdc_rx_cb(uint8_t itf)
+{
+	if (0U != itf)
+	{
+		return;
+	}
+
+	const task_props_t *const props = app_context_task_props(UART_EVENT_TASK);
+	if ((NULL != props) && (NULL != props->task_handle))
+	{
+		(void)xTaskNotifyGive(props->task_handle);
+	}
+}
+
+/**
  * @brief Calculates the XOR checksum.
  *
  * @param[in] data   Pointer to the data.
