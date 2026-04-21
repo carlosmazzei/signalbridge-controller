@@ -93,29 +93,39 @@ static void test_set_leds_rejects_null_config(void **state)
     assert_int_equal(OUTPUT_ERR_INVALID_PARAM, tm1639_set_leds(NULL, 0U, 0xFFU));
 }
 
-static void test_set_leds_column0_writes_addr0(void **state)
+static void test_set_leds_column0_sets_bit7_on_every_row(void **state)
 {
     (void) state;
     output_driver_t driver;
     init_stub_driver(&driver);
 
-    assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 0U, 0xAAU));
+    // Column 0 fully lit: every row address gets its column-0 bit (0x80) set.
+    assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 0U, 0xFFU));
 
-    // GRID1 SEG1-SEG8 lives at the even address; SEG9/SEG10 must stay clear.
-    assert_int_equal(0xAA, driver.active_buffer[0]);
-    assert_int_equal(0x00, driver.active_buffer[1]);
+    for (uint8_t row = 0U; row < 8U; row++) {
+        assert_int_equal(0x80, driver.active_buffer[row * 2U]);
+        // Odd (unused) addresses must stay clear.
+        assert_int_equal(0x00, driver.active_buffer[(row * 2U) + 1U]);
+    }
 }
 
-static void test_set_leds_column7_writes_addr14(void **state)
+static void test_set_leds_column7_sets_bit0_on_selected_rows(void **state)
 {
     (void) state;
     output_driver_t driver;
     init_stub_driver(&driver);
 
+    // Column 7 maps to bit 0x01; state 0x55 lights rows 0, 2, 4, 6.
     assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 7U, 0x55U));
 
-    assert_int_equal(0x55, driver.active_buffer[14]);
-    assert_int_equal(0x00, driver.active_buffer[15]);
+    assert_int_equal(0x01, driver.active_buffer[0]);
+    assert_int_equal(0x00, driver.active_buffer[2]);
+    assert_int_equal(0x01, driver.active_buffer[4]);
+    assert_int_equal(0x00, driver.active_buffer[6]);
+    assert_int_equal(0x01, driver.active_buffer[8]);
+    assert_int_equal(0x00, driver.active_buffer[10]);
+    assert_int_equal(0x01, driver.active_buffer[12]);
+    assert_int_equal(0x00, driver.active_buffer[14]);
 }
 
 static void test_set_leds_rejects_column_out_of_range(void **state)
@@ -138,28 +148,44 @@ static void test_set_leds_preserves_adjacent_columns(void **state)
     output_driver_t driver;
     init_stub_driver(&driver);
 
+    // Light the whole column 3 (mask 0x10) across every row.
     assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 3U, 0xFFU));
-    assert_int_equal(0xFF, driver.active_buffer[6]);
+    for (uint8_t row = 0U; row < 8U; row++) {
+        assert_int_equal(0x10, driver.active_buffer[row * 2U]);
+    }
 
+    // Updating column 4 (mask 0x08) with rows 0-3 lit must keep column 3 intact.
     assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 4U, 0x0FU));
-    assert_int_equal(0xFF, driver.active_buffer[6]);
-    assert_int_equal(0x0F, driver.active_buffer[8]);
+    assert_int_equal(0x10 | 0x08, driver.active_buffer[0]);
+    assert_int_equal(0x10 | 0x08, driver.active_buffer[2]);
+    assert_int_equal(0x10 | 0x08, driver.active_buffer[4]);
+    assert_int_equal(0x10 | 0x08, driver.active_buffer[6]);
+    assert_int_equal(0x10,        driver.active_buffer[8]);
+    assert_int_equal(0x10,        driver.active_buffer[10]);
+    assert_int_equal(0x10,        driver.active_buffer[12]);
+    assert_int_equal(0x10,        driver.active_buffer[14]);
 }
 
-static void test_set_leds_clears_odd_byte_from_previous_state(void **state)
+static void test_set_leds_clears_previously_lit_leds(void **state)
 {
     (void) state;
     output_driver_t driver;
     init_stub_driver(&driver);
 
-    // Simulate a stale SEG9/SEG10 value on GRID2 left over from a previous path.
-    driver.prep_buffer[3] = 0xFFU;
-    driver.active_buffer[3] = 0xFFU;
+    // Turn every LED of column 2 on (mask 0x20) ...
+    assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 2U, 0xFFU));
 
-    assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 1U, 0x11U));
+    // ... then light only the even rows of the same column; odd rows must clear.
+    assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 2U, 0x55U));
 
-    assert_int_equal(0x11, driver.active_buffer[2]);
-    assert_int_equal(0x00, driver.active_buffer[3]);
+    assert_int_equal(0x20, driver.active_buffer[0]);
+    assert_int_equal(0x00, driver.active_buffer[2]);
+    assert_int_equal(0x20, driver.active_buffer[4]);
+    assert_int_equal(0x00, driver.active_buffer[6]);
+    assert_int_equal(0x20, driver.active_buffer[8]);
+    assert_int_equal(0x00, driver.active_buffer[10]);
+    assert_int_equal(0x20, driver.active_buffer[12]);
+    assert_int_equal(0x00, driver.active_buffer[14]);
 }
 
 
@@ -171,11 +197,11 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_tm1639_mask_constants, setup, teardown),
         cmocka_unit_test_setup_teardown(test_tm1639_result_enum, setup, teardown),
         cmocka_unit_test_setup_teardown(test_set_leds_rejects_null_config, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_set_leds_column0_writes_addr0, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_set_leds_column7_writes_addr14, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_set_leds_column0_sets_bit7_on_every_row, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_set_leds_column7_sets_bit0_on_selected_rows, setup, teardown),
         cmocka_unit_test_setup_teardown(test_set_leds_rejects_column_out_of_range, setup, teardown),
         cmocka_unit_test_setup_teardown(test_set_leds_preserves_adjacent_columns, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_set_leds_clears_odd_byte_from_previous_state, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_set_leds_clears_previously_lit_leds, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

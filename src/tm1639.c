@@ -768,16 +768,33 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 	}
 	else
 	{
-		// Each GRID occupies two consecutive bytes: SEG1-SEG8 at the even
-		// address, SEG9-SEG10 at the odd one. For the 8x8 matrix only the
-		// even byte carries LED data; the odd byte is forced to zero so
-		// stale SEG9/SEG10 state does not leak onto unused segments.
-		const uint8_t addr = (uint8_t)(leds * 2U);
+		// The TM1639 memory on this board is laid out transposed vs. a naive
+		// grid-per-address model: each even address (0x00, 0x02, ..., 0x0E)
+		// holds one row of the 8x8 matrix, and the byte's bits select which
+		// column lights up in that row. Column 0 (first column visible) maps
+		// to bit 7 (0x80), column 7 to bit 0 (0x01) — matching the digit-mask
+		// transposition performed by tm1639_process_digits().
+		//
+		// To update a single column without disturbing the others, read the
+		// current row byte, set or clear the column bit based on the matching
+		// ledstate bit, and write it back.
+		const uint8_t column_mask = (uint8_t)(0x80U >> leds);
 
-		tm_result = tm1639_update_buffer(config, addr, ledstate);
-		if (TM1639_OK == tm_result)
+		for (uint8_t row = 0U; (row < TM1639_DIGIT_COUNT) && (TM1639_OK == tm_result); row++)
 		{
-			tm_result = tm1639_update_buffer(config, (uint8_t)(addr + 1U), 0U);
+			const uint8_t row_addr = (uint8_t)(row * 2U);
+			uint8_t cell = config->prep_buffer[row_addr];
+
+			if (0U != (ledstate & (uint8_t)(1U << row)))
+			{
+				cell |= column_mask;
+			}
+			else
+			{
+				cell &= (uint8_t)(~column_mask);
+			}
+
+			tm_result = tm1639_update_buffer(config, row_addr, cell);
 		}
 
 		if (TM1639_OK == tm_result)
