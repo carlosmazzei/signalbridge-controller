@@ -757,21 +757,29 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 {
 	tm1639_result_t tm_result = TM1639_OK;
 
-	// Parameter validation
+	// Parameter validation: column index is 0-based within the 8x8 matrix (0-7).
 	if (NULL == config)
 	{
 		tm_result = TM1639_ERR_INVALID_PARAM;
 	}
-	else if (leds > 0x0FU)
+	else if (leds >= TM1639_DIGIT_COUNT)
 	{
 		tm_result = TM1639_ERR_ADDRESS_RANGE;
 	}
 	else
 	{
-		// Update preparation buffer with LED state
-		tm_result = tm1639_update_buffer(config, leds, ledstate);
+		// Each GRID occupies two consecutive bytes: SEG1-SEG8 at the even
+		// address, SEG9-SEG10 at the odd one. For the 8x8 matrix only the
+		// even byte carries LED data; the odd byte is forced to zero so
+		// stale SEG9/SEG10 state does not leak onto unused segments.
+		const uint8_t addr = (uint8_t)(leds * 2U);
 
-		// Update display if buffer update was successful
+		tm_result = tm1639_update_buffer(config, addr, ledstate);
+		if (TM1639_OK == tm_result)
+		{
+			tm_result = tm1639_update_buffer(config, (uint8_t)(addr + 1U), 0U);
+		}
+
 		if (TM1639_OK == tm_result)
 		{
 			tm_result = tm1639_update(config);
