@@ -28,7 +28,7 @@
 static input_config_t input_config = {
 	.columns                  = 8,
 	.rows                     = 8,
-	.key_settling_time_ms     = 10,
+	.key_settling_time_ms     = 2,
 	.adc_channels             = 16,
 	.adc_settling_time_ms     = 100,
 	.num_encoders             = 4U,
