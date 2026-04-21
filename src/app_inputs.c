@@ -30,7 +30,10 @@ static input_config_t input_config = {
 	.rows                     = 8,
 	.key_settling_time_ms     = 2,
 	.adc_channels             = 16,
-	.adc_settling_time_ms     = 100,
+	.adc_settling_us          = ADC_DEFAULT_SETTLING_US,
+	.adc_oversample           = ADC_DEFAULT_OVERSAMPLE,
+	.adc_hysteresis           = ADC_DEFAULT_HYSTERESIS,
+	.adc_scan_interval_ms     = ADC_DEFAULT_SCAN_INTERVAL_MS,
 	.num_encoders             = 4U,
 	.encoder_map              = {
 		{ .row = 7U, .col = 0U, .enabled = true },
@@ -88,7 +91,9 @@ static bool check_config_params(const input_config_t *config)
 	    (config->rows > KEYPAD_MAX_ROWS) ||
 	    (config->adc_channels > 16U) ||
 	    (0U == config->key_settling_time_ms) ||
-	    (0U == config->adc_settling_time_ms))
+	    (0U == config->adc_settling_us) ||
+	    (0U == config->adc_oversample) ||
+	    (0U == config->adc_scan_interval_ms))
 	{
 		result = false;
 	}
@@ -496,6 +501,38 @@ static void adc_mux_select(uint8_t channel)
 	gpio_put(ADC_MUX_D, (channel & 0x08U) != 0U);
 }
 
+/**
+ * @brief Average a burst of raw ADC samples to suppress thermal/quantization noise.
+ *
+ * @param[in] samples Number of consecutive @ref adc_read() calls to average; clamped to >= 1.
+ *
+ * @return Mean raw ADC value over the burst.
+ */
+static uint16_t adc_read_oversampled(uint8_t samples)
+{
+	uint8_t count = (samples == 0U) ? 1U : samples;
+	uint32_t sum = 0U;
+
+	for (uint8_t i = 0U; i < count; i++)
+	{
+		sum += (uint32_t)adc_read();
+	}
+
+	return (uint16_t)(sum / (uint32_t)count);
+}
+
+bool adc_should_emit(uint16_t previous, uint16_t current, uint16_t hysteresis)
+{
+	if (0U == hysteresis)
+	{
+		return previous != current;
+	}
+
+	uint16_t delta = (current >= previous) ? (uint16_t)(current - previous)
+	                                       : (uint16_t)(previous - current);
+	return delta >= hysteresis;
+}
+
 void adc_read_task(void *pvParameters)
 {
 	/**
@@ -526,14 +563,14 @@ void adc_read_task(void *pvParameters)
 			adc_mux_select(chan);
 			adc_select_input(0);
 
-			// Settle the column
-			vTaskDelay(pdMS_TO_TICKS(input_config.adc_settling_time_ms));
+			// Settle the mux/sample-and-hold capacitor before sampling
+			busy_wait_us_32(input_config.adc_settling_us);
 
-			uint16_t adc_raw = adc_read();
+			uint16_t adc_raw = adc_read_oversampled(input_config.adc_oversample);
 			uint16_t filtered_value =
 				adc_moving_average(chan, adc_raw, adc_states.adc_sample_value[chan], &adc_states);
 
-			if (adc_states.adc_previous_value[chan] != filtered_value)
+			if (adc_should_emit(adc_states.adc_previous_value[chan], filtered_value, input_config.adc_hysteresis))
 			{
 				adc_generate_event(chan, filtered_value);
 				adc_states.adc_previous_value[chan] = filtered_value;
@@ -545,6 +582,9 @@ void adc_read_task(void *pvParameters)
 
 		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		watchdog_update();
+
+		// Cooperative yield: lets same-priority tasks (keypad) run between scans
+		vTaskDelay(pdMS_TO_TICKS(input_config.adc_scan_interval_ms));
 	}
 }
 

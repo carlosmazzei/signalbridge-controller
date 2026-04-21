@@ -258,6 +258,71 @@ static void test_input_is_encoder_position_getter(void **state)
     assert_false(input_is_encoder_position(6U, 3U));
 }
 
+/**
+ * @brief Hysteresis disabled (0): any non-equal value should emit.
+ */
+static void test_adc_should_emit_legacy_no_hysteresis(void **state)
+{
+    (void)state;
+
+    assert_false(adc_should_emit(2048U, 2048U, 0U));
+    assert_true(adc_should_emit(2048U, 2049U, 0U));
+    assert_true(adc_should_emit(2048U, 2047U, 0U));
+}
+
+/**
+ * @brief Symmetric deadband: deltas below the threshold are suppressed,
+ *        deltas at or above the threshold emit, in both directions.
+ */
+static void test_adc_should_emit_symmetric_deadband(void **state)
+{
+    (void)state;
+
+    /* Within deadband: must suppress (rising) */
+    assert_false(adc_should_emit(2000U, 2007U, 8U));
+    /* At threshold: must emit (rising) */
+    assert_true(adc_should_emit(2000U, 2008U, 8U));
+    /* Within deadband: must suppress (falling) */
+    assert_false(adc_should_emit(2000U, 1993U, 8U));
+    /* At threshold: must emit (falling) */
+    assert_true(adc_should_emit(2000U, 1992U, 8U));
+}
+
+/**
+ * @brief Hysteresis at extremes of the 12-bit ADC range must not underflow.
+ */
+static void test_adc_should_emit_handles_range_boundaries(void **state)
+{
+    (void)state;
+
+    /* Bottom of range */
+    assert_false(adc_should_emit(0U, 7U, 8U));
+    assert_true(adc_should_emit(0U, 8U, 8U));
+
+    /* Top of 12-bit range */
+    assert_false(adc_should_emit(4095U, 4088U, 8U));
+    assert_true(adc_should_emit(4095U, 4087U, 8U));
+}
+
+/**
+ * @brief Validate that the new µs-resolution settling field is non-zero by default.
+ *
+ * Replacing the legacy 100 ms vTaskDelay with a µs busy-wait is the central
+ * optimisation: the default must remain a meaningful settling time, not zero.
+ */
+static void test_adc_default_settling_is_microsecond_scale(void **state)
+{
+    (void)state;
+
+    /* The header default is the contract: tests bind here so an accidental
+     * regression to 0 (or back to a millisecond-scale value) is caught. */
+    assert_true(ADC_DEFAULT_SETTLING_US > 0U);
+    assert_true(ADC_DEFAULT_SETTLING_US <= 5000U); /* keep per-channel cycle < ~5 ms */
+    assert_true(ADC_DEFAULT_OVERSAMPLE >= 1U);
+    assert_true(ADC_DEFAULT_SCAN_INTERVAL_MS >= 1U);
+    assert_true(ADC_NUM_TAPS >= 4U); /* must keep at least the legacy filter depth */
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -270,6 +335,10 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_encoder_skip_built_from_default_config, setup, teardown),
         cmocka_unit_test_setup_teardown(test_encoder_non_encoder_positions_not_skipped, setup, teardown),
         cmocka_unit_test_setup_teardown(test_input_is_encoder_position_getter, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_adc_should_emit_legacy_no_hysteresis, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_adc_should_emit_symmetric_deadband, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_adc_should_emit_handles_range_boundaries, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_adc_default_settling_is_microsecond_scale, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

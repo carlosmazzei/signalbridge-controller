@@ -90,7 +90,15 @@
 /** Number of ADC channels provided by the hardware multiplexer. */
 #define ADC_CHANNELS 16U
 /** Length of the moving-average filter applied to ADC samples. */
-#define ADC_NUM_TAPS 4U
+#define ADC_NUM_TAPS 8U
+/** Default µs settling delay between channel selections (74HC4067 + ~10 kΩ pot). */
+#define ADC_DEFAULT_SETTLING_US 500U
+/** Default number of raw samples averaged per channel per scan. */
+#define ADC_DEFAULT_OVERSAMPLE 4U
+/** Default hysteresis (in raw 12-bit LSBs) applied before emitting a new event. */
+#define ADC_DEFAULT_HYSTERESIS 8U
+/** Default cooperative yield (ms) inserted between full ADC scans. */
+#define ADC_DEFAULT_SCAN_INTERVAL_MS 1U
 /** @} */
 
 /**
@@ -123,8 +131,11 @@ typedef struct input_config_t
 	uint8_t rows;                             /**< Number of keypad rows to scan. */
 	uint8_t columns;                          /**< Number of keypad columns to scan. */
 	uint16_t key_settling_time_ms;            /**< Scan-cycle interval (ms); debounce window = key_settling_time_ms * required samples. */
-	uint8_t adc_channels;                     /**< Number of ADC channels populated on the board. */
-	uint16_t adc_settling_time_ms;            /**< Delay between ADC channel selections. */
+	uint8_t adc_channels;                     /**< Number of ADC channels populated on the board (lower the count to scan only the active axes). */
+	uint16_t adc_settling_us;                 /**< Delay (µs) between ADC mux selection and the first sample. */
+	uint8_t adc_oversample;                   /**< Raw samples averaged per channel per scan (>= 1). */
+	uint16_t adc_hysteresis;                  /**< Minimum LSB delta before emitting a new event (0 = always emit on change). */
+	uint16_t adc_scan_interval_ms;            /**< Cooperative yield between full ADC scans (>= 1 ms). */
 	QueueHandle_t input_event_queue;          /**< Destination queue for generated events. */
 	encoder_map_t encoder_map[MAX_NUM_ENCODERS]; /**< Per-encoder position mappings. */
 	uint8_t num_encoders;                     /**< Number of configured encoder entries. */
@@ -203,5 +214,21 @@ void adc_read_task(void *pvParameters);
  * @retval false The position is a regular key.
  */
 bool input_is_encoder_position(uint8_t row, uint8_t col);
+
+/**
+ * @brief Decide whether a new ADC reading is significant enough to emit.
+ *
+ * Compares @p current against the last reported @p previous using a symmetric
+ * hysteresis window.  A value of @p hysteresis equal to zero falls back to
+ * legacy "report every change" behavior.
+ *
+ * @param[in] previous   Last reported filtered value for the channel.
+ * @param[in] current    Current filtered value to evaluate.
+ * @param[in] hysteresis Minimum absolute LSB delta required to emit.
+ *
+ * @retval true  The delta meets or exceeds the hysteresis threshold.
+ * @retval false The reading is within the deadband and should be suppressed.
+ */
+bool adc_should_emit(uint16_t previous, uint16_t current, uint16_t hysteresis);
 
 #endif // KEYPAD_H
