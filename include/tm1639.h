@@ -137,16 +137,18 @@ output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
 /**
  * @brief Update one column of the 8x8 LED matrix driven by the TM1639.
  *
- * The TM1639 display memory is laid out as eight GRIDs of two bytes each,
- * with SEG1-SEG8 at the even address and SEG9-SEG10 at the odd one. This
- * helper maps the logical column index to the correct even register
- * (@p leds * 2) and forces the adjacent SEG9/SEG10 byte to zero so the
- * matrix stays clean of unused segments.
+ * Each column owns a pair of consecutive display addresses
+ * (@p leds * 2 and @p leds * 2 + 1). Only the low nibble of each byte is
+ * wired to the panel on this board: the even address drives SEG1-SEG4
+ * and the odd one drives SEG9-SEG12. The helper splits the 8-bit
+ * @p ledstate so the low nibble lands on the first address and the high
+ * nibble on the second, leaving unused high nibbles at zero.
  *
  * @param[in,out] config   Driver handle obtained from @ref tm1639_init().
  * @param[in]     leds     Column index of the 8x8 matrix (0-7, 0-based).
- * @param[in]     ledstate Bitmask of the eight LEDs of the column; bit N
- *                         controls row N of the selected column.
+ * @param[in]     ledstate Bitmask of the column's eight LEDs; bits 0-3
+ *                         drive SEG1-SEG4 of the column, bits 4-7 drive
+ *                         SEG9-SEG12 (1 = on, 0 = off).
  *
  * @retval OUTPUT_OK              Column state was committed to hardware.
  * @retval OUTPUT_ERR_INVALID_PARAM @p config is NULL or @p leds is outside 0-7.

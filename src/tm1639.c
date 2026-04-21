@@ -768,16 +768,19 @@ output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, con
 	}
 	else
 	{
-		// Each GRID occupies two consecutive bytes: SEG1-SEG8 at the even
-		// address, SEG9-SEG10 at the odd one. For the 8x8 matrix only the
-		// even byte carries LED data; the odd byte is forced to zero so
-		// stale SEG9/SEG10 state does not leak onto unused segments.
+		// Each column owns a pair of consecutive addresses; only the low
+		// nibble of each byte is wired to the panel (SEG1-SEG4 on the even
+		// address, SEG9-SEG12 on the odd one). Split the 8-bit ledstate so
+		// the low 4 bits land on the first address and the high 4 bits on
+		// the second, keeping the unused high nibbles at zero.
 		const uint8_t addr = (uint8_t)(leds * 2U);
+		const uint8_t low_nibble = (uint8_t)(ledstate & 0x0FU);
+		const uint8_t high_nibble = (uint8_t)((ledstate >> 4U) & 0x0FU);
 
-		tm_result = tm1639_update_buffer(config, addr, ledstate);
+		tm_result = tm1639_update_buffer(config, addr, low_nibble);
 		if (TM1639_OK == tm_result)
 		{
-			tm_result = tm1639_update_buffer(config, (uint8_t)(addr + 1U), 0U);
+			tm_result = tm1639_update_buffer(config, (uint8_t)(addr + 1U), high_nibble);
 		}
 
 		if (TM1639_OK == tm_result)
