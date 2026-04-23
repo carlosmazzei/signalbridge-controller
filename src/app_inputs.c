@@ -453,7 +453,9 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
 		adc_event.data[1] = (value & 0xFF00U) >> 8;
 		adc_event.data[2] = value & 0x00FFU;
 		adc_event.data_length = 3;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &adc_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
+		// Non-blocking: the ADC task runs at ~122 Hz; a blocking send on a full
+		// queue would stall the whole scan. Drop the event and account for it.
+		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &adc_event, 0U))
 		{
 			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
 		}
@@ -471,20 +473,23 @@ static void adc_generate_event(uint8_t channel, uint16_t value)
  */
 static uint16_t adc_moving_average(uint16_t channel, uint16_t new_sample, uint16_t *samples, adc_states_t *padc_states)
 {
+	// Keep the mask/shift optimisation below valid: tap count must be a power of two.
+	_Static_assert((ADC_NUM_TAPS & (ADC_NUM_TAPS - 1U)) == 0U,
+	               "ADC_NUM_TAPS must be a power of two for the mask/shift filter");
+	_Static_assert((1U << ADC_NUM_TAPS_SHIFT) == ADC_NUM_TAPS,
+	               "ADC_NUM_TAPS_SHIFT must equal log2(ADC_NUM_TAPS)");
+
 	// Remove old sample and add the new one to the sum
 	padc_states->adc_sum_values[channel] -= samples[padc_states->samples_index[channel]];
 	padc_states->adc_sum_values[channel] += new_sample;
 	samples[padc_states->samples_index[channel]] = new_sample;
 
-	// Adjust the new index
-	padc_states->samples_index[channel]++;
-	if (padc_states->samples_index[channel] >= (uint16_t)ADC_NUM_TAPS)
-	{
-		padc_states->samples_index[channel] = 0;
-	}
+	// Advance the circular index with a bitmask (Cortex-M0+ lacks HW divide).
+	padc_states->samples_index[channel] =
+		(uint16_t)((padc_states->samples_index[channel] + 1U) & (ADC_NUM_TAPS - 1U));
 
 	// Return the moving average
-	return (uint16_t)(padc_states->adc_sum_values[channel] / (uint16_t)ADC_NUM_TAPS);
+	return (uint16_t)(padc_states->adc_sum_values[channel] >> ADC_NUM_TAPS_SHIFT);
 }
 
 /**
@@ -539,6 +544,7 @@ void adc_read_task(void *pvParameters)
 	 * @brief ADC filter state exported for use by the ADC task.
 	 */
 	static adc_states_t adc_states;
+	static bool adc_channel_primed[ADC_CHANNELS];
 
 	task_props_t * task_props = (task_props_t*) pvParameters;
 
@@ -548,6 +554,7 @@ void adc_read_task(void *pvParameters)
 		adc_states.adc_previous_value[i] = 0;
 		adc_states.adc_sum_values[i] = 0;
 		adc_states.samples_index[i] = 0;
+		adc_channel_primed[i] = false;
 
 		for (uint8_t j = 0; j < ADC_NUM_TAPS; j++)
 		{
@@ -555,18 +562,36 @@ void adc_read_task(void *pvParameters)
 		}
 	}
 
+	// The external 74HC4067 mux always routes the selected channel into the
+	// RP2040's ADC0 pin; the internal ADC input never changes during runtime.
+	adc_select_input(0);
+
 	while (true)
 	{
 		for (uint8_t chan = 0; chan < input_config.adc_channels; chan++)
 		{
 			// Select the ADC to read from
 			adc_mux_select(chan);
-			adc_select_input(0);
 
 			// Settle the mux/sample-and-hold capacitor before sampling
 			busy_wait_us_32(input_config.adc_settling_us);
 
 			uint16_t adc_raw = adc_read_oversampled(input_config.adc_oversample);
+
+			// Prime the moving-average buffer on the first scan so the initial
+			// emitted value reflects reality instead of ramping from zero.
+			if (!adc_channel_primed[chan])
+			{
+				for (uint8_t j = 0; j < ADC_NUM_TAPS; j++)
+				{
+					adc_states.adc_sample_value[chan][j] = adc_raw;
+				}
+				adc_states.adc_sum_values[chan] = (uint32_t)adc_raw * (uint32_t)ADC_NUM_TAPS;
+				adc_states.samples_index[chan] = 0;
+				adc_states.adc_previous_value[chan] = adc_raw;
+				adc_channel_primed[chan] = true;
+			}
+
 			uint16_t filtered_value =
 				adc_moving_average(chan, adc_raw, adc_states.adc_sample_value[chan], &adc_states);
 
@@ -575,9 +600,14 @@ void adc_read_task(void *pvParameters)
 				adc_generate_event(chan, filtered_value);
 				adc_states.adc_previous_value[chan] = filtered_value;
 			}
+			else
+			{
+				statistics_increment_counter(INPUT_HYSTERESIS_SUPPRESSED);
+			}
 		}
 
-		// Deselect the CS pin of the ADC mux
+		// Park the mux on channel 0 between scans to reduce crosstalk on the
+		// idle ADC line while same-priority tasks run.
 		adc_mux_select(0);
 
 		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);

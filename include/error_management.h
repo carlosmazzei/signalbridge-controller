@@ -77,6 +77,7 @@ typedef enum statistics_counter_enum_t {
 	INPUT_QUEUE_INIT_ERROR,
 	INPUT_QUEUE_FULL_ERROR,
 	INPUT_INIT_ERROR,
+	INPUT_HYSTERESIS_SUPPRESSED,
 
 	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
 } statistics_counter_enum_t;

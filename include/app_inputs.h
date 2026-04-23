@@ -89,8 +89,10 @@
 #define ADC_MUX_D 11U
 /** Number of ADC channels provided by the hardware multiplexer. */
 #define ADC_CHANNELS 16U
-/** Length of the moving-average filter applied to ADC samples. */
-#define ADC_NUM_TAPS 8U
+/** Length of the moving-average filter applied to ADC samples. Must be a power of two. */
+#define ADC_NUM_TAPS 4U
+/** log2(@ref ADC_NUM_TAPS); used for mask/shift optimisations in the filter. */
+#define ADC_NUM_TAPS_SHIFT 2U
 /** Default µs settling delay between channel selections (74HC4067 + ~10 kΩ pot). */
 #define ADC_DEFAULT_SETTLING_US 500U
 /** Default number of raw samples averaged per channel per scan. */
