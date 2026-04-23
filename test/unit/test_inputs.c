@@ -321,6 +321,11 @@ static void test_adc_default_settling_is_microsecond_scale(void **state)
     assert_true(ADC_DEFAULT_OVERSAMPLE >= 1U);
     assert_true(ADC_DEFAULT_SCAN_INTERVAL_MS >= 1U);
     assert_true(ADC_NUM_TAPS >= 4U); /* must keep at least the legacy filter depth */
+    /* The MA filter relies on a power-of-two tap count so it can use a mask
+     * for the circular index and a shift for the divide (Cortex-M0+ has no
+     * HW divide). Keep the header contract in sync with the implementation. */
+    assert_int_equal(ADC_NUM_TAPS & (ADC_NUM_TAPS - 1U), 0U);
+    assert_int_equal(1U << ADC_NUM_TAPS_SHIFT, ADC_NUM_TAPS);
 }
 
 int main(void)
