@@ -20,7 +20,7 @@ Nine principal tasks divide responsibilities with explicit core affinity:
 | LED status task | 0 | Updates the status LED to reflect system state. |
 | Decode reception task | 1 | Decodes COBS packets and validates checksums before dispatching commands. |
 | Process outbound task | 1 | Formats outbound events and places them in the transmit queue. |
-| ADC read task | 1 | Samples ADC channels, filters values, and generates events. |
+| ADC read task | 1 | Samples ADC channels with µs-resolution settling, oversamples and applies a moving-average filter plus hysteresis deadband, and generates events only on significant change. Tunable via `adc_settling_us`, `adc_oversample`, `adc_hysteresis`, `adc_scan_interval_ms` and `adc_channels` (lower the channel count to scan only active throttle/sidestick axes for higher refresh rate). |
 | Keypad task | 1 | Scans the keypad matrix and emits key events. |
 | Encoder read task | 1 | Tracks rotary encoder movement and emits rotation events. |
 
