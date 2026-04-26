@@ -18,7 +18,7 @@
  * inbound framer, so the queue provides burst buffering equivalent to
  * @ref ENCODED_QUEUE_SIZE fully-assembled packets.
  */
-#define ENCODED_QUEUE_SIZE 128U
+#define ENCODED_QUEUE_SIZE 256U
 
 /**
  * @brief Size of the CDC transmit queue.
@@ -113,12 +113,13 @@
 /**
  * @brief Task priorities.
  *
- * Communication tasks run one level above input scanning so that USB CDC
- * traffic is not preempted by keypad / ADC scans during bursts; the
- * difference is small enough that input scanning is not starved when
- * the bus is idle.
+ * Communication tasks run above input scanning so that USB CDC traffic is
+ * not preempted by keypad / ADC scans during bursts. The TinyUSB device task
+ * must stay above the CDC writer to avoid same-priority re-entrancy into the
+ * device stack under time slicing.
  */
-#define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
+#define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 3U)
+#define mainCDC_WRITE_TASK_PRIORITY     (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
 #define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
 #define mainLED_STATUS_TASK_PRIORITY    (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 #define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
