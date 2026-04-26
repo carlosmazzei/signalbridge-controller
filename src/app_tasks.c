@@ -310,9 +310,9 @@ static void cleanup_comm_subsystem(void)
  * is connected, or if the callback fires before the task handle is
  * registered in the application context).
  *
- * Each wake-up drains the FIFO to empty in bulk chunks of
- * @ref CDC_READ_CHUNK_SIZE bytes, feeding bytes into an @ref encoded_framer_t
- * state machine.  Only complete frames are pushed to the encoded queue.
+ * Each wake-up drains the FIFO in bulk chunks of @ref CDC_READ_CHUNK_SIZE
+ * bytes, feeding bytes into an @ref encoded_framer_t state machine.  Only
+ * complete frames are pushed to the encoded queue.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -332,9 +332,9 @@ static void uart_event_task(void *pvParameters)
 
 		QueueHandle_t queue = app_context_get_encoded_queue();
 
-		/* Drain the CDC RX FIFO until empty or until a sustained burst
-		 * needs a scheduler handoff. tud_cdc_n_read() returns 0 when
-		 * the FIFO is empty, which terminates the inner loop. */
+		/* Drain the CDC RX FIFO until empty, yielding during sustained
+		 * bursts so equal-priority work can run without relying on a
+		 * pending RX notification to resume an existing backlog. */
 		uint32_t consecutive_full = 0U;
 		for (;;)
 		{
@@ -375,9 +375,10 @@ static void uart_event_task(void *pvParameters)
 					break;
 				}
 			}
-			if (consecutive_full >= 8U)
+			if (consecutive_full >= CDC_RX_FULL_READ_YIELD_THRESHOLD)
 			{
-				break;
+				consecutive_full = 0U;
+				taskYIELD();
 			}
 		}
 
