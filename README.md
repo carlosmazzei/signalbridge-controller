@@ -114,11 +114,24 @@ For protocol framing, payload layouts, and pre-COBS example frames, see `docs/CO
 - Static analysis relies on cppcheck with the MISRA addon, SonarLint, and Flawfinder. Helper scripts under `scripts/` wrap common checks.
 - Doxygen configuration lives in `docs/Doxyfile`, and generated HTML output is written to `docs/html/`.
 
-## Additional Documentation
-- System architecture overview: `docs/ARCHITECTURE.md`.
-- Output subsystem details: `docs/OUTPUT.md`.
-- Cppcheck and MISRA workflow: `docs/CPPCHECK_SETUP.md`.
-- Documentation update guidance: `docs/PROMPT.md`.
+## Documentation
+
+Start with the [docs index](docs/README.md) for the full map. Quick links:
+
+**Architecture & Protocol**
+- [System architecture](docs/ARCHITECTURE.md) — tasks, queues, data flows, core affinity.
+- [USB CDC command protocol](docs/COMMANDS.md) — COBS framing, command IDs, payload layouts, example frames.
+- [Output subsystem](docs/OUTPUT.md) — SPI fabric, TM1639/TM1637 drivers, buffering.
+
+**Tooling & Quality**
+- [Cppcheck + MISRA setup](docs/CPPCHECK_SETUP.md) — static analysis workflow.
+- [DevContainer details](.devcontainer/README.md) — toolchain, extensions, tasks.
+- [Unit test framework](test/README.md) — CMocka, mocks, coverage.
+
+**Contributor reference**
+- [`CLAUDE.md`](CLAUDE.md) — single source of truth for build commands, code style, and operational boundaries.
+- [README enhancement guidance](docs/PROMPT.md) — how to keep this README in sync with the codebase.
+- [Agent persona](docs/AGENTS.md) — context for AI assistants working in the repo.
 
 ## Troubleshooting
 - If builds fail, confirm submodules are initialized and the Arm toolchain is available. Recreate the DevContainer if dependencies are missing.

@@ -228,3 +228,7 @@ The examples assume `BOARD_ID = 0x01`. Commands that use a controller ID use
 > byte appears as the first payload byte (`0x20` or `0x21` for controller ID 1),
 > with the controller ID stored in the upper 3 bits and the display command in
 > the lower 5 bits.
+
+---
+
+**See also:** [Docs index](README.md) · [ARCHITECTURE](ARCHITECTURE.md) · [OUTPUT](OUTPUT.md)

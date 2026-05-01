@@ -43,3 +43,7 @@ Static analysis can run in continuous integration by invoking the full cppcheck 
 
 ## Expected Results
 A healthy run should load MISRA rules correctly, avoid critical preprocessor errors, and limit warnings to actionable findings in the project code while suppressing noise from external dependencies.
+
+---
+
+**See also:** [Docs index](README.md) · [`../CLAUDE.md`](../CLAUDE.md)

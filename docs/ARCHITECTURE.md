@@ -60,3 +60,7 @@ Key recommendations for strengthening the architecture include:
 
 ## Conclusion
 The current architecture cleanly separates responsibilities across FreeRTOS tasks and cores, leveraging queues for safe communication. The improvement areas above focus on latency reduction, robustness, and observability so the firmware can scale to heavier workloads while maintaining predictable behavior.
+
+---
+
+**See also:** [Docs index](README.md) · [OUTPUT](OUTPUT.md) · [COMMANDS](COMMANDS.md)
