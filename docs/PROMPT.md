@@ -35,3 +35,7 @@ Prioritize container-based workflows when available. If a `.devcontainer` direct
 - Legacy or obsolete references have been removed.
 - Onboarding steps are clear, starting with the simplest option.
 - Sections are concise, accurate, and free from code snippets to keep the documentation focused on behavior and usage.
+
+---
+
+**See also:** [Docs index](README.md) · [`../README.md`](../README.md) · [`../CLAUDE.md`](../CLAUDE.md)

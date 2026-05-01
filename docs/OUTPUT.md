@@ -45,3 +45,7 @@ New driver types can be added by extending the driver initialization and handler
 - Raspberry Pi Pico SDK Documentation
 - TM1639 Datasheet
 - FreeRTOS Documentation
+
+---
+
+**See also:** [Docs index](README.md) · [ARCHITECTURE](ARCHITECTURE.md) · [COMMANDS](COMMANDS.md)
