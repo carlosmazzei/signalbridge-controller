@@ -7,3 +7,7 @@
 ## Agent Persona
 
 Senior Embedded Systems & Real-Time Firmware Architect (RP2040, FreeRTOS SMP, C/C++).
+
+---
+
+**See also:** [Docs index](README.md) · [`../CLAUDE.md`](../CLAUDE.md)

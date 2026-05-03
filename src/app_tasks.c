@@ -245,7 +245,7 @@ bool app_tasks_create_comm(void)
 		                                    "cdc_write_task",
 		                                    CDC_STACK_SIZE,
 		                                    (void *)app_context_task_props(CDC_WRITE_TASK),
-		                                    mainCDC_TASK_PRIORITY,
+		                                    mainCDC_WRITE_TASK_PRIORITY,
 		                                    CDC_WRITE_TASK,
 		                                    CDC_TASK_CORE_AFFINITY,
 		                                    ERROR_USB_INIT);
@@ -310,9 +310,9 @@ static void cleanup_comm_subsystem(void)
  * is connected, or if the callback fires before the task handle is
  * registered in the application context).
  *
- * Each wake-up drains the FIFO to empty in bulk chunks of
- * @ref CDC_READ_CHUNK_SIZE bytes, feeding bytes into an @ref encoded_framer_t
- * state machine.  Only complete frames are pushed to the encoded queue.
+ * Each wake-up drains the FIFO in bulk chunks of @ref CDC_READ_CHUNK_SIZE
+ * bytes, feeding bytes into an @ref encoded_framer_t state machine.  Only
+ * complete frames are pushed to the encoded queue.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -332,16 +332,24 @@ static void uart_event_task(void *pvParameters)
 
 		QueueHandle_t queue = app_context_get_encoded_queue();
 
-		/* Drain the CDC RX FIFO completely before going back to sleep.
-		 * tud_cdc_n_read() returns 0 when the FIFO is empty, which
-		 * terminates the inner loop; further bytes will trigger
-		 * tud_cdc_rx_cb and wake the task again. */
+		/* Drain the CDC RX FIFO until empty, yielding during sustained
+		 * bursts so equal-priority work can run without relying on a
+		 * pending RX notification to resume an existing backlog. */
+		uint32_t consecutive_full = 0U;
 		for (;;)
 		{
 			const uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
 			if (0U == count)
 			{
 				break;
+			}
+			if (count == sizeof(receive_buffer))
+			{
+				consecutive_full++;
+			}
+			else
+			{
+				consecutive_full = 0U;
 			}
 			statistics_add_to_counter(BYTES_RECEIVED, count);
 
@@ -366,6 +374,11 @@ static void uart_event_task(void *pvParameters)
 				default:
 					break;
 				}
+			}
+			if (consecutive_full >= CDC_RX_FULL_READ_YIELD_THRESHOLD)
+			{
+				consecutive_full = 0U;
+				taskYIELD();
 			}
 		}
 
