@@ -42,7 +42,8 @@ static input_config_t input_config = {
 		{ .row = 7U, .col = 6U, .enabled = true },
 	},
 	.col_mux_settling_us      = 1U,  /* 74HC138: tPD ~12 ns; 1 µs provides 83x margin */
-	.row_mux_settling_us      = 1U   /* 74HC4051: tEN ~100 ns; 1 µs provides 10x margin */
+	.row_mux_settling_us      = 1U,  /* 74HC4051: tEN ~100 ns; 1 µs provides 10x margin */
+	.adc_channel_mask         = ADC_DEFAULT_CHANNEL_MASK
 };
 
 /**
@@ -93,7 +94,8 @@ static bool check_config_params(const input_config_t *config)
 	    (0U == config->key_settling_time_ms) ||
 	    (0U == config->adc_settling_us) ||
 	    (0U == config->adc_oversample) ||
-	    (0U == config->adc_scan_interval_ms))
+	    (0U == config->adc_scan_interval_ms) ||
+	    (0U == config->adc_channel_mask))
 	{
 		result = false;
 	}
@@ -509,7 +511,7 @@ static void adc_mux_select(uint8_t channel)
 /**
  * @brief Average a burst of raw ADC samples to suppress thermal/quantization noise.
  *
- * @param[in] samples Number of consecutive @ref adc_read() calls to average; clamped to >= 1.
+ * @param[in] samples Number of consecutive adc_read() calls to average; clamped to >= 1.
  *
  * @return Mean raw ADC value over the burst.
  */
@@ -570,6 +572,11 @@ void adc_read_task(void *pvParameters)
 	{
 		for (uint8_t chan = 0; chan < input_config.adc_channels; chan++)
 		{
+			if (0U == ((input_config.adc_channel_mask >> chan) & 1U))
+			{
+				continue;
+			}
+
 			// Select the ADC to read from
 			adc_mux_select(chan);
 

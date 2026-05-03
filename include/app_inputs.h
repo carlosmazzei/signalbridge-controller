@@ -101,6 +101,11 @@
 #define ADC_DEFAULT_HYSTERESIS 8U
 /** Default cooperative yield (ms) inserted between full ADC scans. */
 #define ADC_DEFAULT_SCAN_INTERVAL_MS 1U
+/**
+ * Default enabled-channel bitmask: bit N enables ADC channel N.
+ * Clear a bit to skip that channel at compile time (e.g. 0x000FU = channels 0-3 only).
+ */
+#define ADC_DEFAULT_CHANNEL_MASK 0xFFFFU
 /** @} */
 
 /**
@@ -143,6 +148,7 @@ typedef struct input_config_t
 	uint8_t num_encoders;                     /**< Number of configured encoder entries. */
 	uint16_t col_mux_settling_us;             /**< 74HC138 column decoder propagation settling delay (µs). */
 	uint16_t row_mux_settling_us;             /**< 74HC4051 row MUX enable settling delay (µs). */
+	uint16_t adc_channel_mask;                /**< Bitmask of enabled ADC channels: bit N enables channel N. Channels whose bits are clear are skipped during scanning. */
 } input_config_t;
 
 /**
