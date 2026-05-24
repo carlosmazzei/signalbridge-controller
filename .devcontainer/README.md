@@ -2,26 +2,26 @@
 
 This devcontainer provides a complete development environment for the Pico SignalBridge Controller project including:
 
-## 🛠️ Development Tools
+## Development Tools
 - **Build System**: CMake, Ninja, Make
 - **Compilers**: GCC, Clang, ARM GCC toolchain
 - **Debuggers**: GDB, LLDB, OpenOCD
 - **Code Quality**: Uncrustify, Cppcheck, Clang-tidy
 - **Documentation**: Doxygen with Graphviz
 
-## 🧪 Testing & Coverage
+## Testing & Coverage
 - **CMocka Test Framework**: Modern C testing with powerful mocking capabilities
 - **Coverage Tools**: LCOV, gcovr for HTML reports
 - **Test Runners**: CTest integration
 - **Mock Framework**: Hardware abstraction layer mocks
 
-## 📚 Libraries & Submodules
+## Libraries & Submodules
 - **Pico SDK**: Raspberry Pi Pico development SDK
 - **FreeRTOS Kernel**: Real-time operating system
 - **CMocka**: Unit testing framework for C with mocking support
 - **TinyUSB**: USB device/host stack (via Pico SDK)
 
-## 🎯 VS Code Extensions
+## VS Code Extensions
 - C/C++ IntelliSense and debugging
 - CMake Tools integration
 - Test Explorer with CMocka support
@@ -29,7 +29,7 @@ This devcontainer provides a complete development environment for the Pico Signa
 - ARM Cortex debugging
 - Serial monitor support
 
-## ⚡ Quick Commands
+## Quick Commands
 Access via Command Palette (Ctrl+Shift+P) → "Tasks: Run Task":
 
 ### Build Tasks
@@ -49,7 +49,7 @@ Access via Command Palette (Ctrl+Shift+P) → "Tasks: Run Task":
 - **uncrustify** - Format current file
 - **uncrustify all C/C++ files** - Format entire codebase
 
-## 🚀 Getting Started
+## Getting Started
 1. Open project in VS Code with DevContainers extension
 2. Container builds automatically with all dependencies
 3. Run `Tasks: Initialize Submodules` if needed
