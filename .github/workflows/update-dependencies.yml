@@ -36,7 +36,7 @@ jobs:
             echo "::error::.devcontainer directory not found in repository root"
             exit 1
           fi
-          echo "✓ .devcontainer directory found"
+          echo ".devcontainer directory found"
 
       - name: Verify dependencies.json exists
         run: |
@@ -44,7 +44,7 @@ jobs:
             echo "::error::dependencies.json file not found in .devcontainer directory"
             exit 1
           fi
-          echo "✓ .devcontainer/dependencies.json found"
+          echo ".devcontainer/dependencies.json found"
 
       - name: Verify update script exists
         run: |
@@ -52,7 +52,7 @@ jobs:
             echo "::error::update-dependencies.sh script not found in repository root"
             exit 1
           fi
-          echo "✓ update-dependencies.sh found"
+          echo "update-dependencies.sh found"
 
       - name: Validate dependencies.json format
         run: |
@@ -60,7 +60,7 @@ jobs:
             echo "::error::.devcontainer/dependencies.json is not valid JSON"
             exit 1
           fi
-          echo "✓ .devcontainer/dependencies.json is valid JSON"
+          echo ".devcontainer/dependencies.json is valid JSON"
 
       - name: Show current dependencies
         run: |
@@ -74,7 +74,7 @@ jobs:
             echo "::error::Failed to update package lists"
             exit 1
           fi
-          echo "✓ Package lists updated"
+          echo "Package lists updated"
 
       - name: Make script executable and run
         run: |
@@ -92,7 +92,7 @@ jobs:
             echo "::error::Dependency update script failed"
             exit 1
           fi
-          echo "✓ Dependency update completed successfully"
+          echo "Dependency update completed successfully"
 
       - name: Validate updated JSON
         run: |
@@ -105,7 +105,7 @@ jobs:
             echo "::error::Updated .devcontainer/dependencies.json is not valid JSON"
             exit 1
           fi
-          echo "✓ Updated .devcontainer/dependencies.json is valid"
+          echo "Updated .devcontainer/dependencies.json is valid"
 
       - name: Show updated dependencies
         run: |
@@ -119,12 +119,12 @@ jobs:
           
           if [ -n "$(git status --porcelain .devcontainer/dependencies.json)" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "✓ Changes detected in .devcontainer/dependencies.json"
+            echo "Changes detected in .devcontainer/dependencies.json"
             
             # Show what changed
             echo "::group::Changes made"
             if git diff .devcontainer/dependencies.json; then
-              echo "✓ Diff displayed successfully"
+              echo "Diff displayed successfully"
             else
               echo "::warning::Could not show diff"
             fi
@@ -145,7 +145,7 @@ jobs:
             echo "::error::Failed to commit changes"
             exit 1
           fi
-          echo "✓ Changes committed successfully"
+          echo "Changes committed successfully"
 
       - name: Create Pull Request
         if: steps.verify-changed-files.outputs.changed == 'true'
@@ -154,9 +154,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(deps): update .devcontainer/dependencies.json"
           branch: features/update-dependencies
-          title: "🔄 Update DevContainer APT packages"
+          title: "Update DevContainer APT packages"
           body: |
-            ## 📦 DevContainer Dependencies Update
+            ## DevContainer Dependencies Update
             
             This PR updates the `.devcontainer/dependencies.json` file with the latest available package versions.
             
@@ -174,10 +174,10 @@ jobs:
             3. Test the devcontainer build if desired
             
             ### Automation Details
-            - 🤖 Generated automatically by GitHub Actions
-            - 📅 Triggered: ${{ github.event_name }}
-            - 🔗 Workflow: [${{ github.workflow }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            - 📋 Script: `update-dependencies.sh --no-backup`
+            - Generated automatically by GitHub Actions
+            - Triggered: ${{ github.event_name }}
+            - Workflow: [${{ github.workflow }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - Script: `update-dependencies.sh --no-backup`
             
             ---
             *This PR was created automatically. Please review the changes before merging.*
@@ -192,13 +192,13 @@ jobs:
       - name: PR Creation Status
         if: steps.verify-changed-files.outputs.changed == 'true'
         run: |
-          echo "✅ Pull request created successfully"
-          echo "🔗 Check the 'Pull requests' tab to review and merge"
+          echo "Pull request created successfully"
+          echo "Check the 'Pull requests' tab to review and merge"
 
       - name: No Changes Status
         if: steps.verify-changed-files.outputs.changed == 'false'
         run: |
-          echo "ℹ️ No updates needed - all packages are already at latest versions"
+          echo "No updates needed - all packages are already at latest versions"
 
       - name: Cleanup on failure
         if: failure()

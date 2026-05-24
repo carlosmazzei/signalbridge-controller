@@ -76,7 +76,7 @@ If containers are not available, install CMake, Doxygen, Python 3, the GNU Arm E
 - Configure and build with CMake presets: `cmake --preset pico-release && cmake --build --preset pico-release` (use `pico-debug` for debug builds). VS Code tasks named **Build Project** and **Clean Build** provide the same workflow.
 - The resulting UF2 image appears under `build-release/src/pi_controller.uf2` (or `build-debug/src/pi_controller.uf2` for the debug preset); copy it to the Pico while it is in BOOTSEL mode.
 
-## ✨ Features and Architecture
+## Features and Architecture
 
 ### System layout
 - Raspberry Pi Pico running FreeRTOS SMP at a 2 kHz tick with dual-core scheduling.
