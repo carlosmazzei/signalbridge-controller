@@ -9,6 +9,9 @@ project overview, see [`../README.md`](../README.md).
 - [COMMANDS.md](COMMANDS.md) — USB CDC command protocol: COBS framing, command IDs, payload formats, example frames.
 - [OUTPUT.md](OUTPUT.md) — output/display subsystem: SPI fabric, TM1639/TM1637 drivers, buffering, concurrency.
 
+## Host Integration
+- [SIGNALBRIDGE_HOST_LIB_SPEC.md](SIGNALBRIDGE_HOST_LIB_SPEC.md) — self-contained specification for implementing a host-side communication library (COBS protocol, command reference, event-driven API, multi-board management, wire-format examples).
+
 ## Tooling
 - [CPPCHECK_SETUP.md](CPPCHECK_SETUP.md) — Cppcheck + MISRA C:2012 configuration and workflow.
 
