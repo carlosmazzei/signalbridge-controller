@@ -29,9 +29,4 @@ void vApplicationIdleHook(void);
  */
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName);
 
-/**
- * @brief Periodic callback executed from the system tick interrupt.
- */
-void vApplicationTickHook(void);
-
 #endif // HOOKS_H

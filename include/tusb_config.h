@@ -53,8 +53,13 @@ extern "C" {
 #define CFG_TUSB_MCU          OPT_MCU_RP2040
 #endif
 
+// The real value is injected on the compiler command line by the build:
+// the top-level CMakeLists.txt sets TINYUSB_OPT_OS to OPT_OS_FREERTOS before
+// the Pico SDK loads TinyUSB, which makes tud_task_ext() block on the TinyUSB
+// event queue instead of polling. This fallback only exists so IDEs/linters
+// that parse the header without the build flags resolve to the same OSAL.
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS           OPT_OS_NONE
+#define CFG_TUSB_OS           OPT_OS_FREERTOS
 #endif
 
 #ifndef CFG_TUSB_DEBUG

@@ -374,6 +374,7 @@ void keypad_task(void *pvParameters)
 {
 	task_props_t * task_props = (task_props_t*) pvParameters;
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+	uint32_t loop_count = 0U;
 
 	for (uint8_t i = 0U; i < MAX_NUM_ENCODERS; i++)
 	{
@@ -428,7 +429,14 @@ void keypad_task(void *pvParameters)
 			scan_encoders(encoder_state);
 		}
 
-		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		/* The watermark scan walks the whole task stack; at a ~2 ms scan
+		 * cadence that is ~2.5 MB/s of reads, so refresh it only every
+		 * 64th pass (diagnostic-only data). */
+		if (0U == (loop_count & 63U))
+		{
+			task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 
 		// Scan-cycle interval: controls debounce window (window = key_settling_time_ms * required samples)
@@ -549,6 +557,7 @@ void adc_read_task(void *pvParameters)
 	static bool adc_channel_primed[ADC_CHANNELS];
 
 	task_props_t * task_props = (task_props_t*) pvParameters;
+	uint32_t loop_count = 0U;
 
 	// Initialize the ADC states
 	for (uint8_t i = 0; i < ADC_CHANNELS; i++)
@@ -617,7 +626,13 @@ void adc_read_task(void *pvParameters)
 		// idle ADC line while same-priority tasks run.
 		adc_mux_select(0);
 
-		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		/* Diagnostic-only full-stack scan: refresh every 64th pass to keep
+		 * it off the scan hot path. */
+		if (0U == (loop_count & 63U))
+		{
+			task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 
 		// Cooperative yield: lets same-priority tasks (keypad) run between scans
