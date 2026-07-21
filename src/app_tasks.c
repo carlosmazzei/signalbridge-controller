@@ -634,3 +634,16 @@ static void led_status_task(void *pvParameters)
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 	}
 }
+
+/**
+ * @brief FreeRTOS hook that retrieves the current runtime counter in microseconds.
+ *
+ * Backs portGET_RUN_TIME_COUNTER_VALUE() so the kernel can accumulate per-task
+ * run time for the PC_TASK_STATUS_CMD reporting path (see app_comm.c).
+ *
+ * @return Monotonic runtime value used by the kernel statistics module.
+ */
+uint32_t ulPortGetRunTime(void)
+{
+	return time_us_32();
+}
