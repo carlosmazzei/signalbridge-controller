@@ -322,12 +322,19 @@ static void uart_event_task(void *pvParameters)
 	uint8_t receive_buffer[CDC_READ_CHUNK_SIZE];
 	encoded_framer_t framer;
 	encoded_frame_t frame;
+	uint32_t loop_count = 0U;
 
 	encoded_framer_reset(&framer);
 
 	for (;;)
 	{
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		/* Full-stack watermark scans are diagnostic-only; refresh every
+		 * 64th pass to keep them off the RX hot path. */
+		if (0U == (loop_count & 63U))
+		{
+			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 
 		QueueHandle_t queue = app_context_get_encoded_queue();
@@ -403,10 +410,15 @@ static void uart_event_task(void *pvParameters)
 static void cdc_task(void *pvParameters)
 {
 	task_props_t *task_prop = (task_props_t *)pvParameters;
+	uint32_t loop_count = 0U;
 	for (;;)
 	{
 		tud_task_ext(CDC_TASK_SAFETY_TIMEOUT_MS, false);
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		if (0U == (loop_count & 63U))
+		{
+			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 	}
 }
@@ -421,10 +433,15 @@ static void decode_reception_task(void *pvParameters)
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	encoded_frame_t frame;
 	uint8_t decode_buffer[MAX_ENCODED_BUFFER_SIZE];
+	uint32_t loop_count = 0U;
 
 	for (;;)
 	{
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		if (0U == (loop_count & 63U))
+		{
+			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 
 		// Get queue handle and wait if not created yet
@@ -468,10 +485,15 @@ static void decode_reception_task(void *pvParameters)
 static void process_outbound_task(void *pvParameters)
 {
 	task_props_t *task_prop = (task_props_t *)pvParameters;
+	uint32_t loop_count = 0U;
 
 	for (;;)
 	{
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		if (0U == (loop_count & 63U))
+		{
+			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 
 		QueueHandle_t data_queue = app_context_get_data_event_queue();
@@ -500,6 +522,7 @@ static void cdc_write_task(void *pvParameters)
 {
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	cdc_packet_t packet;
+	uint32_t loop_count = 0U;
 
 	for (;;)
 	{
@@ -511,28 +534,55 @@ static void cdc_write_task(void *pvParameters)
 				vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
 			}
 
-			size_t total_written = 0U;
-			while (total_written < packet.length)
+			/* Drain every queued packet into the TinyUSB TX FIFO before a
+			 * single flush: coalescing small packets into fewer USB
+			 * transfers raises throughput without adding latency (the
+			 * flush still happens as soon as the queue runs empty). */
+			bool more_packets = true;
+			while (more_packets)
 			{
-				const uint32_t available = tud_cdc_n_write_available(0);
-				const uint32_t remaining = (uint32_t)packet.length - (uint32_t)total_written;
-				const uint32_t to_write = (available < remaining) ? available : remaining;
-
-				if (to_write > 0U)
+				size_t total_written = 0U;
+				while (total_written < packet.length)
 				{
-					uint32_t written = tud_cdc_n_write(0, &packet.data[total_written], to_write);
-					total_written += written;
+					const uint32_t available = tud_cdc_n_write_available(0);
+					const uint32_t remaining = (uint32_t)packet.length - (uint32_t)total_written;
+					const uint32_t to_write = (available < remaining) ? available : remaining;
+
+					if (to_write > 0U)
+					{
+						uint32_t written = tud_cdc_n_write(0, &packet.data[total_written], to_write);
+						total_written += written;
+					}
+					else if (!app_context_is_cdc_ready())
+					{
+						/* Host dropped the link mid-packet: abandon the
+						 * remainder instead of spinning into the watchdog. */
+						break;
+					}
+					else
+					{
+						/* FIFO full: yield until cdc_task drains it.
+						 * tud_task() is serviced exclusively by cdc_task to
+						 * avoid reentering the TinyUSB device stack from two
+						 * tasks. */
+						taskYIELD();
+					}
 				}
 
-				/* tud_task() is serviced exclusively by cdc_task to avoid
-				 * reentering the TinyUSB device stack from two tasks. */
-				taskYIELD();
+				statistics_add_to_counter(BYTES_SENT, (uint32_t)total_written);
+				more_packets = (pdTRUE == xQueueReceive(queue, &packet, 0U));
 			}
 
 			(void)tud_cdc_write_flush();
-			statistics_add_to_counter(BYTES_SENT, (uint32_t)total_written);
 		}
-		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+
+		/* The watermark scan walks the whole task stack; refresh it only
+		 * every 64th pass to keep it out of the steady-state hot path. */
+		if (0U == (loop_count & 63U))
+		{
+			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		watchdog_update();
 	}
 }
@@ -583,14 +633,4 @@ static void led_status_task(void *pvParameters)
 		watchdog_update();
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 	}
-}
-
-/**
- * @brief FreeRTOS hook that retrieves the current runtime counter in microseconds.
- *
- * @return Monotonic runtime value used by the kernel statistics module.
- */
-uint32_t ulPortGetRunTime(void)
-{
-	return time_us_32();
 }
