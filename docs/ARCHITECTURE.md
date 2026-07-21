@@ -31,22 +31,22 @@ Three queues coordinate data movement and enforce isolation between producers an
 
 | Queue | Producer | Consumer | Size | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| Encoded reception queue | UART event task | Decode reception task | 2048 bytes | Buffers COBS-encoded bytes arriving from the host. |
+| Encoded reception queue | UART event task | Decode reception task | 256 frames | Buffers complete COBS-encoded frames arriving from the host. |
 | Data event queue | Keypad, ADC, encoder tasks | Process outbound task | 500 events | Stores multiplexed input events until the host fetches them. |
-| CDC transmit queue | Process outbound task and decoding path | CDC write task | 2048 packets | Holds formatted packets until the USB interface is ready. |
+| CDC transmit queue | Process outbound task and decoding path | CDC write task | 256 packets | Holds formatted packets until the USB interface is ready (~7 KB of FreeRTOS heap; ~1.7× the TinyUSB TX FIFO). |
 
 ## Data Flows
 - **Host to device:** The UART event task captures bytes from the host, the decode task reconstructs and validates packets, and the processing logic triggers hardware actions or prepares responses.
 - **Device to host:** Hardware tasks enqueue events, the outbound processor formats them, and the CDC write task transmits packets to the host. The queue architecture ensures communication duties on Core 0 remain responsive even when Core 1 is busy.
 
 ## Synchronization and Protection
-Queues provide thread-safe communication between tasks. Core affinity reduces contention, and each task contributes to watchdog updates to detect hangs. Communication queues use short waits or polling to keep USB paths responsive, while the event queue blocks until the host reads data to avoid dropping user input.
+Queues provide thread-safe communication between tasks. Core affinity reduces contention, and each task contributes to watchdog updates to detect hangs. Communication queues use short waits or polling to keep USB paths responsive. Input-event enqueues wait up to `INPUT_QUEUE_SEND_TIMEOUT_MS` (100 ms) when the data event queue is full, then drop the event and increment a statistics counter — bounding how long a stalled host can freeze the keypad/encoder scan.
 
 ## Error Management and Diagnostics
 Twenty-two counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, bytes transmitted or received, and output/input driver errors. Critical errors persist in watchdog scratch registers, and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.
 
 ## Suggested Improvements
-Key recommendations for strengthening the architecture include:
+A prioritized performance analysis — including which of these items have already been implemented and which remain proposed — is maintained in [PERFORMANCE.md](PERFORMANCE.md). Key recommendations for strengthening the architecture include:
 - Introduce differentiated task priorities so USB communication outranks lower-urgency processing.
 - Expand the data event queue capacity to reduce blocking during bursts of hardware activity.
 - Favor interrupt-driven input capture for the keypad, ADC, and encoder paths to reduce latency and CPU usage.
