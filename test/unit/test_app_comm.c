@@ -14,6 +14,7 @@
 #include "queue.h"
 
 #include "app_comm.h"
+#include "app_config.h"
 #include "app_context.h"
 #include "commands.h"
 #include "error_management.h"
@@ -83,11 +84,24 @@ static void test_send_packet_rejects_oversized_payload(void **state)
 	assert_int_equal(statistics_get_counter(BUFFER_OVERFLOW_ERROR), 1);
 }
 
+static void test_cdc_queue_memory_budget(void **state)
+{
+	(void)state;
+
+	/* The CDC transmit queue is copy-by-value (one cdc_packet_t per slot),
+	 * so its footprint comes straight out of the FreeRTOS heap. Keep the
+	 * budget at or below 16 KB (12.5% of the 128 KB heap) while retaining
+	 * enough depth to buffer well beyond the 4 KB TinyUSB TX FIFO. */
+	assert_true((CDC_TRANSMIT_QUEUE_SIZE * sizeof(cdc_packet_t)) <= (16U * 1024U));
+	assert_true(CDC_TRANSMIT_QUEUE_SIZE >= 128U);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test_setup(test_send_packet_accepts_max_payload, setup_test),
 		cmocka_unit_test_setup(test_send_packet_rejects_oversized_payload, setup_test),
+		cmocka_unit_test_setup(test_cdc_queue_memory_budget, setup_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);

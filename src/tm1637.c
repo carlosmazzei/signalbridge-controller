@@ -52,7 +52,13 @@ static output_result_t tm1637_set_brightness_output(output_driver_t *config, uin
 
 // ---- Bit-bang helpers (open-drain emulation) ----
 
-#define TM1637_DELAY_US (3)
+/* Half-period of the bit-banged clock. 2 µs -> 250 kHz, a 2x margin under
+ * the TM1637 datasheet maximum of 500 kHz. Every byte costs ~16 delays while
+ * the caller holds the SPI mutex, so this value directly bounds display
+ * latency. Build-overridable; raise back to 3 if long/loaded wiring needs it. */
+#ifndef TM1637_DELAY_US
+#define TM1637_DELAY_US (2)
+#endif
 
 /**
  * @brief Configure a TM1637 signal for open-drain high state.
