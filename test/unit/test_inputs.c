@@ -317,7 +317,11 @@ static void test_adc_default_settling_is_microsecond_scale(void **state)
     /* The header default is the contract: tests bind here so an accidental
      * regression to 0 (or back to a millisecond-scale value) is caught. */
     assert_true(ADC_DEFAULT_SETTLING_US > 0U);
-    assert_true(ADC_DEFAULT_SETTLING_US <= 5000U); /* keep per-channel cycle < ~5 ms */
+    /* The settling wait is a busy_wait_us_32 spin on core 1: with 16 channels
+     * per scan, every 100 µs here costs 1.6 ms of CPU spin per scan cycle.
+     * The 74HC4067 switches in < 1 µs, so 100 µs already carries a large
+     * margin — keep the busy-spin budget per scan at or below ~2 ms. */
+    assert_true(ADC_DEFAULT_SETTLING_US <= 100U);
     assert_true(ADC_DEFAULT_OVERSAMPLE >= 1U);
     assert_true(ADC_DEFAULT_SCAN_INTERVAL_MS >= 1U);
     assert_true(ADC_NUM_TAPS >= 4U); /* must keep at least the legacy filter depth */

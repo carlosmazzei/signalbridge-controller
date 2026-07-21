@@ -28,8 +28,14 @@
  * @name SPI fabric configuration
  * @{
  */
-/** Nominal SPI bus frequency used for TM1639 devices (500 kHz). */
-#define SPI_FREQUENCY (500U * 1000U)
+/**
+ * Nominal SPI bus frequency used for TM1639 devices (1 MHz).
+ *
+ * 1 MHz is the TM1639 datasheet maximum (min CLK pulse width 400 ns; the
+ * RP2040 SPI produces 500 ns half-periods at this rate). Revert to
+ * (500U * 1000U) if signal integrity through the multiplexer degrades.
+ */
+#define SPI_FREQUENCY (1000U * 1000U)
 /** Total number of logical SPI interfaces exposed through the multiplexer. */
 #define MAX_SPI_INTERFACES 8U
 /** Number of GPIOs exposed by the RP2040 package. */
