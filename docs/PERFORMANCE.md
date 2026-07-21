@@ -30,7 +30,7 @@ plan](#follow-up-measurement-plan) before undertaking the larger restructures.
 | 4 | SPI 500 kHz → 1 MHz | Displays | Medium (halves TM1639 bus time & mutex hold) | Low–Med (HW signal integrity) | S | **Implemented** | `include/app_outputs.h` `SPI_FREQUENCY` |
 | 5 | TM1637 bit delay 3 → 2 µs | Displays | Medium (~33% faster bit-banged writes under SPI mutex) | Low–Med (HW) | S | **Implemented** | `src/tm1637.c` `TM1637_DELAY_US` (`#ifndef`-overridable) |
 | 6 | CDC write loop: yield only on FIFO-full, coalesce flushes, disconnect bail-out | USB TX | Medium (no busy-yield per chunk; fewer small USB transfers; no watchdog reset on mid-packet disconnect) | Low | M | **Implemented** | `src/app_tasks.c` `cdc_write_task` |
-| 7 | Disable unused run-time stats / trace / stats formatting | Scheduler | Medium (timer read on every context switch removed) | Low | S | **Implemented** | `include/FreeRTOSConfig.h` |
+| 7 | ~~Disable run-time stats / trace / stats formatting~~ | Scheduler | — | — | S | **Rejected** — consumed by `PC_TASK_STATUS_CMD` | `include/FreeRTOSConfig.h` |
 | 8 | Disable empty tick hook | Scheduler | Low–Med (2000 empty calls/s/core removed) | Low | S | **Implemented** | `include/FreeRTOSConfig.h`, `src/hooks.c` |
 | 9 | Rate-limit `uxTaskGetStackHighWaterMark` to every 64th loop pass | Scheduler | Low–Med (multi-MB/s of diagnostic stack scans removed) | Low | S | **Implemented** | `src/app_tasks.c`, `src/app_inputs.c` |
 | 10 | Input-event enqueue timeout 1000 → 100 ms | Inputs | Low–Med (bounds worst-case keypad stall 10×) | Low | S | **Implemented** | `include/app_config.h` `INPUT_QUEUE_SEND_TIMEOUT_MS` |
@@ -60,7 +60,6 @@ Each change keeps a single revert knob and documents it at the definition site.
 | `CDC_TRANSMIT_QUEUE_SIZE` (`include/app_config.h`) | `256U` | `2048U` |
 | `INPUT_QUEUE_SEND_TIMEOUT_MS` (`include/app_config.h`) | `100U` | `1000U` |
 | `TM1637_DELAY_US` (`src/tm1637.c`) | `2` (build-overridable) | `3` |
-| `configGENERATE_RUN_TIME_STATS` etc. (`include/FreeRTOSConfig.h`) | `0` | `1` |
 | `configUSE_TICK_HOOK` (`include/FreeRTOSConfig.h`) | `0` | `1` |
 
 Notes per item:
@@ -93,13 +92,19 @@ Notes per item:
    flush still happens as soon as the queue empties), and abandons the packet
    if the host drops the link mid-write instead of spinning until the watchdog
    fires.
-7-9. **Scheduler trims (items 7–9).** Run-time stats added a timer read to
-   every context switch with no consumer; the tick hook was an empty call at
-   2000 Hz per core; the watermark refresh full-stack scan ran every loop pass
-   in every task (~2.5 MB/s from the keypad task alone) and is now sampled
-   every 64th pass. To profile task CPU usage, temporarily re-enable
-   `configGENERATE_RUN_TIME_STATS` with `portGET_RUN_TIME_COUNTER_VALUE()`
-   mapped to `time_us_32()`.
+7. **Run-time stats (item 7) — rejected.** Initially disabled on the
+   assumption nothing consumed them, but the `PC_TASK_STATUS_CMD` handler
+   (`send_heap_status` in `src/app_comm.c`) reports per-task and idle CPU
+   usage to the host via `ulTaskGetRunTimeCounter/Percent` and
+   `ulTaskGetIdleRunTimeCounter/Percent`, all of which require
+   `configGENERATE_RUN_TIME_STATS=1`. `configGENERATE_RUN_TIME_STATS`,
+   `configUSE_TRACE_FACILITY` and `configUSE_STATS_FORMATTING_FUNCTIONS`
+   are therefore left enabled. The per-context-switch timer read is the cost
+   of a shipped diagnostic feature, not dead weight.
+8-9. **Scheduler trims (items 8–9).** The tick hook was an empty call at
+   2000 Hz per core (now disabled); the watermark refresh full-stack scan ran
+   every loop pass in every task (~2.5 MB/s from the keypad task alone) and is
+   now sampled every 64th pass.
 10. **Input enqueue timeout (item 10).** A full data-event queue already ended
    in drop-and-count after blocking the scan for 1 s; the shorter bound only
    limits the input outage while the 500-slot queue provides the real burst
@@ -137,9 +142,9 @@ Notes per item:
 
 Before investing in items 12–14, profile on hardware:
 
-1. Re-enable `configGENERATE_RUN_TIME_STATS` on a debug build (map the counter
-   to `time_us_32()`), dump per-task CPU via a debug command, and confirm the
-   ADC/keypad/idle split on Core 1.
+1. Query per-task and idle CPU usage over `PC_TASK_STATUS_CMD` (already backed
+   by the enabled run-time stats) and confirm the ADC/keypad/idle split on
+   Core 1.
 2. Toggle a spare GPIO around the ADC scan and display flush paths and measure
    with a logic analyzer to validate the computed timings in this document.
 3. Use the existing statistics counters (`INPUT_QUEUE_FULL_ERROR`,
