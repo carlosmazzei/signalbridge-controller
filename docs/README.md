@@ -6,6 +6,7 @@ project overview, see [`../README.md`](../README.md).
 
 ## Architecture & Protocol
 - [ARCHITECTURE.md](ARCHITECTURE.md) — FreeRTOS SMP task layout, queues, data flows, error management.
+- [PERFORMANCE.md](PERFORMANCE.md) — prioritized performance analysis: implemented quick wins, proposed optimizations, revert guide.
 - [COMMANDS.md](COMMANDS.md) — USB CDC command protocol: COBS framing, command IDs, payload formats, example frames.
 - [OUTPUT.md](OUTPUT.md) — output/display subsystem: SPI fabric, TM1639/TM1637 drivers, buffering, concurrency.
 
