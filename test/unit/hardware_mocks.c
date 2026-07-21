@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <string.h>
 #include "hardware/pwm.h"
 
 // Pico SDK mock types and functions
@@ -96,7 +97,52 @@ void spi_set_format(spi_inst_t *spi, uint32_t data_bits, uint32_t cpol, uint32_t
     (void)spi; (void)data_bits; (void)cpol; (void)cpha; (void)order;
 }
 void gpio_set_function(uint32_t gpio, uint32_t fn) { (void)gpio; (void)fn; }
-int spi_write_blocking(spi_inst_t *spi, const uint8_t *src, size_t len) { (void)spi; (void)src; return (int)len; }
+/* Keep these capture definitions layout-identical to the test-only section
+ * of mock_headers/hardware/spi.h (this file deliberately does not include
+ * that header because its SPI prototypes differ from the mocks below). */
+#define MOCK_SPI_MAX_CALLS     32U
+#define MOCK_SPI_CAPTURE_BYTES 24U
+
+typedef struct {
+    size_t len;
+    uint8_t data[MOCK_SPI_CAPTURE_BYTES];
+} mock_spi_call_t;
+
+static mock_spi_call_t mock_spi_calls[MOCK_SPI_MAX_CALLS];
+static size_t mock_spi_num_calls = 0U;
+
+void mock_spi_reset(void)
+{
+    mock_spi_num_calls = 0U;
+    memset(mock_spi_calls, 0, sizeof(mock_spi_calls));
+}
+
+size_t mock_spi_call_count(void)
+{
+    return mock_spi_num_calls;
+}
+
+const mock_spi_call_t *mock_spi_call(size_t index)
+{
+    return (index < mock_spi_num_calls) ? &mock_spi_calls[index] : NULL;
+}
+
+int spi_write_blocking(spi_inst_t *spi, const uint8_t *src, size_t len)
+{
+    (void)spi;
+    if (mock_spi_num_calls < MOCK_SPI_MAX_CALLS)
+    {
+        mock_spi_call_t *call = &mock_spi_calls[mock_spi_num_calls];
+        call->len = len;
+        size_t capture = (len < MOCK_SPI_CAPTURE_BYTES) ? len : (size_t)MOCK_SPI_CAPTURE_BYTES;
+        if (src != NULL)
+        {
+            memcpy(call->data, src, capture);
+        }
+        mock_spi_num_calls++;
+    }
+    return (int)len;
+}
 
 // FreeRTOS real implementation now used - no more mocks needed
 size_t xPortGetMinimumEverFreeHeapSize(void)
