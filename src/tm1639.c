@@ -257,28 +257,23 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 
 		tm1639_stop(config); // STB goes high - Required between commands
 
-		// Step 2: Send address command and write all buffer data
+		// Step 2: Send address command and all buffer data as one SPI burst.
+		// Batching the 17 bytes into a single spi_write_blocking() call keeps
+		// the transaction on the wire back-to-back instead of paying the
+		// per-call setup cost 17 times while the SPI mutex is held.
 		if (TM1639_OK == result)
 		{
-			tm1639_start(config); // STB goes low again
+			uint8_t tx_buffer[1U + TM1639_DISPLAY_BUFFER_SIZE];
 
 			// Set starting address to 0x00: 11000000 (0xC0)
-			if (tm1639_write_byte(config, TM1639_CMD_ADDR_BASE) != 1)
+			tx_buffer[0] = TM1639_CMD_ADDR_BASE;
+			(void)memcpy(&tx_buffer[1], config->active_buffer, TM1639_DISPLAY_BUFFER_SIZE);
+
+			tm1639_start(config); // STB goes low again
+
+			if (spi_write_blocking(config->spi, tx_buffer, sizeof(tx_buffer)) != (int)sizeof(tx_buffer))
 			{
 				result = TM1639_ERR_SPI_WRITE;
-			}
-			else
-			{
-				// Write all 16 bytes from active buffer
-				// MISRA-C: Declare loop variable with reduced scope
-				for (uint8_t i = 0U; (i < TM1639_DISPLAY_BUFFER_SIZE) && (TM1639_OK == result); i++)
-				{
-					if (tm1639_write_byte(config, config->active_buffer[i]) != 1)
-					{
-						result = TM1639_ERR_SPI_WRITE;
-						// Break handled by loop condition
-					}
-				}
 			}
 
 			tm1639_stop(config); // STB goes high to end transaction
