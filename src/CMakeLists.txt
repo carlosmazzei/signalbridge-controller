@@ -159,9 +159,8 @@ target_link_libraries(pi_controller PRIVATE
     FreeRTOS-Kernel-Heap4
 )
 
-# Run memory analysis on demand; scanning every generated stack-usage file can
-# be expensive and should not delay normal firmware builds.
-add_custom_target(memory_analysis
+# Run memory analysis after every firmware build.
+add_custom_target(memory_analysis ALL
     DEPENDS pi_controller
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/memory_analysis.sh
             ${CMAKE_CURRENT_BINARY_DIR}/pi_controller.elf
