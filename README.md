@@ -106,7 +106,7 @@ For protocol framing, payload layouts, and pre-COBS example frames, see `docs/CO
 ## Hardware Platform
 - Target: Raspberry Pi Pico (RP2040) with Pico SDK 2.1.1 or newer and the current FreeRTOS Kernel.
 - Output SPI clock uses the Pico default pins 18 (SCK) and 19 (TX). Input multiplexers and PWM run on the GPIO assignments listed above.
-- The watchdog enforces a five-second timeout, and the SPI bus operates at 500 kHz for TM1639 reliability.
+- The watchdog enforces a five-second timeout, and the SPI bus operates at 1 MHz (the TM1639 datasheet maximum).
 
 ## Code Quality and Documentation
 - MISRA C:2012 guidance informs implementation choices; suppressions are documented for external dependencies and hardware access.

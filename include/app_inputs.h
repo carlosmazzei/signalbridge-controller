@@ -93,8 +93,18 @@
 #define ADC_NUM_TAPS 4U
 /** log2(@ref ADC_NUM_TAPS); used for mask/shift optimisations in the filter. */
 #define ADC_NUM_TAPS_SHIFT 2U
-/** Default µs settling delay between channel selections (74HC4067 + ~10 kΩ pot). */
-#define ADC_DEFAULT_SETTLING_US 500U
+/**
+ * Default µs settling delay between channel selections (74HC4067 + ~10 kΩ pot).
+ *
+ * This delay is a busy_wait_us_32() spin on core 1, paid once per enabled
+ * channel per scan, so it dominates the ADC task's CPU cost (16 channels x
+ * this value per scan). The 74HC4067 switches in < 1 µs and the realistic
+ * source RC constant is well under 10 µs, so 100 µs keeps > 10x margin while
+ * cutting the per-scan spin from ~8 ms to ~1.6 ms. Runtime-tunable through
+ * input_config.adc_settling_us; raise back toward 500U if a high-impedance
+ * source shows crosstalk between adjacent channels.
+ */
+#define ADC_DEFAULT_SETTLING_US 100U
 /** Default number of raw samples averaged per channel per scan. */
 #define ADC_DEFAULT_OVERSAMPLE 4U
 /** Default hysteresis (in raw 12-bit LSBs) applied before emitting a new event. */

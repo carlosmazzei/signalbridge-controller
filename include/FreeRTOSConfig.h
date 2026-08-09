@@ -47,7 +47,7 @@
 #define configUSE_PREEMPTION                    1
 #define configUSE_TICKLESS_IDLE                 0
 #define configUSE_IDLE_HOOK                     1
-#define configUSE_TICK_HOOK                     1
+#define configUSE_TICK_HOOK                     0
 #define configTICK_RATE_HZ                      ( ( TickType_t ) 2000 )
 #define configMAX_PRIORITIES                    10
 #define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
@@ -84,6 +84,10 @@
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 // Run time and task stats gathering related definitions.
+// Required: the PC_TASK_STATUS_CMD handler (send_heap_status in app_comm.c)
+// reports per-task and idle CPU usage to the host via
+// ulTaskGetRunTimeCounter/Percent and ulTaskGetIdleRunTimeCounter/Percent,
+// all of which need configGENERATE_RUN_TIME_STATS=1.
 #define configGENERATE_RUN_TIME_STATS           1
 #define configUSE_TRACE_FACILITY                1
 #define configUSE_STATS_FORMATTING_FUNCTIONS    1
@@ -124,10 +128,6 @@ extern uint32_t ulPortGetRunTime( void );
 
 // PERFORMANCE TUNING for larger stacks
 #define configUSE_TASK_NOTIFICATIONS            1
-#define configUSE_MUTEXES                       1
-#define configUSE_RECURSIVE_MUTEXES             1
-#define configUSE_COUNTING_SEMAPHORES           1
-#define configCHECK_FOR_STACK_OVERFLOW          2    // Critical with large stacks
 
 // Define to trap errors during development.
 #define configASSERT(x)                         assert(x)
