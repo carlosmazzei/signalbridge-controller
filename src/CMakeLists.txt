@@ -22,7 +22,7 @@ endif()
 target_link_libraries(signalbridge_core PUBLIC pico_controller_headers)
 
 # Add platform-specific dependencies to core library
-if(PICO_PLATFORM)
+if(NOT HOST_BUILD)
     # Pico target: Use RP2040 port and Pico SDK
     target_link_libraries(signalbridge_core PUBLIC
         pico_stdlib
@@ -50,6 +50,11 @@ else()
         ${FREERTOS_POSIX_PORT_PATH}/port.c
         ${FREERTOS_POSIX_PORT_PATH}/utils/wait_for_event.c
     )
+    # wait_for_event.c uses robust mutex and clock APIs guarded by _GNU_SOURCE.
+    set_source_files_properties(
+        ${FREERTOS_POSIX_PORT_PATH}/utils/wait_for_event.c
+        PROPERTIES COMPILE_DEFINITIONS _GNU_SOURCE
+    )
     
     # Add FreeRTOS sources to core library
     target_sources(signalbridge_core PRIVATE ${FREERTOS_POSIX_SOURCES})
@@ -65,7 +70,7 @@ else()
 endif()
 
 # Only build executable for Pico platform
-if(NOT PICO_PLATFORM)
+if(HOST_BUILD)
     return()
 endif()
 
@@ -90,7 +95,7 @@ target_compile_definitions(pi_controller PRIVATE
     PICO_USE_FASTEST_SUPPORTED_CLOCK=1
     PICO_STACK_SIZE=0x1000 # 4KB main stack
     PICO_CORE1_STACK_SIZE=0x1000 # 4KB Core 1 stack
-    PICO_HEAP_SZIE=0x20000
+    PICO_HEAP_SIZE=0x18000 # 96KB heap, leaving room for both 4KB stacks
     PICO_USE_STACK_GUARDS=1
     PICO_STACK_GUARDS=1
 )
@@ -154,12 +159,14 @@ target_link_libraries(pi_controller PRIVATE
     FreeRTOS-Kernel-Heap4
 )
 
-# Run memory analysis script after build
-add_custom_target(memory_analysis ALL
+# Run memory analysis on demand; scanning every generated stack-usage file can
+# be expensive and should not delay normal firmware builds.
+add_custom_target(memory_analysis
     DEPENDS pi_controller
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/memory_analysis.sh
             ${CMAKE_CURRENT_BINARY_DIR}/pi_controller.elf
             ${CMAKE_CURRENT_BINARY_DIR}/memory_analysis_report.txt
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Running memory_analysis.sh after build"
+    VERBATIM
 )
