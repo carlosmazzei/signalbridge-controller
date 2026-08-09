@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "hardware/pwm.h"
+#include "mock_spi_capture.h"
 
 // Pico SDK mock types and functions
 typedef struct {
@@ -97,17 +98,6 @@ void spi_set_format(spi_inst_t *spi, uint32_t data_bits, uint32_t cpol, uint32_t
     (void)spi; (void)data_bits; (void)cpol; (void)cpha; (void)order;
 }
 void gpio_set_function(uint32_t gpio, uint32_t fn) { (void)gpio; (void)fn; }
-/* Keep these capture definitions layout-identical to the test-only section
- * of mock_headers/hardware/spi.h (this file deliberately does not include
- * that header because its SPI prototypes differ from the mocks below). */
-#define MOCK_SPI_MAX_CALLS     32U
-#define MOCK_SPI_CAPTURE_BYTES 24U
-
-typedef struct {
-    size_t len;
-    uint8_t data[MOCK_SPI_CAPTURE_BYTES];
-} mock_spi_call_t;
-
 static mock_spi_call_t mock_spi_calls[MOCK_SPI_MAX_CALLS];
 static size_t mock_spi_num_calls = 0U;
 

@@ -69,8 +69,12 @@ Notes per item:
    switches in < 1 µs and the realistic source RC constant (pot wiper + mux
    R\_on into the S/H and trace capacitance) is well under 10 µs, so 100 µs
    retains > 10× margin. Also runtime-tunable via `input_config.adc_settling_us`.
-   Raise it back toward 500 µs if adjacent-channel crosstalk appears with
-   high-impedance sources. Unit test pins the ≤ 100 µs contract.
+   Raise it if adjacent-channel crosstalk appears with high-impedance sources.
+   The unit test guards the *scan budget* rather than the value — total spin
+   (`ADC_DEFAULT_SETTLING_US × ADC_CHANNELS`) must stay ≤ 2 ms — so any value up
+   to 125 µs needs no test change. Going higher (e.g. back to the original
+   500 µs) means either relaxing that guard or scanning fewer channels via
+   `adc_channel_mask`.
 2. **CDC TX queue (item 2).** The queue stores 27-byte packets by value; 2048
    slots consumed ~55 KB (43%) of the FreeRTOS heap while only ever feeding a
    4 KB TinyUSB FIFO. 256 slots (~7 KB) still buffer ~1.7× the FIFO; when the
@@ -88,10 +92,16 @@ Notes per item:
 6. **CDC write loop (item 6).** Previously the drain loop executed
    `taskYIELD()` on every iteration (even after successful writes) and flushed
    after every 27-byte packet. Now it yields only when the FIFO is actually
-   full, drains every queued packet before one flush (latency unchanged — the
-   flush still happens as soon as the queue empties), and abandons the packet
-   if the host drops the link mid-write instead of spinning until the watchdog
-   fires.
+   full and drains every queued packet before one flush (latency unchanged —
+   the flush still happens as soon as the queue empties).
+   Disconnect handling is preserved from the original one-packet-per-iteration
+   design: host readiness (DTR+RTS) is re-checked **before every packet**, and
+   the task parks on it rather than writing into a FIFO that cannot drain —
+   flushing whatever is already buffered first so those bytes are not stranded.
+   Only a link drop *mid-packet* abandons the remainder; that case increments
+   `CDC_QUEUE_SEND_ERROR` and the truncated frame is discarded by the host's
+   COBS resynchronisation. This replaces the original behaviour of spinning on
+   `taskYIELD()` until the host returned.
 7. **Run-time stats (item 7) — rejected.** Initially disabled on the
    assumption nothing consumed them, but the `PC_TASK_STATUS_CMD` handler
    (`send_heap_status` in `src/app_comm.c`) reports per-task and idle CPU

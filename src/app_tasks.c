@@ -529,11 +529,6 @@ static void cdc_write_task(void *pvParameters)
 		QueueHandle_t queue = app_context_get_cdc_transmit_queue();
 		if ((queue != NULL) && (pdTRUE == xQueueReceive(queue, &packet, portMAX_DELAY)))
 		{
-			while (!app_context_is_cdc_ready())
-			{
-				vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
-			}
-
 			/* Drain every queued packet into the TinyUSB TX FIFO before a
 			 * single flush: coalescing small packets into fewer USB
 			 * transfers raises throughput without adding latency (the
@@ -541,6 +536,21 @@ static void cdc_write_task(void *pvParameters)
 			bool more_packets = true;
 			while (more_packets)
 			{
+				/* Readiness is re-checked for every packet, not once per
+				 * drain: otherwise a host that closes the port mid-drain
+				 * would keep receiving writes into a FIFO that never
+				 * drains, and the rest of the queue would be discarded.
+				 * Flush what is already buffered before parking so those
+				 * bytes are not stranded while the link is down. */
+				if (!app_context_is_cdc_ready())
+				{
+					(void)tud_cdc_write_flush();
+					do
+					{
+						vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
+					} while (!app_context_is_cdc_ready());
+				}
+
 				size_t total_written = 0U;
 				while (total_written < packet.length)
 				{
@@ -552,11 +562,20 @@ static void cdc_write_task(void *pvParameters)
 					{
 						uint32_t written = tud_cdc_n_write(0, &packet.data[total_written], to_write);
 						total_written += written;
+
+						if (0U == written)
+						{
+							/* No forward progress: yield rather than spin. */
+							taskYIELD();
+						}
 					}
 					else if (!app_context_is_cdc_ready())
 					{
 						/* Host dropped the link mid-packet: abandon the
-						 * remainder instead of spinning into the watchdog. */
+						 * remainder instead of spinning into the watchdog.
+						 * The truncated frame is discarded by the host's
+						 * COBS resynchronisation on the next delimiter. */
+						statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
 						break;
 					}
 					else
