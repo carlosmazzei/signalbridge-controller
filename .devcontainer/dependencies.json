@@ -19,7 +19,7 @@
     "python3": "3.13.5-1",
     "sudo": "1.9.16p2-3+deb13u2",
     "uncrustify": "0.78.1+dfsg1-1+b2",
-    "jq": "1.7.1-6+deb13u2",
+    "jq": "1.7.1-6+deb13u3",
     "lcov": "2.3.1-1",
     "gcovr": "7.2+really-1.1",
     "libcmocka-dev": "1.1.7-3+b1",
