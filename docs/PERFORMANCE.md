@@ -34,7 +34,7 @@ plan](#follow-up-measurement-plan) before undertaking the larger restructures.
 | 8 | Disable empty tick hook | Scheduler | Low–Med (2000 empty calls/s/core removed) | Low | S | **Implemented** | `include/FreeRTOSConfig.h`, `src/hooks.c` |
 | 9 | Rate-limit `uxTaskGetStackHighWaterMark` to every 64th loop pass | Scheduler | Low–Med (multi-MB/s of diagnostic stack scans removed) | Low | S | **Implemented** | `src/app_tasks.c`, `src/app_inputs.c` |
 | 10 | Input-event enqueue timeout 1000 → 100 ms | Inputs | Low–Med (bounds worst-case keypad stall 10×) | Low | S | **Implemented** | `include/app_config.h` `INPUT_QUEUE_SEND_TIMEOUT_MS` |
-| 11 | Fix inert `PICO_HEAP_SZIE` typo (now `PICO_HEAP_SIZE=0x18000`); dedupe FreeRTOSConfig defines | Build hygiene | None (provable no-ops) | None | S | **Implemented** | `src/CMakeLists.txt`, `include/FreeRTOSConfig.h` |
+| 11 | Fix inert `PICO_HEAP_SZIE` typo (now `PICO_HEAP_SIZE=0x8000`); dedupe FreeRTOSConfig defines | Build hygiene | None (provable no-ops) | None | S | **Implemented** | `src/CMakeLists.txt`, `include/FreeRTOSConfig.h` |
 | 12 | ADC: timer/DMA-driven scan instead of task busy-wait | Inputs | **High** (removes remaining ~1.6 ms/scan spin entirely) | Med–High | L | Proposed | `src/app_inputs.c` |
 | 13 | Outbound single-copy path (stream buffer / encode-in-place) | Comm | Medium (packet copied ~3× today: memcpy → COBS → queue copy) | Med | L | Proposed | `src/app_comm.c`, `src/app_tasks.c` |
 | 14 | Per-address dirty tracking in TM1639/TM1637 (partial flush) | Displays | Medium (single-digit change rewrites whole buffer today) | Med | M | Proposed | `src/tm1639.c`, `src/tm1637.c` |
@@ -123,22 +123,35 @@ Notes per item:
    The original analysis proposed deleting it outright, on the grounds that a
    literal `PICO_HEAP_SIZE=0x20000` would demand a 128 KB minimum C heap
    alongside the 128 KB FreeRTOS heap in 264 KB RAM. The CMake configuration
-   pass resolved it the other way: the define is now spelled correctly and set
-   to `0x18000` (96 KB).
+   pass resolved it the other way, spelling the define correctly; it is now set
+   to `0x8000` (32 KB).
 
    Measured on the RP2040 release build, the define is a **link-time floor**,
    not a runtime reservation. `crt0.S` emits `.space PICO_HEAP_SIZE` into the
    NOLOAD `.heap` section, while `sbrk` grows to `__HeapLimit`, which the
    linker script pins to the end of RAM regardless of the value. The two 4 KB
-   stacks live in the separate SCRATCH_X/Y banks and never compete with it.
-   Current figures: static data ends at `0x20024f30`, leaving 110 800 bytes to
-   the end of RAM — so the 98 304-byte floor fits with 12 496 bytes to spare.
-   The original `0x20000` (128 KB) does not fit and fails the link outright
-   (`section .heap is not within region RAM`), confirming the analysis above.
+   core stacks live in the separate SCRATCH_X/Y banks and never compete with
+   it. Static data ends at `0x20024f30`, leaving 110 800 bytes to the end of
+   RAM, so the floor costs no RAM at runtime — it only caps how far static and
+   `.bss` allocation may grow before the link fails.
 
-   The practical effect is a guard: the build now fails once static/`.bss`
-   growth exceeds ~12 KB, even though the C heap is nearly unused (two one-time
-   driver allocations). That is a deliberate ceiling, not a memory cost.
+   Sizing therefore trades guard strength against build headroom:
+
+   | `PICO_HEAP_SIZE` | Static-growth headroom | Verdict |
+   |---|---|---|
+   | `0x20000` (128 KB, the typo's literal value) | — | Fails the link: `section .heap is not within region RAM` |
+   | `0x18000` (96 KB) | 12 496 bytes | Fits, but caps growth at ~12 KB to guard a nearly unused heap |
+   | `0x8000` (32 KB) — **current** | 78 032 bytes | Keeps a real floor with room to grow |
+
+   The C heap holds only two one-time driver allocations, so a 96 KB floor
+   bought no safety while making the next ~12 KB of static growth fail the
+   build with a misleading `.heap` error. 32 KB keeps the guarantee that
+   `malloc` has room without turning it into a de-facto RAM ceiling.
+
+   Note when reading build output: `arm-none-eabi-size`'s Berkeley format
+   counts the NOLOAD `.heap` in its `text` column, so the Flash figure printed
+   by `scripts/memory_analysis.sh` is inflated by `PICO_HEAP_SIZE`. Actual
+   flash use is ~53 KB (2.6% of 2 MB); RAM is 151 344 bytes of 264 KB.
 
 ## Proposed items — why deferred
 

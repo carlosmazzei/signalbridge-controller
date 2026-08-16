@@ -95,7 +95,12 @@ target_compile_definitions(pi_controller PRIVATE
     PICO_USE_FASTEST_SUPPORTED_CLOCK=1
     PICO_STACK_SIZE=0x1000 # 4KB main stack
     PICO_CORE1_STACK_SIZE=0x1000 # 4KB Core 1 stack
-    PICO_HEAP_SIZE=0x18000 # 96KB heap, leaving room for both 4KB stacks
+    # Link-time floor for the C heap, not a runtime reservation: crt0.S emits
+    # .space PICO_HEAP_SIZE into the NOLOAD .heap section while sbrk still grows
+    # to __HeapLimit at the end of RAM. 32KB guards a nearly unused C heap while
+    # leaving room for static/.bss growth. (Task stacks come from the FreeRTOS
+    # heap; the two 4KB core stacks live in the separate SCRATCH_X/Y banks.)
+    PICO_HEAP_SIZE=0x8000
     PICO_USE_STACK_GUARDS=1
     PICO_STACK_GUARDS=1
 )
