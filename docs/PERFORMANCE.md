@@ -34,7 +34,7 @@ plan](#follow-up-measurement-plan) before undertaking the larger restructures.
 | 8 | Disable empty tick hook | Scheduler | Low–Med (2000 empty calls/s/core removed) | Low | S | **Implemented** | `include/FreeRTOSConfig.h`, `src/hooks.c` |
 | 9 | Rate-limit `uxTaskGetStackHighWaterMark` to every 64th loop pass | Scheduler | Low–Med (multi-MB/s of diagnostic stack scans removed) | Low | S | **Implemented** | `src/app_tasks.c`, `src/app_inputs.c` |
 | 10 | Input-event enqueue timeout 1000 → 100 ms | Inputs | Low–Med (bounds worst-case keypad stall 10×) | Low | S | **Implemented** | `include/app_config.h` `INPUT_QUEUE_SEND_TIMEOUT_MS` |
-| 11 | Remove inert `PICO_HEAP_SZIE` typo define; dedupe FreeRTOSConfig defines | Build hygiene | None (provable no-ops) | None | S | **Implemented** | `src/CMakeLists.txt`, `include/FreeRTOSConfig.h` |
+| 11 | Fix inert `PICO_HEAP_SZIE` typo (now `PICO_HEAP_SIZE=0x18000`); dedupe FreeRTOSConfig defines | Build hygiene | None (provable no-ops) | None | S | **Implemented** | `src/CMakeLists.txt`, `include/FreeRTOSConfig.h` |
 | 12 | ADC: timer/DMA-driven scan instead of task busy-wait | Inputs | **High** (removes remaining ~1.6 ms/scan spin entirely) | Med–High | L | Proposed | `src/app_inputs.c` |
 | 13 | Outbound single-copy path (stream buffer / encode-in-place) | Comm | Medium (packet copied ~3× today: memcpy → COBS → queue copy) | Med | L | Proposed | `src/app_comm.c`, `src/app_tasks.c` |
 | 14 | Per-address dirty tracking in TM1639/TM1637 (partial flush) | Displays | Medium (single-digit change rewrites whole buffer today) | Med | M | Proposed | `src/tm1639.c`, `src/tm1637.c` |
@@ -120,10 +120,25 @@ Notes per item:
    limits the input outage while the 500-slot queue provides the real burst
    absorption.
 11. **`PICO_HEAP_SZIE` (item 11).** The misspelled define never had any effect.
-   It was removed rather than "fixed": a real `PICO_HEAP_SIZE=0x20000` would
-   demand a 128 KB minimum C heap alongside the 128 KB FreeRTOS heap in
-   264 KB RAM. The C heap is nearly unused (two one-time `pvPortMalloc`
-   driver allocations), so no replacement is needed.
+   The original analysis proposed deleting it outright, on the grounds that a
+   literal `PICO_HEAP_SIZE=0x20000` would demand a 128 KB minimum C heap
+   alongside the 128 KB FreeRTOS heap in 264 KB RAM. The CMake configuration
+   pass resolved it the other way: the define is now spelled correctly and set
+   to `0x18000` (96 KB).
+
+   Measured on the RP2040 release build, the define is a **link-time floor**,
+   not a runtime reservation. `crt0.S` emits `.space PICO_HEAP_SIZE` into the
+   NOLOAD `.heap` section, while `sbrk` grows to `__HeapLimit`, which the
+   linker script pins to the end of RAM regardless of the value. The two 4 KB
+   stacks live in the separate SCRATCH_X/Y banks and never compete with it.
+   Current figures: static data ends at `0x20024f30`, leaving 110 800 bytes to
+   the end of RAM — so the 98 304-byte floor fits with 12 496 bytes to spare.
+   The original `0x20000` (128 KB) does not fit and fails the link outright
+   (`section .heap is not within region RAM`), confirming the analysis above.
+
+   The practical effect is a guard: the build now fails once static/`.bss`
+   growth exceeds ~12 KB, even though the C heap is nearly unused (two one-time
+   driver allocations). That is a deliberate ceiling, not a memory cost.
 
 ## Proposed items — why deferred
 
