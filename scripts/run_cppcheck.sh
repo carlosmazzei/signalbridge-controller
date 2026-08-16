@@ -63,8 +63,15 @@ POSSIBLE_PATHS=(
     "/usr/share/cppcheck/addons/misra.py"
     "/usr/local/share/cppcheck/addons/misra.py"
     "/opt/homebrew/share/cppcheck/addons/misra.py"
-    "$(dirname $(which cppcheck))/../share/cppcheck/addons/misra.py"
+    "$(dirname "$(which cppcheck)")/../share/cppcheck/addons/misra.py"
 )
+
+# Debian/Ubuntu package the addons under the multiarch libdir rather than
+# /usr/share, so glob those in too before giving up.
+while IFS= read -r path; do
+    [ -n "$path" ] && POSSIBLE_PATHS+=("$path")
+done < <(ls -1 /usr/lib/*/cppcheck/addons/misra.py \
+                /usr/local/lib/*/cppcheck/addons/misra.py 2>/dev/null || true)
 
 for path in "${POSSIBLE_PATHS[@]}"; do
     if [ -f "$path" ]; then

@@ -149,9 +149,15 @@ Notes per item:
    `malloc` has room without turning it into a de-facto RAM ceiling.
 
    Note when reading build output: `arm-none-eabi-size`'s Berkeley format
-   counts the NOLOAD `.heap` in its `text` column, so the Flash figure printed
-   by `scripts/memory_analysis.sh` is inflated by `PICO_HEAP_SIZE`. Actual
-   flash use is ~53 KB (2.6% of 2 MB); RAM is 151 344 bytes of 264 KB.
+   classifies by section flags, and this link marks `.data` as `READONLY,CODE`
+   and the NOLOAD `.heap`/`.stack_dummy` reservations as `ALLOC,READONLY` — so
+   all three land in its `text` column and the reported Flash figure moved with
+   `PICO_HEAP_SIZE` even though `.heap` never occupies Flash.
+   `scripts/memory_analysis.sh` now classifies sections by LMA/VMA via
+   `objdump -h` instead, and reports the heap floor, the core stacks and the
+   remaining static-growth headroom separately. Current build: Flash 53 536
+   bytes (2.6% of 2 MB), static RAM 151 344 bytes of 264 KB, heap floor 32 768
+   bytes, core stacks 8 192 bytes, headroom 78 032 bytes.
 
 ## Proposed items — why deferred
 
