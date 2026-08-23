@@ -14,7 +14,7 @@
     "libnewlib-arm-none-eabi": "4.5.0.20241231-1",
     "libstdc++-arm-none-eabi-newlib": "15:14.2.rel1-1+29",
     "nodejs": "20.19.2+dfsg-1+deb13u2",
-    "openjdk-21-jre-headless": "21.0.11+10-1~deb13u2",
+    "openjdk-21-jre-headless": "21.0.12.1+1-1~deb13u1",
     "openssh-client": "1:10.0p1-7+deb13u4",
     "python3": "3.13.5-1",
     "sudo": "1.9.16p2-3+deb13u2",
@@ -23,5 +23,5 @@
     "lcov": "2.3.1-1",
     "gcovr": "7.2+really-1.1",
     "libcmocka-dev": "1.1.7-3+b1",
-    "unzip": "6.0-29"
+    "unzip": "6.0-29+deb13u1"
 }
