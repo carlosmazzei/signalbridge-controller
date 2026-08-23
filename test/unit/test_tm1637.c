@@ -11,14 +11,6 @@
 #include "app_outputs.h"
 #include "tm1637.h"
 
-// Provide a stubbed select_interface used by tm1637 during bit-banged transfers
-static output_result_t stub_select_interface(uint8_t chip_id, bool select)
-{
-	(void)chip_id;
-	(void)select;
-	return OUTPUT_OK;
-}
-
 // spi0 is provided by hardware_mocks.c, but declare here to satisfy the compiler
 extern spi_inst_t *spi0;
 
