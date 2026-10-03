@@ -121,7 +121,7 @@ assets/        — Logos and diagrams
 - **Core 0**: USB CDC tasks (read/write/maintenance), status LED
 - **Core 1**: Input scanning (keypad, ADC, encoders), output driving (SPI/TM1639/TM1637/PWM), COBS decode
 - **Communication**: COBS framing with 0x00 delimiter. 3-byte header + 20-byte payload + checksum
-- **SPI bus**: 500 kHz, mutex-protected, with multiplexer routing for multiple display drivers
+- **SPI bus**: 1 MHz, mutex-protected, with multiplexer routing for multiple display drivers
 - **Error handling**: Watchdog (5s timeout), scratch registers persist error info across resets, status LED blink patterns, 22 statistics counters
 - **Memory constraints**: 2MB Flash, 264KB RAM, 128KB FreeRTOS heap, stack-usage warnings at 3.5KB
 

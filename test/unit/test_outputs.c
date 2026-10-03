@@ -350,8 +350,10 @@ static void test_pin_constants(void **state)
 static void test_spi_frequency_constant(void **state)
 {
 	(void) state;
-	// Test SPI frequency is reasonable (500 kHz)
-	assert_int_equal(500000, SPI_FREQUENCY);
+	// 1 MHz is the TM1639 datasheet maximum (min CLK pulse width 400 ns;
+	// 1 MHz gives 500 ns half-periods). Revert to 500 kHz if signal
+	// integrity through the mux becomes an issue.
+	assert_int_equal(1000000, SPI_FREQUENCY);
 }
 
 static void test_max_interfaces_constant(void **state)

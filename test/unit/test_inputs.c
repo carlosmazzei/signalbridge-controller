@@ -317,7 +317,12 @@ static void test_adc_default_settling_is_microsecond_scale(void **state)
     /* The header default is the contract: tests bind here so an accidental
      * regression to 0 (or back to a millisecond-scale value) is caught. */
     assert_true(ADC_DEFAULT_SETTLING_US > 0U);
-    assert_true(ADC_DEFAULT_SETTLING_US <= 5000U); /* keep per-channel cycle < ~5 ms */
+    /* Busy-spin budget rather than a pinned value: the settling wait is a
+     * busy_wait_us_32() paid once per channel per scan on core 1, so the whole
+     * scan must stay under ~2 ms of spin or the same-priority keypad and
+     * outbound tasks get starved. This still leaves the settling time free to
+     * be tuned for the hardware (any value up to 125 µs at 16 channels). */
+    assert_true((ADC_DEFAULT_SETTLING_US * ADC_CHANNELS) <= 2000U);
     assert_true(ADC_DEFAULT_OVERSAMPLE >= 1U);
     assert_true(ADC_DEFAULT_SCAN_INTERVAL_MS >= 1U);
     assert_true(ADC_NUM_TAPS >= 4U); /* must keep at least the legacy filter depth */

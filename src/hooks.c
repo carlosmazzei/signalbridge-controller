@@ -45,8 +45,3 @@ void vApplicationIdleHook(void)
 	free_heap_size = xPortGetFreeHeapSize();
 }
 //-----------------------------------------------------------
-
-void vApplicationTickHook(void)
-{
-	// Tick hook
-}

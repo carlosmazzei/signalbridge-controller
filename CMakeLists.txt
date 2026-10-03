@@ -1,31 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Compilation database: presets enable CMAKE_EXPORT_COMPILE_COMMANDS.
-# Create/update a symlink (Unix) or copy (others) at the source root so
-# linters and verification tools always find the active build's database.
-if(CMAKE_EXPORT_COMPILE_COMMANDS)
-    if(UNIX)
-        add_custom_target(sync_compile_commands ALL
-            COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_SOURCE_DIR}/compile_commands.json
-            COMMAND ${CMAKE_COMMAND} -E create_symlink
-                    ${CMAKE_BINARY_DIR}/compile_commands.json
-                    ${CMAKE_SOURCE_DIR}/compile_commands.json
-            COMMENT "Symlink compile_commands.json to source root"
-            BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
-        )
-    else()
-        add_custom_target(sync_compile_commands ALL
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${CMAKE_BINARY_DIR}/compile_commands.json
-                    ${CMAKE_SOURCE_DIR}/compile_commands.json
-            COMMENT "Copy compile_commands.json to source root"
-            BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
-        )
-    endif()
-endif()
-
-# Options
-option(SIGNALBRIDGE_BUILD_DOCS "Build Doxygen docs" ON)
+# Build options
+option(HOST_BUILD "Build the host test configuration" OFF)
+option(SIGNALBRIDGE_BUILD_DOCS "Build Doxygen documentation" ON)
 
 # Only load Pico SDK for embedded builds
 if(NOT HOST_BUILD)
@@ -38,8 +15,12 @@ if(NOT HOST_BUILD)
     set(TINYUSB_OPT_OS OPT_OS_FREERTOS)
 
     # Pull in SDK (must be before project)
-    set(PICO_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/pico-sdk/")
-    include(lib/pico-sdk/pico_sdk_init.cmake)
+    set(PICO_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/pico-sdk" CACHE PATH "Path to the Pico SDK")
+    if(NOT EXISTS "${PICO_SDK_PATH}/pico_sdk_init.cmake")
+        message(FATAL_ERROR
+            "Pico SDK not found at '${PICO_SDK_PATH}'. Initialize submodules or set PICO_SDK_PATH.")
+    endif()
+    include("${PICO_SDK_PATH}/pico_sdk_init.cmake")
 
     # Check Pico SDK version and pull in FreeRTOS (only for embedded builds)
     if (PICO_SDK_VERSION_STRING VERSION_LESS "1.5.0")
@@ -47,13 +28,44 @@ if(NOT HOST_BUILD)
     endif()
 
     # Pull in FreeRTOS
-    set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS-Kernel/")
-    include(FreeRTOS_Kernel_import.cmake)
+    set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS-Kernel" CACHE PATH "Path to the FreeRTOS kernel")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS_Kernel_import.cmake")
 endif()
 
-project(pi_controller C CXX ASM)
+project(pi_controller VERSION 1.0.0 LANGUAGES C CXX ASM)
+
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Compilation database: presets enable CMAKE_EXPORT_COMPILE_COMMANDS.
+# Create/update a symlink (Unix) or copy (others) at the source root so
+# linters and verification tools always find the active build's database.
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    if(UNIX)
+        add_custom_target(sync_compile_commands ALL
+            COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_SOURCE_DIR}/compile_commands.json
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                    ${CMAKE_BINARY_DIR}/compile_commands.json
+                    ${CMAKE_SOURCE_DIR}/compile_commands.json
+            COMMENT "Symlink compile_commands.json to source root"
+            BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
+            VERBATIM
+        )
+    else()
+        add_custom_target(sync_compile_commands ALL
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_BINARY_DIR}/compile_commands.json
+                    ${CMAKE_SOURCE_DIR}/compile_commands.json
+            COMMENT "Copy compile_commands.json to source root"
+            BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
+            VERBATIM
+        )
+    endif()
+endif()
 
 # Initialize Pico SDK (only for embedded builds)
 if(NOT HOST_BUILD)

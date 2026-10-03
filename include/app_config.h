@@ -22,8 +22,15 @@
 
 /**
  * @brief Size of the CDC transmit queue.
+ *
+ * Each slot stores a full @ref cdc_packet_t by value (~27 bytes), so the
+ * queue footprint comes straight out of the FreeRTOS heap: 256 slots ~= 7 KB.
+ * That still buffers ~1.7x the 4 KB TinyUSB TX FIFO; when the host stalls
+ * long enough to fill it, @ref app_comm_send_packet already drops the packet
+ * and counts @c CDC_QUEUE_SEND_ERROR. (Was 2048 slots ~= 55 KB, 43% of the
+ * 128 KB heap, with no additional benefit.)
  */
-#define CDC_TRANSMIT_QUEUE_SIZE 2048U
+#define CDC_TRANSMIT_QUEUE_SIZE 256U
 
 /**
  * @brief Data buffer size (used for inbound/outbound data).
@@ -79,8 +86,14 @@
 
 /**
  * @brief Timeout for sending events to data queues (milliseconds).
+ *
+ * Bounds how long the keypad/encoder scan can stall when the data event
+ * queue is full (host not draining). The enqueue already ends in a
+ * drop-and-count on timeout, so a shorter bound only limits the input-scan
+ * outage; 100 ms still rides out transient host stalls (the 500-slot queue
+ * flushes over full-speed CDC in tens of ms once the host resumes).
  */
-#define INPUT_QUEUE_SEND_TIMEOUT_MS 1000U
+#define INPUT_QUEUE_SEND_TIMEOUT_MS 100U
 
 /**
  * @brief Retry delay for queue polling in task loops (milliseconds).
