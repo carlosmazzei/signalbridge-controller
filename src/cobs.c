@@ -42,7 +42,8 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
 				++encode;
 		}
 	}
-	*codep = code; // Write final code value
+	if (codep < encode)
+		*codep = code; // A full final block needs no extra code byte.
 
 	return (size_t)(encode - buffer);
 }
@@ -60,24 +61,43 @@ size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
  *
  * @return Number of decoded payload bytes stored in @p data.
  */
-size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
+bool cobs_decode_checked(const uint8_t *buffer, size_t length, void *data,
+                         size_t capacity, size_t *decoded_length)
 {
-	const uint8_t *byte = buffer; // Encoded input byte pointer
-	uint8_t *decode = (uint8_t *)data; // Decoded output byte pointer
-
-	for (uint8_t code = 0xff, block = 0; byte < buffer + length; --block)
+	size_t input = 0U;
+	size_t output = 0U;
+	uint8_t *decoded = data;
+	if (decoded_length == NULL)
+		return false;
+	*decoded_length = 0U;
+	if ((buffer == NULL) || (data == NULL) || (length == 0U))
+		return false;
+	while (input < length)
 	{
-		if (block) // Decode block byte
-			*decode++ = *byte++;
-		else
+		uint8_t code = buffer[input++];
+		size_t count = (size_t)code - 1U;
+		if ((code == 0U) || (count > length - input) || (count > capacity - output))
+			return false;
+		for (size_t i = 0U; i < count; i++)
 		{
-			if (code != 0xff) // Encoded zero, write it
-				*decode++ = 0;
-			block = code = *byte++; // Next block length
-			if (!code) // Delimiter code found
-				break;
+			if (buffer[input] == 0U)
+				return false;
+			decoded[output++] = buffer[input++];
+		}
+		if ((code != 0xFFU) && (input < length))
+		{
+			if (output >= capacity)
+				return false;
+			decoded[output++] = 0U;
 		}
 	}
+	*decoded_length = output;
+	return true;
+}
 
-	return (size_t)(decode - (uint8_t *)data);
+size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
+{
+	size_t decoded_length = 0U;
+	(void)cobs_decode_checked(buffer, length, data, length, &decoded_length);
+	return decoded_length;
 }

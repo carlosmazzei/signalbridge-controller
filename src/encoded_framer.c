@@ -14,6 +14,7 @@ void encoded_framer_reset(encoded_framer_t *framer)
 	if (NULL != framer)
 	{
 		framer->length = 0U;
+		framer->discarding = false;
 	}
 }
 
@@ -26,6 +27,13 @@ framer_result_t encoded_framer_push_byte(encoded_framer_t *framer,
 	if (NULL == framer)
 	{
 		return FRAMER_OVERFLOW;
+	}
+
+	if (framer->discarding)
+	{
+		if (PACKET_MARKER == byte)
+			encoded_framer_reset(framer);
+		return FRAMER_NEED_MORE_DATA;
 	}
 
 	if (PACKET_MARKER == byte)
@@ -55,12 +63,14 @@ framer_result_t encoded_framer_push_byte(encoded_framer_t *framer,
 			 * accumulation is not a valid frame.  Drop it and report
 			 * overflow so the caller can account for the error. */
 			framer->length = 0U;
+			framer->discarding = true;
 			result = FRAMER_OVERFLOW;
 		}
 	}
 	else
 	{
 		framer->length = 0U;
+		framer->discarding = true;
 		result = FRAMER_OVERFLOW;
 	}
 

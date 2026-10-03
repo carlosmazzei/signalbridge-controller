@@ -152,9 +152,24 @@ static void test_frame_ready_works_with_null_out_frame(void **state)
 	assert_int_equal(framer->length, 0U);
 }
 
+static void test_discard_until_delimiter(void **state)
+{
+	(void)state;
+	encoded_framer_t framer;
+	encoded_frame_t frame;
+	encoded_framer_reset(&framer);
+	for (size_t i = 0U; i < MAX_ENCODED_BUFFER_SIZE; i++)
+		(void)encoded_framer_push_byte(&framer, 0xA5U, &frame);
+	(void)encoded_framer_push_byte(&framer, 0x01U, &frame);
+	assert_int_not_equal(FRAMER_FRAME_READY, encoded_framer_push_byte(&framer, 0U, &frame));
+	(void)encoded_framer_push_byte(&framer, 0x01U, &frame);
+	assert_int_equal(FRAMER_FRAME_READY, encoded_framer_push_byte(&framer, 0U, &frame));
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(test_discard_until_delimiter),
 		cmocka_unit_test_setup_teardown(test_reset_clears_accumulator, setup_framer, teardown_framer),
 		cmocka_unit_test_setup_teardown(test_non_marker_byte_accumulates, setup_framer, teardown_framer),
 		cmocka_unit_test_setup_teardown(test_marker_after_bytes_yields_frame, setup_framer, teardown_framer),

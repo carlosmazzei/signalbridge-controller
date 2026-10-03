@@ -2,7 +2,7 @@
 # Script to run cppcheck with MISRA C:2012 addon
 # Optimized for CI and VS Code visibility
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -103,9 +103,12 @@ echo "✅ Configuration loaded"
 # Build Base Command
 CPPCHECK_CMD=(
     cppcheck
+    --error-exitcode=2
+    --exitcode-suppressions="$PROJECT_ROOT/.cppcheck_advisory"
+    --include="$(arm-none-eabi-gcc -print-file-name=include)/stdatomic.h"
     --std=c11
     --enable=all
-    --force
+    --platform=unix32
     --check-level=exhaustive
     -j$(nproc)
     --template='{file}:{line}:{column}: {severity}: {message} [{id}]'
@@ -129,21 +132,23 @@ while IFS= read -r line; do
     fi
 done < "$CONFIG_FILE"
 
-COMPILE_COMMANDS="$PROJECT_ROOT/compile_commands.json"
+COMPILE_COMMANDS="${CPPCHECK_COMPILE_COMMANDS:-$PROJECT_ROOT/build-release/compile_commands.json}"
 
 if [ -f "$COMPILE_COMMANDS" ]; then
     echo "✅ Using compile_commands.json"
-    CPPCHECK_CMD+=(--project="$COMPILE_COMMANDS")
+    python3 "$SCRIPT_DIR/prepare_cppcheck.py" "$COMPILE_COMMANDS" "$OUTPUT_DIR/compile_commands.json"
+    CPPCHECK_CMD+=(--project="$OUTPUT_DIR/compile_commands.json")
     CPPCHECK_CMD+=(--file-filter="$PROJECT_ROOT/src/*")
-    CPPCHECK_CMD+=(-I"$PROJECT_ROOT/include/*") 
+    CPPCHECK_CMD+=(-I"$PROJECT_ROOT/include")
+    CPPCHECK_CMD+=('-Dbi_decl(x)=')
 
     echo "🚀 Executing Cppcheck..."
     echo "CMD: ${CPPCHECK_CMD[*]}"
     echo "---------------------------------------------------"
 
     # Execute DIRECTLY to stdout/stderr
-    "${CPPCHECK_CMD[@]}"
-    EXIT_CODE=$?
+    EXIT_CODE=0
+    "${CPPCHECK_CMD[@]}" || EXIT_CODE=$?
 
     collect_dumps
     if [ $EXIT_CODE -ne 0 ]; then

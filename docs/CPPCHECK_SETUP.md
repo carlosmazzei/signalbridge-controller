@@ -1,3 +1,11 @@
+> Current gate: build `pico-release`, then run `scripts/run_cppcheck.sh`.
+> The script reads `build-release/compile_commands.json` explicitly (override
+> with `CPPCHECK_COMPILE_COMMANDS`). It normalizes SDK `-isystem` include paths,
+> loads the ARM compiler atomic declarations around Pico's `include_next`,
+> and uses 32-bit target sizes. Analyzer errors return nonzero. Existing MISRA
+> and selected style debt remains visible but advisory in `.cppcheck_advisory`;
+> a passing run is not a MISRA compliance claim.
+
 # Cppcheck with MISRA C:2012 Setup
 
 This guide explains how to run static analysis with cppcheck and the MISRA C:2012 addon for the Signalbridge Controller firmware without embedding code snippets.

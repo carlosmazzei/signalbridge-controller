@@ -1,5 +1,4 @@
-# .github/workflows/build-all.yml
-name: "Build All"
+name: Build All
 
 on:
   push:
@@ -7,356 +6,84 @@ on:
       - 'src/**'
       - 'include/**'
       - 'test/**'
+      - 'scripts/**'
+      - 'lib/**'
       - '.gitmodules'
       - 'CMakeLists.txt'
       - '*.cmake'
       - 'CMakePresets.json'
       - '.devcontainer/**'
+      - '.github/workflows/build-all.yml'
+      - '.cppcheck*'
+      - 'misra.*'
+  pull_request:
   release:
     types: [published]
   workflow_dispatch:
 
-env:
-  PICO_PLATFORM: rp2040
-  PICO_BOARD: pico
-  PICO_SDK_PATH: ./lib/pico-sdk
-  FREERTOS_KERNEL_PATH: ./lib/FreeRTOS-Kernel
-  PICO_TOOLCHAIN_PATH: /usr/bin
+permissions:
+  contents: read
 
 jobs:
-  detect-changes:
-    name: Detect Changes
+  build-and-test:
+    name: Firmware and quality checks
     runs-on: ubuntu-latest
-    outputs:
-      devcontainer-changed: ${{ steps.changes.outputs.devcontainer }}
-      firmware-changed: ${{ steps.changes.outputs.firmware }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
-
-      - name: Detect changes
-        id: changes
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            devcontainer:
-              - '.devcontainer/**'
-            firmware:
-              - 'src/**'
-              - 'include/**'
-              - 'test/**'
-              - '.gitmodules'
-              - 'CMakeLists.txt'
-              - '*.cmake'
-              - 'CMakePresets.json'
-
-  build-devcontainer:
-    name: Build DevContainer
-    runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.devcontainer-changed == 'true' || github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image-tag: ${{ steps.image_tags.outputs.tag_sha }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Define tags
-        id: image_tags
+          submodules: recursive
+      # Build the toolchain from this checkout, including on fork PRs. No
+      # registry credentials, mutable :latest image, or skipped job outputs.
+      - name: Build toolchain image
+        run: docker build --tag signalbridge-ci .devcontainer
+      - name: Compile firmware and run static analysis
         run: |
-          IMAGE_NAME=ghcr.io/${{ github.repository }}/devcontainer-embedded-debian
-          echo "tag_latest=${IMAGE_NAME}:latest" >> $GITHUB_OUTPUT
-          echo "tag_debian12=${IMAGE_NAME}:debian-12" >> $GITHUB_OUTPUT
-          echo "tag_sha=${IMAGE_NAME}:${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: Build and push DevContainer image
-        uses: docker/build-push-action@v7
-        with:
-          context: .devcontainer
-          file: .devcontainer/Dockerfile
-          push: true
-          tags: |
-            ${{ steps.image_tags.outputs.tag_latest }}
-            ${{ steps.image_tags.outputs.tag_debian12 }}
-            ${{ steps.image_tags.outputs.tag_sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  build-firmware:
-    name: Build Firmware
-    runs-on: ubuntu-latest
-    needs: [detect-changes, build-devcontainer]
-    # Runs if firmware changed OR if devcontainer changed OR if it's a release OR workflow_dispatch
-    if: |
-      always() && 
-      (needs.detect-changes.outputs.firmware-changed == 'true' || 
-       needs.detect-changes.outputs.devcontainer-changed == 'true' || 
-       github.event_name == 'release' || 
-       github.event_name == 'workflow_dispatch') &&
-      (needs.build-devcontainer.result == 'success' || needs.build-devcontainer.result == 'skipped')
-    
-    container:
-      image: ${{ needs.build-devcontainer.outputs.image-tag || format('ghcr.io/{0}/devcontainer-embedded-debian:latest', github.repository) }}
-      options: --user=root
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    steps:
-      # Checkout the repository with submodules
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: 'recursive'
-
-      - name: Run workspace setup
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" signalbridge-ci \
+            bash -euc 'cmake --preset pico-release -DSIGNALBRIDGE_BUILD_DOCS=OFF
+              cmake --build --preset pico-release
+              ./scripts/run_cppcheck.sh'
+      - name: Build and run host tests
         run: |
-          chmod +x .devcontainer/post-create.sh
-          .devcontainer/post-create.sh
-
-      # Verify toolchain installation
-      - name: Verify installed toolchain version
-        run: arm-none-eabi-gcc --version
-
-      # Comprehensive debugging of paths and directory structure
-      - name: Show directory structure and paths
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" signalbridge-ci \
+            bash -euc 'cmake --preset host-tests
+              cmake --build --preset host-tests
+              ctest --preset host-tests'
+      - name: Address and undefined behavior sanitizers
         run: |
-          echo "==================== DEBUGGING PATHS ===================="
-          echo "Current working directory: $(pwd)"
-          echo ""
-          echo "=== Environment Variables ==="
-          echo "BUILD_TYPE: $BUILD_TYPE"
-          echo "PICO_PLATFORM: $PICO_PLATFORM"
-          echo "PICO_BOARD: $PICO_BOARD"
-          echo "PICO_SDK_PATH: $PICO_SDK_PATH"
-          echo "FREERTOS_KERNEL_PATH: $FREERTOS_KERNEL_PATH"
-          echo "PICO_TOOLCHAIN_PATH: $PICO_TOOLCHAIN_PATH"
-          echo ""
-          echo "=== Root Directory Contents ==="
-          ls -la
-          echo ""
-          echo "=== Lib Directory ==="
-          if [ -d "lib" ]; then
-            ls -la lib/
-          else
-            echo "❌ lib directory does not exist"
-          fi
-          echo ""
-          echo "=== Verifying SDK and FreeRTOS paths ==="
-          if [ -d "$PICO_SDK_PATH" ]; then
-            echo "✅ PICO_SDK_PATH exists: $PICO_SDK_PATH"
-            echo "Contents:"
-            ls -la "$PICO_SDK_PATH" | head -5
-          else
-            echo "❌ PICO_SDK_PATH does not exist: $PICO_SDK_PATH"
-          fi
-          echo ""
-          if [ -d "$FREERTOS_KERNEL_PATH" ]; then
-            echo "✅ FREERTOS_KERNEL_PATH exists: $FREERTOS_KERNEL_PATH"
-            echo "Contents:"
-            ls -la "$FREERTOS_KERNEL_PATH" | head -5
-          else
-            echo "❌ FREERTOS_KERNEL_PATH does not exist: $FREERTOS_KERNEL_PATH"
-          fi
-          echo ""
-          echo "=== CMake files in project ==="
-          find . -name "*.cmake" -type f 2>/dev/null | head -10
-          echo ""
-          echo "=== Looking for FreeRTOS import files ==="
-          find . -name "*FreeRTOS*" -name "*.cmake" -type f 2>/dev/null
-          echo ""
-          echo "=== CMakeLists.txt files ==="
-          find . -name "CMakeLists.txt" -type f 2>/dev/null
-          echo "=========================================================="
-
-      # Configure project using CMake presets
-      - name: Configure CMake
-        run: |
-          echo "==================== CMAKE CONFIGURATION ===================="
-          echo "Current directory: $(pwd)"
-          echo "Directory contents:"
-          ls -la
-          echo ""
-          echo "Lib directory:"
-          ls -la lib/
-          echo ""
-          echo "=== Paths relative to project root ==="
-          echo "PICO_SDK_PATH: ${{ env.PICO_SDK_PATH }}"
-          echo "FREERTOS_KERNEL_PATH: ${{ env.FREERTOS_KERNEL_PATH }}"
-          echo ""
-          echo "=== Verifying paths exist ==="
-          if [ -d "${{ env.PICO_SDK_PATH }}" ]; then
-            echo "✅ PICO_SDK_PATH exists: ${{ env.PICO_SDK_PATH }}"
-          else
-            echo "❌ PICO_SDK_PATH does not exist: ${{ env.PICO_SDK_PATH }}"
-          fi
-          if [ -d "${{ env.FREERTOS_KERNEL_PATH }}" ]; then
-            echo "✅ FREERTOS_KERNEL_PATH exists: ${{ env.FREERTOS_KERNEL_PATH }}"
-          else
-            echo "❌ FREERTOS_KERNEL_PATH does not exist: ${{ env.FREERTOS_KERNEL_PATH }}"
-          fi
-          echo ""
-          echo "=== Running CMake with preset ==="
-          cmake --preset pico-release --debug-output
-          echo "=========================================================="
-
-      # Build the project using presets
-      - name: Build
-        run: |
-          echo "==================== BUILDING PROJECT ===================="
-          echo "Starting build process..."
-          cmake --build --preset pico-release --verbose
-          echo ""
-          echo "=== Build completed - checking outputs ==="
-          find build-release -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
-          echo "=========================================================="
-
-      # Publish the full release build directory for downstream analysis jobs
-      - name: Upload build-release directory
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-release
-          path: build-release
-          retention-days: 5
-
-      # Archive documentation if it exists
-      - name: Archive Doxygen Documentation
-        run: |
-          echo "==================== DOCUMENTATION ===================="
-          if [ -d "build-release/docs/doc_doxygen" ]; then
-            echo "✅ Doxygen documentation found"
-            echo "Creating documentation archive..."
-            tar -czf build-release/src/doc.tar.gz -C build-release/docs/ doc_doxygen
-            echo "Documentation archived successfully"
-          else
-            echo "ℹ️  Doxygen documentation not found, skipping archive"
-            echo "Available directories in build:"
-            find build-release -type d -name "*doc*" 2>/dev/null || echo "No documentation directories found"
-          fi
-          echo "=========================================================="
-
-      # Debug artifacts before upload
-      - name: Show artifacts
-        run: |
-          echo "==================== ARTIFACTS ===================="
-          echo "=== Looking for build artifacts ==="
-          find build-release -name "*.uf2" -o -name "*.elf" -o -name "*.bin" -o -name "*.hex" 2>/dev/null
-          echo ""
-          echo "=== Build directory structure ==="
-          find build-release -type f | head -20
-          echo "=========================================================="
-
-      # Store build artifacts
-      - name: Store Build Artifacts
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" signalbridge-ci \
+            bash -euc 'cmake -S . -B build-sanitize -DHOST_BUILD=ON -DBUILD_TESTING=ON -DSIGNALBRIDGE_BUILD_DOCS=OFF -DENABLE_SANITIZERS=ON
+              cmake --build build-sanitize -j4
+              ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build-sanitize --output-on-failure'
+      - name: Store validated firmware
         uses: actions/upload-artifact@v7
         with:
           name: pico-build
           path: |
             build-release/src/*.uf2
             build-release/src/*.elf
-            build-release/src/doc.tar.gz
-          retention-days: 10
-
-  unit-tests:
-    name: Quality Checks
-    runs-on: ubuntu-latest
-    needs: [detect-changes, build-firmware]
-    if: |
-      always() &&
-      (needs.detect-changes.outputs.firmware-changed == 'true' ||
-       needs.detect-changes.outputs.devcontainer-changed == 'true' ||
-       github.event_name == 'workflow_dispatch') &&
-      (needs.build-devcontainer.result == 'success' || needs.build-devcontainer.result == 'skipped')
-    container:
-      image: ${{ needs.build-devcontainer.outputs.image-tag || format('ghcr.io/{0}/devcontainer-embedded-debian:latest', github.repository) }}
-      options: --user=root
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Run workspace setup
-        run: |
-          chmod +x .devcontainer/post-create.sh
-          .devcontainer/post-create.sh
-
-      - name: Download build-release directory
-        uses: actions/download-artifact@v8
-        with:
-          name: build-release
-          path: build-release
-
-      - name: Restore build-release directory
-        run: |
-          # Ensure the full release build output (including generated headers) is present for cppcheck analysis
-          if [ ! -d build-release ]; then
-            echo "❌ build-release directory not found after artifact download"
-            exit 1
-          fi
-
-          # Ensure the compilation database from the release build is available at the repo root
-          if [ ! -f build-release/compile_commands.json ]; then
-            echo "❌ compile_commands.json missing from build-release"
-            ls -la build-release || true
-            exit 1
-          fi
-
-          cp build-release/compile_commands.json ./compile_commands.json
-
-          echo "Restored build-release contents:"
-          ls -la build-release | head
-          echo "compile_commands.json present:"
-          ls -l ./compile_commands.json
-
-      - name: Run Cppcheck (MISRA)
-        run: ./scripts/run_cppcheck.sh
-
-      - name: Configure tests
-        run: cmake --preset host-tests
-
-      - name: Build tests
-        run: cmake --build --preset host-tests
-
-      - name: Run tests
-        run: ctest --preset host-tests
-
-      - name: Generate coverage
-        run: cmake --build --preset host-tests-coverage
-
-      - name: Upload coverage report
+          if-no-files-found: error
+      - name: Store quality reports
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-report
-          path: build-tests/coverage
-
+          name: quality-reports
+          include-hidden-files: true
+          path: |
+            build-tests/coverage
+            .cppcheck/cppcheck.log
+            .cppcheck/checkers_report.txt
       - name: Upload coverage to Codecov
+        if: github.event_name != 'pull_request'
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: build-tests/coverage.info
+          files: build-tests/test/coverage.info
           flags: unittests
-
       - name: SonarQube analysis
+        if: github.event_name != 'pull_request'
         uses: SonarSource/sonarqube-scan-action@v8
         with:
           args: >
@@ -365,37 +92,23 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # Release job (only runs on releases)
   release:
-    name: Release
+    name: Publish validated firmware
     runs-on: ubuntu-latest
-    needs: [detect-changes, unit-tests, build-firmware]
-    if: always() && github.event_name == 'release' && github.event.action == 'published'
-    
+    needs: build-and-test
+    if: github.event_name == 'release' && needs.build-and-test.result == 'success'
+    permissions:
+      contents: write
     steps:
-      # Download artifacts from build job
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: pico-build
           path: artifacts
-
-      # Debug downloaded artifacts
-      - name: Debug - Show downloaded artifacts
-        run: |
-          echo "=== Downloaded artifacts ==="
-          find artifacts -type f
-          ls -la artifacts/
-
-      # Upload to GitHub release
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
-            artifacts/**/*.uf2
-            artifacts/**/*.elf
-            artifacts/**/*.bin
-            artifacts/**/*.hex
-            artifacts/doc.tar.gz
+            artifacts/*.uf2
+            artifacts/*.elf
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,26 +10,21 @@
 /** @brief Singleton instance storing shared resources.
  *
  */
-static app_context_t s_app_context = {
-	.encoded_reception_queue = NULL,
-	.data_event_queue        = NULL,
-	.cdc_transmit_queue      = NULL,
-	.task_props              = {{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}},
-	.cdc_rts                 = ATOMIC_VAR_INIT(false),
-	.cdc_dtr                 = ATOMIC_VAR_INIT(false)
-};
+static app_context_t s_app_context;
 
 bool app_context_is_cdc_ready(void)
 {
-	const app_context_t *const context = app_context_get();
-	bool dtr = atomic_load_explicit(&context->cdc_dtr, memory_order_acquire);
-	bool rts = atomic_load_explicit(&context->cdc_rts, memory_order_acquire);
-	return (dtr && rts);
+	return (atomic_load_explicit(&s_app_context.cdc_state, memory_order_acquire) & 1U) != 0U;
+}
+
+uint32_t app_context_cdc_session(void)
+{
+	return atomic_load_explicit(&s_app_context.cdc_state, memory_order_acquire) >> 1U;
 }
 
 task_props_t *app_context_task_props(task_enum_t task_id)
 {
-	return &app_context_get()->task_props[task_id];
+	return ((unsigned)task_id < NUM_TASKS) ? &app_context_get()->task_props[task_id] : NULL;
 }
 
 QueueHandle_t app_context_get_encoded_queue(void)
@@ -78,6 +73,8 @@ void app_context_reset_task_props(void)
 
 void app_context_reset_queues(void)
 {
+	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
+		return;
 	if (s_app_context.encoded_reception_queue != NULL)
 	{
 		vQueueDelete(s_app_context.encoded_reception_queue);
@@ -97,8 +94,16 @@ void app_context_reset_queues(void)
 
 void app_context_set_line_state(bool dtr, bool rts)
 {
-	atomic_store_explicit(&s_app_context.cdc_dtr, dtr, memory_order_release);
-	atomic_store_explicit(&s_app_context.cdc_rts, rts, memory_order_release);
+	uint32_t old = atomic_load_explicit(&s_app_context.cdc_state, memory_order_relaxed);
+	uint32_t ready = (dtr && rts) ? 1U : 0U;
+	while ((old & 1U) != ready)
+	{
+		uint32_t next = ((old + 2U) & ~1U) | ready;
+		bool changed = atomic_compare_exchange_weak_explicit(&s_app_context.cdc_state, &old, next,
+		                                                     memory_order_release, memory_order_relaxed);
+		if (changed)
+			break;
+	}
 }
 
 void app_context_reset_line_state(void)

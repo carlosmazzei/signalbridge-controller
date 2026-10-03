@@ -24,6 +24,7 @@
 static BaseType_t mock_take_result = pdTRUE;
 static BaseType_t mock_give_result = pdTRUE;
 static bool mock_create_mutex_should_fail = false;
+static bool mock_driver_fail = false;
 
 static uint32_t mock_take_calls = 0;
 static uint32_t mock_give_calls = 0;
@@ -77,6 +78,7 @@ static void reset_mock_state(void)
 	mock_take_result = pdTRUE;
 	mock_give_result = pdTRUE;
 	mock_create_mutex_should_fail = false;
+	mock_driver_fail = false;
 	mock_set_digits_result = OUTPUT_OK;
 	mock_set_leds_result = OUTPUT_OK;
 	mock_set_display_result = OUTPUT_OK;
@@ -277,6 +279,8 @@ output_driver_t *__wrap_tm1639_init(uint8_t chip_id,
 	(void)clk_pin;
 
 	mock_tm1639_init_calls++;
+	if (mock_driver_fail)
+		return NULL;
 	return initialise_mock_driver(chip_id);
 }
 
@@ -506,22 +510,22 @@ static void test_display_out_succeeds_and_calls_driver(void **state)
 	if (!find_first_display_controller(&controller_id))
 	{
 		uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-		                      0x12,
-		                      0x34,
-		                      0x56,
-		                      0x78,
-		                      0x9A};
+			              0x12,
+			              0x34,
+			              0x56,
+			              0x78,
+			              0x9A};
 		assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(payload, sizeof(payload)));
 		assert_int_equal(0, (int)recorded_set_digits_calls);
 		return;
 	}
 
 	uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-	                      0x12,
-	                      0x34,
-	                      0x56,
-	                      0x78,
-	                      0x9A};
+		              0x12,
+		              0x34,
+		              0x56,
+		              0x78,
+		              0x9A};
 	assert_int_equal(OUTPUT_OK, display_out(payload, sizeof(payload)));
 
 	assert_int_equal(1, (int)recorded_set_digits_calls);
@@ -549,22 +553,22 @@ static void test_display_out_driver_error_propagates(void **state)
 	if (!find_first_display_controller(&controller_id))
 	{
 		uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-		                      0x10,
-		                      0x00,
-		                      0x00,
-		                      0x00,
-		                      0};
+			              0x10,
+			              0x00,
+			              0x00,
+			              0x00,
+			              0};
 		assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(payload, sizeof(payload)));
 		assert_int_equal(0, (int)recorded_set_digits_calls);
 		return;
 	}
 
 	uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-	                      0x10,
-	                      0x00,
-	                      0x00,
-	                      0x00,
-	                      0};
+		              0x10,
+		              0x00,
+		              0x00,
+		              0x00,
+		              0};
 	assert_int_equal(OUTPUT_ERR_DISPLAY_OUT, display_out(payload, sizeof(payload)));
 
 	assert_int_equal(1, (int)recorded_set_digits_calls);
@@ -584,22 +588,22 @@ static void test_display_out_semaphore_failure(void **state)
 	if (!find_first_display_controller(&controller_id))
 	{
 		uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-		                      0x12,
-		                      0x34,
-		                      0x56,
-		                      0x78,
-		                      0};
+			              0x12,
+			              0x34,
+			              0x56,
+			              0x78,
+			              0};
 		assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(payload, sizeof(payload)));
 		assert_int_equal(0, (int)recorded_set_digits_calls);
 		return;
 	}
 
 	uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-	                      0x12,
-	                      0x34,
-	                      0x56,
-	                      0x78,
-	                      0};
+		              0x12,
+		              0x34,
+		              0x56,
+		              0x78,
+		              0};
 	assert_int_equal(OUTPUT_ERR_SEMAPHORE, display_out(payload, sizeof(payload)));
 
 	assert_int_equal(0, (int)recorded_set_digits_calls);
@@ -776,7 +780,7 @@ static void test_display_out_no_give_without_take_on_null(void **state)
 	statistics_reset_all_counters();
 	clear_recorded_outputs();
 
-	/* NULL payload triggers early validation failure — mutex never acquired */
+	// NULL payload triggers early validation failure — mutex never acquired
 	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(NULL, 0));
 	assert_int_equal(0, (int)mock_take_calls);
 	assert_int_equal(0, (int)mock_give_calls);
@@ -844,12 +848,12 @@ static void test_display_out_semaphore_failure_returns_correct_error(void **stat
 	mock_take_result = pdFALSE;
 
 	uint8_t payload[6] = {make_display_header(controller_id, DISPLAY_CMD_SET_DIGITS),
-	                      0x12, 0x34, 0x56, 0x78, 0};
+		              0x12, 0x34, 0x56, 0x78, 0};
 	output_result_t result = display_out(payload, sizeof(payload));
 
-	/* Must be SEMAPHORE, not INVALID_PARAM */
+	// Must be SEMAPHORE, not INVALID_PARAM
 	assert_int_equal(OUTPUT_ERR_SEMAPHORE, result);
-	/* Mutex Give must not be called when Take failed */
+	// Mutex Give must not be called when Take failed
 	assert_int_equal(0, (int)mock_give_calls);
 }
 
@@ -869,9 +873,37 @@ static void test_set_pwm_duty(void **state)
 	set_pwm_duty(duty);
 }
 
+// Fake init returns static driver handles; production uses pvPortMalloc.
+void __wrap_vPortFree(void *pointer)
+{
+	(void)pointer;
+}
+
+static void test_display_zero_id(void **state)
+{
+	(void)state;
+	for (uint8_t command = 1U; command < 32U; command++)
+	{
+		uint8_t payload[6] = {command, 7U, 0U, 0U, 0U, 0U};
+		assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(payload, sizeof(payload)));
+	}
+	const uint8_t header = 0x21U;
+	assert_int_equal(OUTPUT_ERR_INVALID_PARAM, display_out(&header, 0U));
+}
+
+static void test_init_driver_failure(void **state)
+{
+	(void)state;
+	mock_driver_fail = true;
+	assert_int_equal(OUTPUT_ERR_INIT, output_init());
+	assert_true(statistics_get_counter(OUTPUT_DRIVER_INIT_ERROR) > 0U);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
+		cmocka_unit_test_setup_teardown(test_init_driver_failure, setup, teardown),
+		cmocka_unit_test_setup_teardown(test_display_zero_id, setup, teardown),
 		cmocka_unit_test_setup_teardown(test_device_constants, setup, teardown),
 		cmocka_unit_test_setup_teardown(test_pin_constants, setup, teardown),
 		cmocka_unit_test_setup_teardown(test_spi_frequency_constant, setup, teardown),

@@ -25,6 +25,8 @@
 
 #include "tusb.h"
 #include "pico/unique_id.h"
+#include "task_health.h"
+#include "pico/time.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -70,6 +72,7 @@ tusb_desc_device_t const desc_device =
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void)
 {
+	task_health_progress(CDC_TASK, time_us_32());
 	return (uint8_t const *) &desc_device;
 }
 
@@ -80,10 +83,10 @@ enum
 {
 	ITF_NUM_CDC_0 = 0,
 	ITF_NUM_CDC_0_DATA,
-	ITF_NUM_CDC_1,
-	ITF_NUM_CDC_1_DATA,
 	ITF_NUM_TOTAL
 };
+
+_Static_assert(CFG_TUD_CDC == 1, "Application supports exactly one CDC interface");
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
 
@@ -138,9 +141,9 @@ uint8_t const desc_fs_configuration[] =
 	// 1st CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
 	TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, 4, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_OUT, EPNUM_CDC_0_IN, 64),
 
-	// 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-	TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 4, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, 64),
 };
+
+_Static_assert(sizeof(desc_fs_configuration) == CONFIG_TOTAL_LEN, "USB descriptor length mismatch");
 
 #if TUD_OPT_HIGH_SPEED
 // Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
@@ -153,8 +156,6 @@ uint8_t const desc_hs_configuration[] =
 	// 1st CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
 	TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, 4, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_OUT, EPNUM_CDC_0_IN, 512),
 
-	// 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-	TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 4, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, 512),
 };
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
@@ -187,6 +188,7 @@ uint8_t const* tud_descriptor_device_qualifier_cb(void)
 // Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
 uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 {
+	task_health_progress(CDC_TASK, time_us_32());
 	(void) index; // for multiple configurations
 
 	// if link speed is high return fullspeed config, and vice versa
@@ -200,6 +202,7 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
+	task_health_progress(CDC_TASK, time_us_32());
 	(void) index; // for multiple configurations
 
 #if TUD_OPT_HIGH_SPEED
@@ -230,6 +233,7 @@ static uint16_t _desc_str[32];
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+	task_health_progress(CDC_TASK, time_us_32());
 	(void) langid;
 
 	uint8_t chr_count;

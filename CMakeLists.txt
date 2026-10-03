@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 # Build options
+option(ENABLE_SANITIZERS "Enable ASan and UBSan for host tests" OFF)
 option(HOST_BUILD "Build the host test configuration" OFF)
 option(SIGNALBRIDGE_BUILD_DOCS "Build Doxygen documentation" ON)
 
@@ -33,6 +34,14 @@ if(NOT HOST_BUILD)
 endif()
 
 project(pi_controller VERSION 1.0.0 LANGUAGES C CXX ASM)
+
+if(ENABLE_SANITIZERS)
+    if(NOT HOST_BUILD)
+        message(FATAL_ERROR "Sanitizers are supported only for host tests")
+    endif()
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)

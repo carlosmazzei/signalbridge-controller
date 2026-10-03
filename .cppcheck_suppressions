@@ -5,8 +5,6 @@
 # Only suppress when actually needed and document reason
 
 # TinyUSB integration suppressions
-*:*src/usb_descriptors.c                   # TinyUSB generated code and API usage
-*:*src/cobs.c                              # COBS encoding/decoding library
 
 # Configuration file suppressions - cppcheck cannot track macro usage across translation units
 misra-c2012-2.5:*
@@ -44,5 +42,4 @@ unusedFunction:*src/tm1639.c:617                        # Used by app_outputs
 misra-c2012-17.3:*src/tm1639.c:236                      # Used by app_outputs
 misra-c2012-8.4:*src/app_comm.c:30                      # typedef needed for clarity
 misra-c2012-17.7:*src/app_comm.c                        # Return value intentionally ignored for non-blocking calls
-unknownMacro:*src/app_outputs.c:259                     # Macro from Pico SDK - bi_decl
 misra-c2012-8.7:*src/app_tasks.c:561                    # FreeRTOS task function

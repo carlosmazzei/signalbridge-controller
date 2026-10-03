@@ -1,4 +1,6 @@
 set(HEADER_FILES
+    input_delivery.h
+    task_health.h
     cobs.h
     encoded_framer.h
     data_event.h

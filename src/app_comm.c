@@ -4,6 +4,7 @@
  */
 
 #include "app_comm.h"
+#include "tusb.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -16,6 +17,9 @@
 #include "commands.h"
 #include "error_management.h"
 #include "app_outputs.h"
+#include "input_delivery.h"
+#include "task_health.h"
+#include <pico/time.h>
 
 #include "app_config.h"
 #include "app_context.h"
@@ -29,8 +33,15 @@
  */
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
-	(void)itf;
-	app_context_set_line_state(dtr, rts);
+	if (itf == 0U)
+	{
+		/* This callback runs in the USB task. Clear old RX bytes before
+		 * publishing readiness, including rapid close/open transitions. */
+		if ((dtr && rts) != app_context_is_cdc_ready())
+			tud_cdc_n_read_flush(0U);
+		app_context_set_line_state(dtr, rts);
+	}
+	task_health_progress(CDC_TASK, time_us_32());
 }
 
 /**
@@ -53,6 +64,7 @@ void tud_cdc_rx_cb(uint8_t itf)
 		return;
 	}
 
+	task_health_progress(CDC_TASK, time_us_32());
 	const task_props_t *const props = app_context_task_props(UART_EVENT_TASK);
 	if ((NULL != props) && (NULL != props->task_handle))
 	{
@@ -172,7 +184,8 @@ static void send_heap_status(uint8_t index)
 	}
 }
 
-void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
+static bool queue_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length,
+                         uint8_t slot, uint32_t version, uint32_t session)
 {
 	uint8_t uart_outbound_buffer[MESSAGE_SIZE];
 	bool error = false;
@@ -216,13 +229,16 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
 			encode_buffer[num_encoded] = PACKET_MARKER;
 
 			cdc_packet_t packet = {0};
+			packet.session = session;
+			packet.snapshot_slot = slot;
+			packet.snapshot_version = version;
 			packet.length = (uint8_t)num_encoded + 1U;
 			(void)memcpy(packet.data, encode_buffer, packet.length); // flawfinder: ignore
 
 			QueueHandle_t queue = app_context_get_cdc_transmit_queue();
 			if ((queue != NULL) && (pdTRUE == xQueueSend(queue, &packet, pdMS_TO_TICKS(1))))
 			{
-				// Enqueued successfully.
+				return true;
 			}
 			else
 			{
@@ -230,13 +246,33 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
 			}
 		}
 	}
+	return false;
+}
+
+bool app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
+{
+	return queue_packet(id, command, send_data, length, INPUT_SNAPSHOT_NONE, 0U, app_context_cdc_session());
+}
+
+bool app_comm_send_input(const data_events_t *event, uint8_t slot, uint32_t version, uint32_t session)
+{
+	return queue_packet(BOARD_ID, event->command, event->data, event->data_length, slot, version, session);
+}
+
+void tud_umount_cb(void)
+{
+	app_context_reset_line_state();
+}
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+	(void)remote_wakeup_en; app_context_reset_line_state();
 }
 
 void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 {
 	bool done = false;
 
-	if (length < (HEADER_SIZE + CHECKSUM_SIZE))
+	if ((rx_buffer == NULL) || (length < (HEADER_SIZE + CHECKSUM_SIZE)))
 	{
 		statistics_increment_counter(MSG_MALFORMED_ERROR);
 		done = true;
@@ -285,6 +321,13 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 		}
 	}
 
+	if (!done && (((cmd == PC_PWM_CMD) || (cmd == PC_ERROR_STATUS_CMD) ||
+	               (cmd == PC_TASK_STATUS_CMD)) && (len != 1U)))
+	{
+		statistics_increment_counter(MSG_MALFORMED_ERROR);
+		done = true;
+	}
+
 	if (!done)
 	{
 		switch (cmd)
@@ -327,4 +370,10 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 			break;
 		}
 	}
+}
+
+void tud_cdc_tx_complete_cb(uint8_t itf)
+{
+	(void)itf;
+	task_health_progress(CDC_TASK, time_us_32());
 }

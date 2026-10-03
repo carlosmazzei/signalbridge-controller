@@ -7,6 +7,8 @@
 #define APP_COMM_H
 
 #include <stddef.h>
+#include <stdbool.h>
+#include "data_event.h"
 #include <stdint.h>
 
 #include "app_config.h"
@@ -21,6 +23,9 @@
  * @brief Holds CDC output queue packets.
  */
 typedef struct cdc_packet_t {
+	uint32_t session;
+	uint32_t snapshot_version;
+	uint8_t snapshot_slot;
 	uint8_t length;                        /**< Number of encoded bytes in @ref data */
 	uint8_t data[MAX_ENCODED_BUFFER_SIZE]; /**< Encoded payload ready for TinyUSB */
 } cdc_packet_t;
@@ -33,7 +38,7 @@ typedef struct cdc_packet_t {
  * @param[in] send_data  Pointer to the payload buffer.
  * @param[in] length     Number of payload bytes.
  */
-void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length);
+bool app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length);
 
 /**
  * @brief Process a decoded inbound packet from the host.
@@ -42,5 +47,8 @@ void app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data
  * @param[in] length    Number of bytes in @p rx_buffer.
  */
 void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length);
+
+bool app_comm_send_input(const data_events_t *event, uint8_t slot,
+                         uint32_t version, uint32_t session);
 
 #endif // APP_COMM_H

@@ -10,7 +10,7 @@ The system follows a producer–consumer pipeline that spreads work across the t
 - Data flow diagram: `../assets/data_flow_diagram_en.png`
 
 ## Task Architecture
-Nine principal tasks divide responsibilities with explicit core affinity:
+Eight application tasks and a separate watchdog supervisor divide responsibilities with explicit core affinity. Diagnostic task indices remain 0–7, with index 8 reserved for idle/heap statistics:
 
 | Task | Core | Purpose |
 | :--- | :---: | :--- |
@@ -22,7 +22,9 @@ Nine principal tasks divide responsibilities with explicit core affinity:
 | Process outbound task | 1 | Formats outbound events and places them in the transmit queue. |
 | ADC read task | 1 | Samples ADC channels with µs-resolution settling, oversamples and applies a moving-average filter plus hysteresis deadband, and generates events only on significant change. Tunable via `adc_settling_us`, `adc_oversample`, `adc_hysteresis`, `adc_scan_interval_ms` and `adc_channels` (lower the channel count to scan only active throttle/sidestick axes for higher refresh rate). |
 | Keypad task | 1 | Scans the keypad matrix and emits key events. |
-| Encoder read task | 1 | Tracks rotary encoder movement and emits rotation events. |
+| Watchdog supervisor | 0 | Checks progress of all eight tasks and feeds the hardware watchdog only while healthy. |
+
+Encoder polling runs inside the keypad task, between column scans.
 
 Stack sizing reflects workload: communication and processing tasks use triple the minimal stack, hardware readers use four to five times the minimal stack, and the status LED task uses double.
 
@@ -32,15 +34,21 @@ Three queues coordinate data movement and enforce isolation between producers an
 | Queue | Producer | Consumer | Size | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
 | Encoded reception queue | UART event task | Decode reception task | 256 frames | Buffers complete COBS-encoded frames arriving from the host. |
-| Data event queue | Keypad, ADC, encoder tasks | Process outbound task | 500 events | Stores multiplexed input events until the host fetches them. |
-| CDC transmit queue | Process outbound task and decoding path | CDC write task | 256 packets | Holds formatted packets until the USB interface is ready (~7 KB of FreeRTOS heap; ~1.7× the TinyUSB TX FIFO). |
+| Data event queue | Encoder polling in keypad task | Process outbound task | 500 events | Best-effort relative events tagged with the USB session. |
+| CDC transmit queue | Process outbound task and decoding path | CDC write task | 256 packets | Holds formatted packets until the USB interface is ready (about 10 KB of FreeRTOS heap, including session and delivery metadata). |
 
 ## Data Flows
 - **Host to device:** The UART event task captures bytes from the host, the decode task reconstructs and validates packets, and the processing logic triggers hardware actions or prepares responses.
-- **Device to host:** Hardware tasks enqueue events, the outbound processor formats them, and the CDC write task transmits packets to the host. The queue architecture ensures communication duties on Core 0 remain responsive even when Core 1 is busy.
+- **Device to host:** Hardware tasks update absolute input snapshots or enqueue relative encoder events, the outbound processor formats them, and the CDC write task transmits packets to the host. The queue architecture ensures communication duties on Core 0 remain responsive even when Core 1 is busy.
 
 ## Synchronization and Protection
-Queues provide thread-safe communication between tasks. Core affinity reduces contention, and each task contributes to watchdog updates to detect hangs. Communication queues use short waits or polling to keep USB paths responsive. Input-event enqueues wait up to `INPUT_QUEUE_SEND_TIMEOUT_MS` (100 ms) when the data event queue is full, then drop the event and increment a statistics counter — bounding how long a stalled host can freeze the keypad/encoder scan.
+Queues transfer complete messages by value. An input snapshot store under FreeRTOS critical sections keeps up to 64 key states and 16 ADC values. Initial ADC readings and stable key states are published even without a transition. Values remain pending until the writer accepts the whole packet into TinyUSB; a failed enqueue/write permits retry, and a new USB session invalidates previous delivery acknowledgements. This confirms local FIFO acceptance, not processing by the host application. Relative encoder events are best effort, never block scanning, and are not replayed across sessions.
+
+The single CDC function requires DTR and RTS. Bus reset, unmount, suspend and line-state transitions invalidate the session. RX resets partial framing and rejects queued frames from old sessions; line-state transitions clear buffered RX bytes before publishing readiness. TX clears stale FIFO fragments on a session change. During backpressure, the writer preserves the current partial packet, sleeps 10 ms between unsuccessful writes and records a stall after one second. It can wait for the host indefinitely without busy-spinning; other tasks remain schedulable.
+
+Only the supervisor feeds the five-second hardware watchdog. It checks heartbeats every 100 ms, using a four-second deadline. The decode task explicitly marks its indefinite queue wait; a suspended task or a fatal error still prevents feeding. A partial hang therefore resets the board within roughly nine seconds, while loss of the supervisor itself resets it within five seconds. Statistics and diagnostic watermarks use C11 atomics backed by the Pico SDK on RP2040.
+
+Initialization and queue cleanup APIs are restricted to boot, before the scheduler runs. Output reinitialization releases old driver handles. Display active buffers and brightness state are committed only after a successful driver transfer; failures keep the desired buffer dirty. TM1639 SPI transfer success cannot prove that a physical panel accepted the data.
 
 ## Error Management and Diagnostics
 Twenty-two counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, bytes transmitted or received, and output/input driver errors. Critical errors persist in watchdog scratch registers, and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.

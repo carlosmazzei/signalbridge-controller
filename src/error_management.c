@@ -20,15 +20,14 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "error_management.h"
+#include <stdatomic.h>
 
 /**
  * @brief Statistics counters instance (module scope).
  */
-static volatile statistics_counters_t statistics_counters = {
-	.counters = {0},
-	.error_state = false,
-	.current_error_type = ERROR_NONE
-};
+static _Atomic uint32_t counters[NUM_STATISTICS_COUNTERS];
+static _Atomic error_type_t current_error_type;
+static atomic_bool fatal_error;
 
 static bool error_type_non_fatal(error_type_t type)
 {
@@ -53,41 +52,45 @@ bool error_management_is_fatal(error_type_t type)
 
 void statistics_increment_counter(statistics_counter_enum_t index)
 {
-	statistics_counters.counters[index]++;
+	if ((unsigned)index < NUM_STATISTICS_COUNTERS)
+		(void)atomic_fetch_add_explicit(&counters[index], 1U, memory_order_relaxed);
 
 }
 
 void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	statistics_counters.counters[index] += value;
+	if ((unsigned)index < NUM_STATISTICS_COUNTERS)
+		(void)atomic_fetch_add_explicit(&counters[index], value, memory_order_relaxed);
 }
 
 void statistics_set_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	statistics_counters.counters[index] = value;
+	if ((unsigned)index < NUM_STATISTICS_COUNTERS)
+		atomic_store_explicit(&counters[index], value, memory_order_relaxed);
 }
 
 uint32_t statistics_get_counter(statistics_counter_enum_t index)
 {
-	return statistics_counters.counters[index];
+	return ((unsigned)index < NUM_STATISTICS_COUNTERS)
+	? atomic_load_explicit(&counters[index], memory_order_relaxed) : 0U;
 }
 
 void statistics_reset_all_counters(void)
 {
 	for (uint32_t i = 0; i < (uint32_t)NUM_STATISTICS_COUNTERS; i++)
 	{
-		statistics_counters.counters[i] = 0;
+		atomic_store_explicit(&counters[i], 0U, memory_order_relaxed);
 	}
 }
 
 bool statistics_is_error_state(void)
 {
-	return statistics_counters.error_state;
+	return atomic_load_explicit(&current_error_type, memory_order_relaxed) != ERROR_NONE;
 }
 
 error_type_t statistics_get_error_type(void)
 {
-	return statistics_counters.current_error_type;
+	return atomic_load_explicit(&current_error_type, memory_order_relaxed);
 }
 
 void show_error_pattern_blocking(error_type_t error_type)
@@ -121,8 +124,7 @@ void show_error_pattern_blocking(error_type_t error_type)
 
 void error_management_set_error_state(error_type_t type)
 {
-	statistics_counters.current_error_type = type;
-	statistics_counters.error_state = true;
+	atomic_store_explicit(&current_error_type, type, memory_order_relaxed);
 
 	switch (type)
 	{
@@ -175,14 +177,19 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
 }
 
 /**
- * @brief Fatal halt helper that records error and shows pattern forever.
+ * @brief Record a fatal error and blink until the hardware watchdog resets.
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
 {
+	atomic_store_explicit(&fatal_error, true, memory_order_release);
 	watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
 	while (true)
 	{
 		show_error_pattern_blocking(type);
-		watchdog_update();
 	}
+}
+
+bool error_management_has_fatal_error(void)
+{
+	return atomic_load_explicit(&fatal_error, memory_order_acquire);
 }

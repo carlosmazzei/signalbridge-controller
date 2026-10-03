@@ -19,6 +19,7 @@
  */
 typedef struct data_events_t
 {
+	uint32_t session; /**< Session for relative events; snapshots are versioned separately. */
 	uint8_t command;                   /**< Command identifier to transmit. */
 	uint8_t data_length;               /**< Number of valid bytes stored in @ref data. */
 	uint8_t data[MAX_DATA_SIZE];       /**< Payload bytes associated with the command. */

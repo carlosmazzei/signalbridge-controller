@@ -64,7 +64,8 @@ int main(void)
 	}
 
 	// Initialize application tasks
-	(void)app_tasks_create_application();
+	if (!app_tasks_create_application())
+		fatal_halt(ERROR_RESOURCE_ALLOCATION);
 
 	// Initialize task scheduler
 	vTaskStartScheduler();

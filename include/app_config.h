@@ -23,12 +23,10 @@
 /**
  * @brief Size of the CDC transmit queue.
  *
- * Each slot stores a full @ref cdc_packet_t by value (~27 bytes), so the
- * queue footprint comes straight out of the FreeRTOS heap: 256 slots ~= 7 KB.
- * That still buffers ~1.7x the 4 KB TinyUSB TX FIFO; when the host stalls
- * long enough to fill it, @ref app_comm_send_packet already drops the packet
- * and counts @c CDC_QUEUE_SEND_ERROR. (Was 2048 slots ~= 55 KB, 43% of the
- * 128 KB heap, with no additional benefit.)
+ * Each slot stores a complete packet plus session/delivery metadata by value.
+ * 256 slots occupy about 10 KB; a unit test caps this at 16 KB. Absolute
+ * input snapshots retry failed delivery. Relative encoder events and command
+ * replies remain best effort when queues fill.
  */
 #define CDC_TRANSMIT_QUEUE_SIZE 256U
 

@@ -1,0 +1,12 @@
+# Legacy MISRA/style debt remains visible, but is not a compliance gate.
+# Analyzer failures and correctness diagnostics MUST still return nonzero.
+misra-c2012-*:*
+unusedFunction:*
+constParameterPointer:*
+constVariablePointer:*
+constVariable:*
+variableScope:*
+unusedStructMember:*
+missingIncludeSystem:*
+unmatchedSuppression:*
+checkersReport:*

@@ -29,12 +29,8 @@ static tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_
 static inline void tm1639_start(const output_driver_t *config);
 static inline void tm1639_stop(const output_driver_t *config);
 static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data);
-static void tm1639_set_read_mode(const output_driver_t *config);
-static inline void tm1639_set_write_mode(const output_driver_t *config);
-static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count);
 static tm1639_result_t tm1639_flush(output_driver_t *config);
 static tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
-static tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys);
 static tm1639_result_t tm1639_update(output_driver_t *config);
 static tm1639_result_t tm1639_validate_custom_array(const uint8_t *digits, const size_t length);
 static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
@@ -42,8 +38,6 @@ static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
                                                   const size_t length,
                                                   const uint8_t dot_position);
 static tm1639_result_t tm1639_process_digits(output_driver_t *config, const uint8_t *digits, const uint8_t dot_position);
-static tm1639_result_t tm1639_display_on(output_driver_t *config);
-static tm1639_result_t tm1639_display_off(output_driver_t *config);
 
 /**
  * @brief Convert tm1639_result_t to output_result_t
@@ -118,107 +112,6 @@ static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 }
 
 /**
- * @brief Configure GPIO for reading from the DIO pin.
- *
- * This function sets the DIO pin to input mode and disables its SPI function,
- * allowing bit-banged read operations from the TM1639. It also sets the clock pin
- * to output mode and enables pull-up resistors on both pins, as required by the TM1639 protocol.
- *
- * @param[in] config Pointer to the TM1639 output driver configuration structure.
- */
-static void tm1639_set_read_mode(const output_driver_t *config)
-{
-	// Disable SPI function for DIO pin
-	gpio_set_function(config->dio_pin, GPIO_FUNC_NULL);
-	gpio_set_dir(config->dio_pin, GPIO_IN);
-
-	// Toggle clock pin directly, as we're not in SPI mode now
-	gpio_set_function(config->clk_pin, GPIO_FUNC_NULL);
-	gpio_set_dir(config->clk_pin, GPIO_OUT);
-
-	// Enable pull-up on DIO pin (TM1639 uses open drain outputs)
-	gpio_pull_up(config->dio_pin);
-	gpio_pull_up(config->clk_pin);
-}
-
-/**
- * @brief Configure GPIO back to SPI mode for writing.
- *
- * This function restores the DIO and CLK pins to SPI mode,
- * allowing hardware SPI operations to the TM1639 device.
- *
- * @param[in] config Pointer to the TM1639 output driver configuration structure.
- */
-static inline void tm1639_set_write_mode(const output_driver_t *config)
-{
-	// Restore SPI function for DIO pin
-	gpio_set_function(config->dio_pin, GPIO_FUNC_SPI);
-	gpio_set_function(config->clk_pin, GPIO_FUNC_SPI);
-}
-
-/**
- * @brief Bit-bang read operation for TM1639.
- *
- * This function performs a bit-banged read operation to retrieve bytes from the TM1639 device.
- * It switches the DIO pin to input mode, reads the specified number of bytes, and then restores
- * the pins to SPI mode.
- *
- * @param[in]  config Pointer to the TM1639 output driver configuration structure.
- * @param[out] data   Pointer to the buffer where the read bytes will be stored.
- * @param[in]  count  Number of bytes to read from the TM1639.
- *
- * @return TM1639_OK on success, or TM1639_ERR_INVALID_PARAM if parameters are invalid.
- */
-static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Parameter validation
-	if ((NULL == config) || (NULL == data))
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-
-	if (TM1639_OK == result)
-	{
-		// Switch DIO to input mode
-		tm1639_set_read_mode(config);
-
-		// Waiting time (Twait) required by TM1639 protocol - at least 2µs
-		sleep_us(2);
-
-		// Manual bit-banging to read data
-		for (uint8_t i = 0U; i < count; i++)
-		{
-			data[i] = 0U;
-
-			// Manual bit-banging of clock to read 8 bits
-			for (uint8_t bit = 0U; bit < (uint8_t)8; bit++)
-			{
-				// Set clock high
-				gpio_put(config->clk_pin, 1);
-				sleep_us(1); // Brief delay
-
-				// Read data bit (LSB first)
-				if (0U != gpio_get(config->dio_pin))
-				{
-					data[i] |= ((uint8_t)1U << bit);
-				}
-
-				// Set clock low
-				gpio_put(config->clk_pin, 0);
-				sleep_us(1); // Brief delay
-			}
-		}
-
-		// Restore pins to SPI mode
-		tm1639_set_write_mode(config);
-	}
-
-	return result;
-}
-
-/**
  * @brief Flush the prepared buffer to the TM1639 display.
  *
  * This function copies the preparation buffer to the active buffer, resets the modified flag,
@@ -240,11 +133,6 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 	}
 	else
 	{
-		// Copy prep buffer to active buffer
-		(void)memcpy(config->active_buffer, config->prep_buffer, sizeof(config->active_buffer));
-
-		// Reset the modified flag
-		config->buffer_modified = false;
 
 		// Step 1: Send data command for auto-increment mode
 		tm1639_start(config); // STB goes low
@@ -267,7 +155,7 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 
 			// Set starting address to 0x00: 11000000 (0xC0)
 			tx_buffer[0] = TM1639_CMD_ADDR_BASE;
-			(void)memcpy(&tx_buffer[1], config->active_buffer, TM1639_DISPLAY_BUFFER_SIZE);
+			(void)memcpy(&tx_buffer[1], config->prep_buffer, TM1639_DISPLAY_BUFFER_SIZE);
 
 			tm1639_start(config); // STB goes low again
 
@@ -283,6 +171,12 @@ static tm1639_result_t tm1639_flush(output_driver_t *config)
 			// Ensure STB is properly handled on error path
 			tm1639_stop(config);
 		}
+	}
+
+	if (result == TM1639_OK)
+	{
+		(void)memcpy(config->active_buffer, config->prep_buffer, TM1639_DISPLAY_BUFFER_SIZE);
+		config->buffer_modified = false;
 	}
 
 	return result;
@@ -571,19 +465,14 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 		}
 
 		// Set maximum brightness
-		if (TM1639_OK != tm1639_set_brightness(config, 7U))
+		if (OUTPUT_OK != tm1639_set_brightness(config, 8U))
 		{
 			valid = 0U;
 		}
 
-		// Turn on display
-		if (TM1639_OK != tm1639_display_on(config))
-		{
-			valid = 0U;
-		}
 
 		// Test (set digits)
-		if (TM1639_OK != tm1639_set_digits(config, (const uint8_t[]){0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 8, TM1639_NO_DECIMAL_POINT))
+		if (OUTPUT_OK != tm1639_set_digits(config, (const uint8_t[]){0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 8, TM1639_NO_DECIMAL_POINT))
 		{
 			valid = 0U;
 		}
@@ -597,36 +486,6 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 	}
 
 	return config;
-}
-
-static tm1639_result_t tm1639_display_on(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		config->display_on = true;
-		result = tm1639_send_command(config, (uint8_t)TM1639_CMD_DISPLAY_ON);     // DISPLAY_ON | brightness (bit-reversed)
-	}
-	return result;
-}
-
-static tm1639_result_t tm1639_display_off(output_driver_t *config)
-{
-	tm1639_result_t result = TM1639_OK;
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		config->display_on = false;
-		result = tm1639_send_command(config, TM1639_CMD_DISPLAY_OFF); // DISPLAY_OFF
-	}
-	return result;
 }
 
 output_result_t tm1639_set_digits(output_driver_t *config,
@@ -669,22 +528,19 @@ output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
 	}
 	else
 	{
-		uint8_t set_level = (level > (uint8_t)8) ? (uint8_t)8 : level;
-		config->brightness = set_level;
-		if (set_level > 0U)
+		uint8_t set_level = (level > 8U) ? 8U : level;
+		uint8_t cmd = TM1639_CMD_DISPLAY_OFF;
+		if (set_level != 0U)
 		{
-			set_level -= 1;
-			config->display_on = true;
-			// Display control command with brightness level (MSB-first SPI, bit-reversed command)
-			(void)tm1639_display_on(config);
-			uint8_t reversed_level = (uint8_t)(((set_level & 0x01U) << 2U) | (set_level & 0x02U) | ((set_level & 0x04U) >> 2U));
-			uint8_t cmd = (uint8_t)TM1639_CMD_DISPLAY_ON | (uint8_t)(reversed_level << 5U);
-			result = tm1639_send_command(config, cmd);
+			uint8_t value = (uint8_t)(set_level - 1U);
+			uint8_t reversed = (uint8_t)(((value & 1U) << 2U) | (value & 2U) | ((value & 4U) >> 2U));
+			cmd = (uint8_t)(TM1639_CMD_DISPLAY_ON | (uint8_t)(reversed << 5U));
 		}
-		else
+		result = tm1639_send_command(config, cmd);
+		if (result == TM1639_OK)
 		{
-			config->display_on = false;
-			(void)tm1639_display_off(config);
+			config->brightness = set_level;
+			config->display_on = (set_level != 0U);
 		}
 	}
 
@@ -693,59 +549,11 @@ output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
 
 tm1639_result_t tm1639_clear(output_driver_t *config)
 {
-	tm1639_result_t result = TM1639_OK;
-
-	if (NULL == config)
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		// Clear internal buffers first
-		(void)memset(config->active_buffer, 0, sizeof(config->active_buffer));
-		(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
-		config->buffer_modified = false;
-
-		// Step 1: Send data command for auto-increment mode
-		tm1639_start(config); // STB goes low
-
-		// Auto-increment mode, write data: 01000000 (0x40) - Invert for MSB first SPI
-		if (tm1639_write_byte(config, TM1639_CMD_DATA_WRITE) != 1)
-		{
-			result = TM1639_ERR_SPI_WRITE;
-		}
-
-		tm1639_stop(config); // STB goes high - Required between commands
-
-		// Step 2: Send address command and clear all 16 registers
-		if (TM1639_OK == result)
-		{
-			tm1639_start(config); // STB goes low again
-
-			// Set starting address to 0x00: 11000000 (0xC0)
-			if (tm1639_write_byte(config, TM1639_CMD_ADDR_BASE) != 1)
-			{
-				result = TM1639_ERR_SPI_WRITE;
-			}
-			else
-			{
-				// Write 16 zero bytes to clear all display registers
-				// MISRA-C: Declare loop variable with reduced scope
-				for (uint8_t i = 0U; (i < TM1639_DISPLAY_BUFFER_SIZE) && (TM1639_OK == result); i++)
-				{
-					if (tm1639_write_byte(config, 0U) != 1)
-					{
-						result = TM1639_ERR_SPI_WRITE;
-						// Break handled by loop condition
-					}
-				}
-			}
-
-			tm1639_stop(config); // STB goes high to end transaction
-		}
-	}
-
-	return result;
+	if (config == NULL)
+		return TM1639_ERR_INVALID_PARAM;
+	(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
+	config->buffer_modified = true;
+	return tm1639_flush(config);
 }
 
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)

@@ -24,6 +24,9 @@
 #include "data_event.h"
 #include "encoded_framer.h"
 #include "error_management.h"
+#include "input_delivery.h"
+#include "task_health.h"
+#include "device/dcd.h"
 
 static void uart_event_task(void *pvParameters);
 static void cdc_task(void *pvParameters);
@@ -32,6 +35,40 @@ static void process_outbound_task(void *pvParameters);
 static void cdc_write_task(void *pvParameters);
 static void led_status_task(void *pvParameters);
 static void cleanup_comm_subsystem(void);
+static TaskHandle_t supervisor_handle;
+
+static bool usb_ready(void)
+{
+	return tud_cdc_n_ready(0) && app_context_is_cdc_ready();
+}
+
+/* TinyUSB invokes this hook for bus events, including reset without a line
+ * state request. It may run in IRQ context: only atomic state is touched. */
+void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr)
+{
+	(void)rhport;
+	(void)in_isr;
+	if ((eventid == DCD_EVENT_BUS_RESET) || (eventid == DCD_EVENT_UNPLUGGED))
+		app_context_reset_line_state();
+}
+
+static void watchdog_task(void *params)
+{
+	(void)params;
+	for (;;)
+	{
+		bool healthy = !error_management_has_fatal_error() && task_health_check(time_us_32());
+		for (unsigned i = 0U; i < NUM_TASKS; i++)
+		{
+			TaskHandle_t handle = app_context_task_props((task_enum_t)i)->task_handle;
+			if ((handle == NULL) || (eTaskGetState(handle) == eSuspended))
+				healthy = false;
+		}
+		if (healthy)
+			watchdog_update();
+		vTaskDelay(pdMS_TO_TICKS(100U));
+	}
+}
 
 /**
  * @brief Helper to create a task and set its core affinity.
@@ -124,9 +161,8 @@ static void delete_task_if_exists(task_enum_t task_id)
 
 bool app_tasks_create_application(void)
 {
-	bool success = true;
+	bool success;
 
-	if (success)
 	{
 		success = create_task_with_affinity(led_status_task,
 		                                    "led_status_task",
@@ -174,16 +210,23 @@ bool app_tasks_create_application(void)
 		                                    ERROR_RESOURCE_ALLOCATION);
 	}
 
+	if (success)
+	{
+		task_health_reset(time_us_32());
+		success = (xTaskCreate(watchdog_task, "watchdog", configMINIMAL_STACK_SIZE * 2U,
+		                       NULL, mainCDC_TASK_PRIORITY + 1U, &supervisor_handle) == pdPASS);
+		if (success)
+			vTaskCoreAffinitySet(supervisor_handle, CORE_0_AFFINITY);
+	}
 	return success;
 }
 
 bool app_tasks_create_comm(void)
 {
-	bool success = true;
+	bool success;
 	QueueHandle_t encoded_queue = NULL;
 	QueueHandle_t transmit_queue = NULL;
 
-	if (success)
 	{
 		success = create_task_with_affinity(cdc_task,
 		                                    "cdc_task",
@@ -261,6 +304,14 @@ bool app_tasks_create_comm(void)
 
 void app_tasks_cleanup_application(void)
 {
+	// Boot-only lifecycle: running tasks may hold the queue handles.
+	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
+		return;
+	if (supervisor_handle != NULL)
+	{
+		vTaskDelete(supervisor_handle);
+		supervisor_handle = NULL;
+	}
 	QueueHandle_t queue = app_context_get_data_event_queue();
 	if (queue != NULL)
 	{
@@ -323,6 +374,7 @@ static void uart_event_task(void *pvParameters)
 	encoded_framer_t framer;
 	encoded_frame_t frame;
 	uint32_t loop_count = 0U;
+	uint32_t session = app_context_cdc_session();
 
 	encoded_framer_reset(&framer);
 
@@ -335,7 +387,7 @@ static void uart_event_task(void *pvParameters)
 			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		}
 		loop_count++;
-		watchdog_update();
+		task_health_progress(UART_EVENT_TASK, time_us_32());
 
 		QueueHandle_t queue = app_context_get_encoded_queue();
 
@@ -345,6 +397,12 @@ static void uart_event_task(void *pvParameters)
 		uint32_t consecutive_full = 0U;
 		for (;;)
 		{
+			uint32_t current_session = app_context_cdc_session();
+			if (session != current_session)
+			{
+				encoded_framer_reset(&framer);
+				session = current_session;
+			}
 			const uint32_t count = tud_cdc_n_read(0, receive_buffer, sizeof(receive_buffer));
 			if (0U == count)
 			{
@@ -359,6 +417,11 @@ static void uart_event_task(void *pvParameters)
 				consecutive_full = 0U;
 			}
 			statistics_add_to_counter(BYTES_RECEIVED, count);
+			if (!usb_ready() || (session != app_context_cdc_session()))
+			{
+				encoded_framer_reset(&framer);
+				continue;
+			}
 
 			for (uint32_t i = 0U; i < count; i++)
 			{
@@ -366,6 +429,7 @@ static void uart_event_task(void *pvParameters)
 				switch (result)
 				{
 				case FRAMER_FRAME_READY:
+					frame.session = session;
 					if ((NULL == queue) || (xQueueSend(queue, &frame, pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS)) != pdTRUE))
 					{
 						statistics_increment_counter(QUEUE_SEND_ERROR);
@@ -385,6 +449,7 @@ static void uart_event_task(void *pvParameters)
 			if (consecutive_full >= CDC_RX_FULL_READ_YIELD_THRESHOLD)
 			{
 				consecutive_full = 0U;
+				task_health_progress(UART_EVENT_TASK, time_us_32());
 				taskYIELD();
 			}
 		}
@@ -414,12 +479,15 @@ static void cdc_task(void *pvParameters)
 	for (;;)
 	{
 		tud_task_ext(CDC_TASK_SAFETY_TIMEOUT_MS, false);
+		uint8_t lines = tud_cdc_n_get_line_state(0);
+		bool ready = tud_cdc_n_ready(0);
+		app_context_set_line_state(ready && ((lines & 1U) != 0U), ready && ((lines & 2U) != 0U));
 		if (0U == (loop_count & 63U))
 		{
 			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		}
 		loop_count++;
-		watchdog_update();
+		task_health_progress(CDC_TASK, time_us_32());
 	}
 }
 
@@ -442,7 +510,7 @@ static void decode_reception_task(void *pvParameters)
 			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 		}
 		loop_count++;
-		watchdog_update();
+		task_health_progress(DECODE_RECEPTION_TASK, time_us_32());
 
 		// Get queue handle and wait if not created yet
 		QueueHandle_t queue = app_context_get_encoded_queue();
@@ -452,12 +520,17 @@ static void decode_reception_task(void *pvParameters)
 			continue;
 		}
 
-		// Wait indefinitely for a complete encoded frame
+		// An empty queue is an intentional indefinite wait.
+		task_health_wait(DECODE_RECEPTION_TASK);
 		if (pdFALSE == xQueueReceive(queue, &frame, portMAX_DELAY))
 		{
 			statistics_increment_counter(QUEUE_RECEIVE_ERROR);
 			continue;
 		}
+
+		task_health_progress(DECODE_RECEPTION_TASK, time_us_32());
+		if (!app_context_is_cdc_ready() || (frame.session != app_context_cdc_session()))
+			continue;
 
 		if (0U == frame.length)
 		{
@@ -465,8 +538,8 @@ static void decode_reception_task(void *pvParameters)
 			continue;
 		}
 
-		const size_t num_decoded = cobs_decode(frame.data, frame.length, decode_buffer);
-		if (num_decoded > 0U)
+		size_t num_decoded = 0U;
+		if (cobs_decode_checked(frame.data, frame.length, decode_buffer, sizeof(decode_buffer), &num_decoded) && (num_decoded > 0U))
 		{
 			app_comm_process_inbound(decode_buffer, num_decoded);
 		}
@@ -484,32 +557,37 @@ static void decode_reception_task(void *pvParameters)
  */
 static void process_outbound_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
+	task_props_t *props = pvParameters;
 	uint32_t loop_count = 0U;
-
 	for (;;)
 	{
-		if (0U == (loop_count & 63U))
+		task_health_progress(PROCESS_OUTBOUND_TASK, time_us_32());
+		uint32_t session = app_context_cdc_session();
+		input_delivery_session(session);
+		if (app_context_is_cdc_ready())
 		{
-			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+			data_events_t event;
+			uint8_t slot;
+			uint32_t version;
+			// Bounded batch keeps input scanning schedulable.
+			for (unsigned i = 0U; i < 8U; i++)
+			{
+				if (!input_delivery_next(&event, &slot, &version))
+					break;
+				if (!app_comm_send_input(&event, slot, version, session))
+				{
+					input_delivery_complete(slot, version, session, false);
+					break;
+				}
+			}
+			QueueHandle_t queue = app_context_get_data_event_queue();
+			if ((queue != NULL) && (xQueueReceive(queue, &event, 0U) == pdPASS) &&
+			    (event.session == session))
+				(void)app_comm_send_input(&event, INPUT_SNAPSHOT_NONE, 0U, session);
 		}
-		loop_count++;
-		watchdog_update();
-
-		QueueHandle_t data_queue = app_context_get_data_event_queue();
-		if (NULL == data_queue)
-		{
-			vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
-			statistics_increment_counter(INPUT_QUEUE_INIT_ERROR);
-			continue;
-		}
-
-		data_events_t data_event;
-		BaseType_t result = xQueueReceive(data_queue, (void *)&data_event, portMAX_DELAY);
-		if (pdPASS == result)
-		{
-			app_comm_send_packet(BOARD_ID, data_event.command, data_event.data, data_event.data_length);
-		}
+		if ((loop_count++ & 63U) == 0U)
+			props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		vTaskDelay(pdMS_TO_TICKS(1U));
 	}
 }
 
@@ -520,89 +598,71 @@ static void process_outbound_task(void *pvParameters)
  */
 static void cdc_write_task(void *pvParameters)
 {
-	task_props_t *task_prop = (task_props_t *)pvParameters;
-	cdc_packet_t packet;
+	task_props_t *props = pvParameters;
+	uint32_t session = app_context_cdc_session();
 	uint32_t loop_count = 0U;
-
 	for (;;)
 	{
+		task_health_progress(CDC_WRITE_TASK, time_us_32());
+		uint32_t next_session = app_context_cdc_session();
+		if (session != next_session)
+		{
+			// Clear stale FIFO fragments before writing the new session.
+			(void)tud_cdc_n_write_clear(0);
+			session = next_session;
+		}
 		QueueHandle_t queue = app_context_get_cdc_transmit_queue();
-		if ((queue != NULL) && (pdTRUE == xQueueReceive(queue, &packet, portMAX_DELAY)))
+		cdc_packet_t packet;
+		// Bounded wait also observes session changes when no packets arrive.
+		if ((queue != NULL) && (xQueueReceive(queue, &packet, pdMS_TO_TICKS(10U)) == pdTRUE))
 		{
-			/* Drain every queued packet into the TinyUSB TX FIFO before a
-			 * single flush: coalescing small packets into fewer USB
-			 * transfers raises throughput without adding latency (the
-			 * flush still happens as soon as the queue runs empty). */
-			bool more_packets = true;
-			while (more_packets)
+			uint32_t active_session = app_context_cdc_session();
+			if (session != active_session)
 			{
-				/* Readiness is re-checked for every packet, not once per
-				 * drain: otherwise a host that closes the port mid-drain
-				 * would keep receiving writes into a FIFO that never
-				 * drains, and the rest of the queue would be discarded.
-				 * Flush what is already buffered before parking so those
-				 * bytes are not stranded while the link is down. */
-				if (!app_context_is_cdc_ready())
-				{
-					(void)tud_cdc_write_flush();
-					do
-					{
-						vTaskDelay(pdMS_TO_TICKS(QUEUE_RETRY_DELAY_MS));
-					} while (!app_context_is_cdc_ready());
-				}
-
-				size_t total_written = 0U;
-				while (total_written < packet.length)
-				{
-					const uint32_t available = tud_cdc_n_write_available(0);
-					const uint32_t remaining = (uint32_t)packet.length - (uint32_t)total_written;
-					const uint32_t to_write = (available < remaining) ? available : remaining;
-
-					if (to_write > 0U)
-					{
-						uint32_t written = tud_cdc_n_write(0, &packet.data[total_written], to_write);
-						total_written += written;
-
-						if (0U == written)
-						{
-							/* No forward progress: yield rather than spin. */
-							taskYIELD();
-						}
-					}
-					else if (!app_context_is_cdc_ready())
-					{
-						/* Host dropped the link mid-packet: abandon the
-						 * remainder instead of spinning into the watchdog.
-						 * The truncated frame is discarded by the host's
-						 * COBS resynchronisation on the next delimiter. */
-						statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
-						break;
-					}
-					else
-					{
-						/* FIFO full: yield until cdc_task drains it.
-						 * tud_task() is serviced exclusively by cdc_task to
-						 * avoid reentering the TinyUSB device stack from two
-						 * tasks. */
-						taskYIELD();
-					}
-				}
-
-				statistics_add_to_counter(BYTES_SENT, (uint32_t)total_written);
-				more_packets = (pdTRUE == xQueueReceive(queue, &packet, 0U));
+				(void)tud_cdc_n_write_clear(0);
+				session = active_session;
 			}
-
-			(void)tud_cdc_write_flush();
+			size_t written_total = 0U;
+			uint32_t stalled_since = time_us_32();
+			bool stall_reported = false;
+			while (usb_ready() && (packet.session == app_context_cdc_session()) &&
+			       (packet.session == session) && (written_total < packet.length))
+			{
+				uint32_t available = tud_cdc_n_write_available(0);
+				uint32_t remaining = (uint32_t)packet.length - (uint32_t)written_total;
+				uint32_t amount = (available < remaining) ? available : remaining;
+				uint32_t written = 0U;
+				if (amount != 0U)
+					written = tud_cdc_n_write(0, &packet.data[written_total], amount);
+				written_total += written;
+				(void)tud_cdc_write_flush();
+				if (written == 0U)
+				{
+					if (!stall_reported && ((uint32_t)(time_us_32() - stalled_since) >= 1000000U))
+					{
+						statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
+						stall_reported = true;
+					}
+					/* Keep this partial frame until progress or disconnect;
+					 * dropping its tail would corrupt the following frame. */
+					vTaskDelay(pdMS_TO_TICKS(10U));
+				}
+				else
+				{
+					stalled_since = time_us_32();
+					stall_reported = false;
+				}
+				task_health_progress(CDC_WRITE_TASK, time_us_32());
+			}
+			bool complete = (written_total == packet.length) && usb_ready() &&
+			                (packet.session == app_context_cdc_session());
+			input_delivery_complete(packet.snapshot_slot, packet.snapshot_version, packet.session, complete);
+			if (!complete)
+				statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
+			statistics_add_to_counter(BYTES_SENT, (uint32_t)written_total);
 		}
-
-		/* The watermark scan walks the whole task stack; refresh it only
-		 * every 64th pass to keep it out of the steady-state hot path. */
-		if (0U == (loop_count & 63U))
-		{
-			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		}
-		loop_count++;
-		watchdog_update();
+		if ((loop_count++ & 63U) == 0U)
+			props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 	}
 }
 
@@ -649,7 +709,7 @@ static void led_status_task(void *pvParameters)
 			vTaskDelay(pdMS_TO_TICKS(LED_POLL_INTERVAL_MS));
 		}
 
-		watchdog_update();
+		task_health_progress(LED_STATUS_TASK, time_us_32());
 		task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
 	}
 }

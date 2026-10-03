@@ -22,6 +22,7 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "task.h"
 
 #include "tm1639.h"
 #include "tm1637.h"
@@ -152,6 +153,8 @@ static output_result_t init_driver(void)
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
+		if (output_drivers.driver_handles[i] != NULL)
+			vPortFree(output_drivers.driver_handles[i]);
 		output_drivers.driver_handles[i] = NULL;
 
 		if (((uint8_t)DEVICE_TM1639_DIGIT == device_config_map[i]) ||
@@ -228,6 +231,8 @@ static void uart0_init(uint32_t baudrate)
 
 output_result_t output_init(void)
 {
+	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
+		return OUTPUT_ERR_INIT;
 	output_result_t result = OUTPUT_OK;
 
 	// Create mutex
@@ -246,6 +251,7 @@ output_result_t output_init(void)
 	output_result_t result_mux = init_mux();
 	if (result_mux != OUTPUT_OK)
 	{
+		result = result_mux;
 		statistics_increment_counter(OUTPUT_INIT_ERROR);
 	}
 
@@ -279,7 +285,8 @@ output_result_t output_init(void)
 	pwm_init(slice_num, &config, true);
 
 	// Initialize drivers (for 7 segment display)
-	(void)init_driver();
+	if (init_driver() != OUTPUT_OK)
+		result = OUTPUT_ERR_INIT;
 
 	return result;
 }
@@ -296,7 +303,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	 * Checks for:
 	 * - Null pointer
 	 */
-	if ((NULL == payload) || ((uint8_t)0 == payload[0]))
+	if ((NULL == payload) || (length == 0U) || ((uint8_t)0 == payload[0]))
 	{
 		statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
@@ -307,7 +314,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		const uint8_t controller_id = (header >> DISPLAY_CMD_ID_SHIFT) & (uint8_t)0x07U;
 		command = header & DISPLAY_CMD_MASK;
 
-		if (controller_id >= (uint8_t)MAX_SPI_INTERFACES)
+		if ((controller_id == 0U) || (controller_id >= (uint8_t)MAX_SPI_INTERFACES))
 		{
 			statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 			result = OUTPUT_ERR_INVALID_PARAM;
@@ -317,13 +324,13 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 			physical_cs = controller_id - (uint8_t)1;
 
 			if ((DISPLAY_CMD_SET_DIGITS == command) &&
-			    (length < (uint8_t)6))
+			    (length != (uint8_t)6))
 			{
 				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 				result = OUTPUT_ERR_INVALID_PARAM;
 			}
 			else if ((DISPLAY_CMD_SET_BRIGHTNESS == command) &&
-			         (length < (uint8_t)2))
+			         (length != (uint8_t)2))
 			{
 				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 				result = OUTPUT_ERR_INVALID_PARAM;
@@ -350,7 +357,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	 */
 	if (OUTPUT_OK == result)
 	{
-		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+		if ((spi_mutex != NULL) && (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
 		{
 			mutex_taken = true;
 		}
@@ -379,7 +386,9 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
 		{
-			result = handle->set_digits(handle, digits, sizeof(digits), payload[5]);
+			size_t digit_count = (device_config_map[physical_cs] == DEVICE_TM1637_DIGIT)
+		    ? TM1637_DIGIT_COUNT : TM1639_DIGIT_COUNT;
+			result = handle->set_digits(handle, digits, digit_count, payload[5]);
 		}
 		else
 		{
@@ -438,7 +447,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	 * - Valid controller ID (1-based, must be within range)
 	 */
 	if ((NULL == payload) ||
-	    ((uint8_t)3 > length) ||
+	    ((uint8_t)3 != length) ||
 	    (0U == payload[0]) ||
 	    ((uint8_t)MAX_SPI_INTERFACES < payload[0]))
 	{
@@ -468,7 +477,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	 */
 	if (OUTPUT_OK == result)
 	{
-		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+		if ((spi_mutex != NULL) && (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
 		{
 			mutex_taken = true;
 

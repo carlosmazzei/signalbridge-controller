@@ -67,7 +67,7 @@ function(add_unit_test test_name)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU")
         target_compile_options(${test_name} PRIVATE 
             -Wall -Wextra -Wpedantic
-            $<$<BOOL:${ENABLE_COVERAGE}>:--coverage -fprofile-arcs -ftest-coverage>
+            $<$<BOOL:${ENABLE_COVERAGE}>:--coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic>
         )
         target_link_options(${test_name} PRIVATE 
             $<$<BOOL:${ENABLE_COVERAGE}>:--coverage>
@@ -147,6 +147,10 @@ if(ENABLE_COVERAGE)
             COMMAND ${CMAKE_COMMAND} -E echo "Coverage report generated in ${CMAKE_BINARY_DIR}/coverage/index.html"
             COMMENT "Generating coverage report"
             DEPENDS
+                test_outputs_drivers
+                test_usb_descriptors
+                test_input_delivery
+                test_task_health
                 test_app_comm
                 test_cobs
                 test_cobs_standalone

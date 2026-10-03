@@ -2,6 +2,8 @@
 add_library(signalbridge_core STATIC
     cobs.c
     encoded_framer.c
+    input_delivery.c
+    task_health.c
     error_management.c
     app_outputs.c
     app_inputs.c
@@ -10,11 +12,19 @@ add_library(signalbridge_core STATIC
     tm1637.c
 )
 
+# Apply diagnostics to the firmware library as well as the executable.
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(signalbridge_core PRIVATE -Wall -Wextra -Wshadow -fstack-usage -Wstack-usage=3584)
+    if(NOT HOST_BUILD)
+        target_compile_options(signalbridge_core PRIVATE -fstack-protector-strong)
+    endif()
+endif()
+
 # (Headers linked later to control include order in host builds)
 
 # Enable coverage instrumentation when requested for GNU compilers
 if(ENABLE_COVERAGE AND CMAKE_C_COMPILER_ID MATCHES "GNU")
-    target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage)
+    target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
     target_link_libraries(signalbridge_core PUBLIC gcov)
 endif()
 
@@ -80,7 +90,6 @@ add_executable(pi_controller)
 target_sources(pi_controller PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/main.c
     ${CMAKE_CURRENT_SOURCE_DIR}/app_comm.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/app_context.c
     ${CMAKE_CURRENT_SOURCE_DIR}/app_tasks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/hooks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c

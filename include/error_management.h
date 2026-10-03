@@ -177,4 +177,6 @@ void show_error_pattern_blocking(error_type_t error_type);
  */
 void setup_watchdog_with_error_detection(uint32_t timeout_ms);
 
+bool error_management_has_fatal_error(void);
+
 #endif // ERROR_MANAGEMENT_H

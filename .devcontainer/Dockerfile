@@ -26,20 +26,9 @@ RUN apt-get update && \
     echo "Packages to install:" && \
     jq -r 'to_entries | .[] | "  - " + .key + " (version: " + .value + ")"' /tmp/dependencies.json && \
     echo "Starting installation..." && \
-    # Install packages - try with version, fallback to package name only
-    jq -r 'keys[]' /tmp/dependencies.json | while read package; do \
-        version=$(jq -r --arg pkg "$package" '.[$pkg]' /tmp/dependencies.json); \
-        echo "Installing $package..."; \
-        if [ -n "$version" ] && [ "$version" != "" ] && [ "$version" != "null" ]; then \
-            if ! apt-get install -y "$package=$version" 2>/dev/null; then \
-                echo "Version $version not available for $package, installing latest..."; \
-                apt-get install -y "$package" || echo "Failed to install $package"; \
-            fi; \
-        else \
-            apt-get install -y "$package" || echo "Failed to install $package"; \
-        fi; \
-    done && \
-    echo "Package installation completed" && \
+    # Fail closed: versions in the reviewed manifest are mandatory.
+    jq -r 'to_entries[] | "\(.key)=\(.value)"' /tmp/dependencies.json > /tmp/packages.txt && \
+    xargs -r apt-get install -y --no-install-recommends < /tmp/packages.txt && \
     # Clean up
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/dependencies.json

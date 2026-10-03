@@ -5,8 +5,8 @@
 Embedded firmware for Raspberry Pi Pico (RP2040) that acts as a USB-connected I/O panel controller for cockpit simulators. Bridges hardware inputs/outputs (keypad matrix, ADCs, rotary encoders, LED displays) to a host PC over USB CDC serial using COBS-framed messages.
 
 - **Target**: RP2040 (dual Cortex-M0+), Raspberry Pi Pico board
-- **RTOS**: FreeRTOS SMP (V11.2.0) — 9 tasks across 2 cores, 2kHz tick
-- **SDK**: Pico SDK 2.1.1+ (vendored in `lib/pico-sdk`)
+- **RTOS**: FreeRTOS SMP (V11.3.0) — 8 application tasks + watchdog supervisor across 2 cores, 2kHz tick
+- **SDK**: Pico SDK 2.3.0 (vendored in `lib/pico-sdk`)
 - **Language**: C11 (C++17 set for Pico SDK compatibility)
 - **Build**: CMake presets, Unix Makefiles generator
 - **License**: GPL v3
@@ -58,7 +58,7 @@ Output firmware: `build-release/src/pi_controller.uf2`
 ```
 
 - MISRA config: `misra.json`, rule texts in `misra.txt`
-- Suppressions: `.cppcheck_suppressions` (documented per file/line)
+- Suppressions: `.cppcheck_suppressions`; visible legacy MISRA/style diagnostics are advisory via `.cppcheck_advisory`. Analyzer failures and other diagnostics block CI. This is not a MISRA compliance certification.
 - SonarQube: configured in `sonar-project.properties`
 
 ## Code Style
