@@ -76,5 +76,47 @@ class PlacementTools(unittest.TestCase):
         self.assertTrue(any("C heap" in error for error in self.module.analyze(symbols, "object")[0]))
 
 
+class DependencyTools(unittest.TestCase):
+    def resolve(self, manifest, architecture):
+        import json
+        return subprocess.run(["jq", "-r", "--arg", "architecture", architecture,
+                               "-f", str(ROOT / ".devcontainer/resolve-dependencies.jq")],
+                              input=json.dumps(manifest), text=True, capture_output=True)
+
+    def test_resolves_architecture_specific_pins(self):
+        manifest = {"cmake": "3.31.6-2", "uncrustify": {"amd64": "0.78.1+dfsg1-1", "arm64": "0.78.1+dfsg1-1+b2"}}
+        result = self.resolve(manifest, "arm64")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["cmake=3.31.6-2", "uncrustify=0.78.1+dfsg1-1+b2"])
+        self.assertIn("uncrustify=0.78.1+dfsg1-1\n", self.resolve(manifest, "amd64").stdout)
+
+    def test_missing_architecture_fails(self):
+        result = self.resolve({"uncrustify": {"arm64": "0.78.1+dfsg1-1+b2"}}, "amd64")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("uncrustify", result.stderr)
+        self.assertIn("amd64", result.stderr)
+
+    def test_updater_preserves_other_architecture(self):
+        import json
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "dependencies.json"
+            manifest.write_text(json.dumps({"uncrustify": {"arm64": "1.0", "amd64": "3.0"}}))
+            for name, body in {
+                "apt-cache": '#!/bin/sh\nprintf "uncrustify:\\n  Candidate: 2.0\\n"\n',
+                "dpkg": '#!/bin/sh\nif [ "$1" = "--print-architecture" ]; then echo arm64; else exec /usr/bin/dpkg "$@"; fi\n',
+            }.items():
+                executable = root / name
+                executable.write_text(body)
+                executable.chmod(0o755)
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"])
+            result = subprocess.run(["bash", str(ROOT / ".devcontainer/update-dependencies.sh"),
+                                     "--file", str(manifest), "--output", str(manifest), "--no-backup"],
+                                    env=env, cwd=root, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(manifest.read_text()), {"uncrustify": {"arm64": "2.0", "amd64": "3.0"}})
+
+
 if __name__ == "__main__":
     unittest.main()

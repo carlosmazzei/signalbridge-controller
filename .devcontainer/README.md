@@ -54,3 +54,42 @@ Access via Command Palette (Ctrl+Shift+P) → "Tasks: Run Task":
 2. Container builds automatically with all dependencies
 3. Run `Tasks: Initialize Submodules` if needed
 4. Start coding with full IntelliSense support!
+
+## Rebuild and pinned APT versions
+
+`dependencies.json` pins exact Debian package versions. The Docker build fails
+if a pinned version is no longer available in the configured Trixie repositories.
+A `Version ... was not found` error means the manifest needs an update; it is
+not a VS Code or Docker startup failure. Security updates can replace older
+versions in these repositories.
+
+Refresh the package lists in a working Trixie container, then run the existing
+updater from the repository root and inspect the manifest diff:
+
+```sh
+sudo apt-get update
+.devcontainer/update-dependencies.sh --no-backup
+```
+
+The updater needs `jq`, Python and APT, already included in the development
+image. It uses the container's package candidates, not packages from macOS.
+A package pin can be a string shared by all architectures or an object with
+`arm64` and `amd64` versions. The updater preserves entries for other architectures;
+the image build fails if its architecture has no pinned version.
+Validate the resulting image before retrying **Dev Containers: Rebuild Container**:
+
+```sh
+docker build --progress=plain -t signalbridge-devcontainer .devcontainer
+```
+
+On 2026-10-11, the manifest was refreshed for `bash`, `curl`, `gpg`, `nodejs`
+and `jq`, after querying the Debian ARM64 and AMD64 package indexes. The
+`uncrustify` pin was split by architecture because its Debian binary rebuild
+version differs between ARM64 and AMD64.
+Exact version pins against changing repositories do not provide historical
+reproducibility; that requires a Debian snapshot repository as well.
+
+Validation: a complete ARM64 image build, installed-version checks for all 25
+manifest packages, all 15 CTest entries (including coverage and tooling), the
+Pico release build and Cppcheck passed. AMD64 pins were checked against the
+Debian package index; an AMD64 image build was not run.

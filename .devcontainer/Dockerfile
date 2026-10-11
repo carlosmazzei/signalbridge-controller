@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 
 # Copy dependencies.json from project root - build will FAIL if file doesn't exist
-COPY dependencies.json /tmp/dependencies.json
+COPY dependencies.json resolve-dependencies.jq /tmp/
 
 # Install packages from dependencies.json
 RUN apt-get update && \
@@ -22,12 +22,12 @@ RUN apt-get update && \
         echo "ERROR: dependencies.json is not valid JSON"; \
         exit 1; \
     fi && \
-    # Show what packages will be installed
-    echo "Packages to install:" && \
-    jq -r 'to_entries | .[] | "  - " + .key + " (version: " + .value + ")"' /tmp/dependencies.json && \
-    echo "Starting installation..." && \
-    # Fail closed: versions in the reviewed manifest are mandatory.
-    jq -r 'to_entries[] | "\(.key)=\(.value)"' /tmp/dependencies.json > /tmp/packages.txt && \
+    # Resolve exact pins for the architecture being built (ARM64/AMD64).
+    jq -r --arg architecture "$(dpkg --print-architecture)" \
+        -f /tmp/resolve-dependencies.jq /tmp/dependencies.json > /tmp/packages.txt && \
+    echo "Installing pinned packages for $(dpkg --print-architecture):" && \
+    cat /tmp/packages.txt && \
+    # Fail closed: missing pins and package installation errors stop the build.
     xargs -r apt-get install -y --no-install-recommends < /tmp/packages.txt && \
     # Clean up
     apt-get clean && \
