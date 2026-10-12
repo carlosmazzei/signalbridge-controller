@@ -32,14 +32,15 @@ size_t cobs_encode(const uint8_t *data, size_t length, uint8_t *buffer);
  *
  * The input excludes the transport delimiter. A zero code byte, embedded zero,
  * truncated block, empty input, or insufficient output capacity rejects the
- * frame. On failure, @p decoded_length is set to zero when non-NULL; any
- * partially written destination bytes are invalid.
+ * frame. On failure, @p decoded_length is set to zero and any partially
+ * written destination bytes are invalid.
  *
  * @param[in] buffer Encoded frame bytes.
  * @param[in] length Number of bytes in @p buffer.
  * @param[out] data Destination for decoded bytes.
  * @param[in] capacity Capacity of @p data in bytes.
- * @param[out] decoded_length Receives the decoded length; must not be NULL.
+ * @param[out] decoded_length Receives the decoded length, or zero on failure;
+ *                            must not be NULL.
  *
  * @return `true` if the entire frame was decoded; otherwise `false`.
  */
