@@ -31,6 +31,7 @@
  * @param[in] dtr Data Terminal Ready state.
  * @param[in] rts Request To Send state.
  */
+// MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
 	if (itf == 0U)
@@ -38,7 +39,9 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 		/* This callback runs in the USB task. Clear old RX bytes before
 		 * publishing readiness, including rapid close/open transitions. */
 		if ((dtr && rts) != app_context_is_cdc_ready())
+		{
 			tud_cdc_n_read_flush(0U);
+		}
 		app_context_set_line_state(dtr, rts);
 	}
 	task_health_progress(CDC_TASK, time_us_32());
@@ -57,18 +60,17 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
  *
  * @param[in] itf Interface number (only interface 0 is serviced).
  */
+// MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_cdc_rx_cb(uint8_t itf)
 {
-	if (0U != itf)
+	if (0U == itf)
 	{
-		return;
-	}
-
-	task_health_progress(CDC_TASK, time_us_32());
-	const task_props_t *const props = app_context_task_props(UART_EVENT_TASK);
-	if ((NULL != props) && (NULL != props->task_handle))
-	{
-		(void)xTaskNotifyGive(props->task_handle);
+		task_health_progress(CDC_TASK, time_us_32());
+		const task_props_t *const props = app_context_task_props(UART_EVENT_TASK);
+		if ((NULL != props) && (NULL != props->task_handle))
+		{
+			(void)xTaskNotifyGive(props->task_handle);
+		}
 	}
 }
 
@@ -108,7 +110,7 @@ static inline void send_status(uint8_t index)
 		data[4] = (uint8_t)(counter_value & 0xFFU);
 	}
 
-	app_comm_send_packet(BOARD_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
+	(void)app_comm_send_packet(BOARD_ID, PC_ERROR_STATUS_CMD, data, sizeof(data));
 }
 
 /**
@@ -124,7 +126,7 @@ static void send_heap_status(uint8_t index)
 	if (index > (uint8_t)NUM_TASKS)
 	{
 		data[0] = INVALID_TASK_INDEX;
-		app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, 1U);
+		(void)app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, 1U);
 		done = true;
 	}
 
@@ -153,7 +155,7 @@ static void send_heap_status(uint8_t index)
 			data[11] = (uint8_t)((value >> 8U) & 0xFFU);
 			data[12] = (uint8_t)(value & 0xFFU);
 
-			app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+			(void)app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 		}
 		else
 		{
@@ -179,7 +181,7 @@ static void send_heap_status(uint8_t index)
 			data[11] = (uint8_t)((value >> 8U) & 0xFFU);
 			data[12] = (uint8_t)(value & 0xFFU);
 
-			app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
+			(void)app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, sizeof(data));
 		}
 	}
 }
@@ -189,6 +191,7 @@ static bool queue_packet(uint16_t id, uint8_t command, const uint8_t *send_data,
 {
 	uint8_t uart_outbound_buffer[MESSAGE_SIZE];
 	bool error = false;
+	bool queued = false;
 
 	if (NULL == send_data)
 	{
@@ -238,7 +241,7 @@ static bool queue_packet(uint16_t id, uint8_t command, const uint8_t *send_data,
 			QueueHandle_t queue = app_context_get_cdc_transmit_queue();
 			if ((queue != NULL) && (pdTRUE == xQueueSend(queue, &packet, pdMS_TO_TICKS(1))))
 			{
-				return true;
+				queued = true;
 			}
 			else
 			{
@@ -246,7 +249,7 @@ static bool queue_packet(uint16_t id, uint8_t command, const uint8_t *send_data,
 			}
 		}
 	}
-	return false;
+	return queued;
 }
 
 bool app_comm_send_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length)
@@ -259,13 +262,17 @@ bool app_comm_send_input(const data_events_t *event, uint8_t slot, uint32_t vers
 	return queue_packet(BOARD_ID, event->command, event->data, event->data_length, slot, version, session);
 }
 
+// MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_umount_cb(void)
 {
 	app_context_reset_line_state();
 }
+
+// MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_suspend_cb(bool remote_wakeup_en)
 {
-	(void)remote_wakeup_en; app_context_reset_line_state();
+	(void)remote_wakeup_en;
+	app_context_reset_line_state();
 }
 
 void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
@@ -321,8 +328,8 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 		}
 	}
 
-	if (!done && (((cmd == PC_PWM_CMD) || (cmd == PC_ERROR_STATUS_CMD) ||
-	               (cmd == PC_TASK_STATUS_CMD)) && (len != 1U)))
+	if (!done && (((cmd == (uint8_t)PC_PWM_CMD) || (cmd == (uint8_t)PC_ERROR_STATUS_CMD) ||
+	               (cmd == (uint8_t)PC_TASK_STATUS_CMD)) && (len != 1U)))
 	{
 		statistics_increment_counter(MSG_MALFORMED_ERROR);
 		done = true;
@@ -354,7 +361,7 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 		break;
 
 		case PC_ECHO_CMD:
-			app_comm_send_packet(rxID, cmd, decoded_data, len);
+			(void)app_comm_send_packet(rxID, cmd, decoded_data, len);
 			break;
 
 		case PC_ERROR_STATUS_CMD:
@@ -372,6 +379,7 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 	}
 }
 
+// MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_cdc_tx_complete_cb(uint8_t itf)
 {
 	(void)itf;

@@ -44,12 +44,15 @@ static bool usb_ready(void)
 
 /* TinyUSB invokes this hook for bus events, including reset without a line
  * state request. It may run in IRQ context: only atomic state is touched. */
+// MISRA Deviation D2 (Rule 8.7): hook referenced by lib/ code
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr)
 {
 	(void)rhport;
 	(void)in_isr;
-	if ((eventid == DCD_EVENT_BUS_RESET) || (eventid == DCD_EVENT_UNPLUGGED))
+	if ((eventid == (uint32_t)DCD_EVENT_BUS_RESET) || (eventid == (uint32_t)DCD_EVENT_UNPLUGGED))
+	{
 		app_context_reset_line_state();
+	}
 }
 
 static void watchdog_task(void *params)
@@ -58,14 +61,18 @@ static void watchdog_task(void *params)
 	for (;;)
 	{
 		bool healthy = !error_management_has_fatal_error() && task_health_check(time_us_32());
-		for (unsigned i = 0U; i < NUM_TASKS; i++)
+		for (uint32_t i = 0U; i < (uint32_t)NUM_TASKS; i++)
 		{
 			TaskHandle_t handle = app_context_task_props((task_enum_t)i)->task_handle;
 			if ((handle == NULL) || (eTaskGetState(handle) == eSuspended))
+			{
 				healthy = false;
+			}
 		}
 		if (healthy)
+		{
 			watchdog_update();
+		}
 		vTaskDelay(pdMS_TO_TICKS(100U));
 	}
 }
@@ -216,7 +223,9 @@ bool app_tasks_create_application(void)
 		success = (xTaskCreate(watchdog_task, "watchdog", configMINIMAL_STACK_SIZE * 2U,
 		                       NULL, mainCDC_TASK_PRIORITY + 1U, &supervisor_handle) == pdPASS);
 		if (success)
+		{
 			vTaskCoreAffinitySet(supervisor_handle, CORE_0_AFFINITY);
+		}
 	}
 	return success;
 }
@@ -305,24 +314,25 @@ bool app_tasks_create_comm(void)
 void app_tasks_cleanup_application(void)
 {
 	// Boot-only lifecycle: running tasks may hold the queue handles.
-	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
-		return;
-	if (supervisor_handle != NULL)
+	if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
 	{
-		vTaskDelete(supervisor_handle);
-		supervisor_handle = NULL;
-	}
-	QueueHandle_t queue = app_context_get_data_event_queue();
-	if (queue != NULL)
-	{
-		vQueueDelete(queue);
-	}
-	app_context_set_data_event_queue(NULL);
+		if (supervisor_handle != NULL)
+		{
+			vTaskDelete(supervisor_handle);
+			supervisor_handle = NULL;
+		}
+		QueueHandle_t queue = app_context_get_data_event_queue();
+		if (queue != NULL)
+		{
+			vQueueDelete(queue);
+		}
+		app_context_set_data_event_queue(NULL);
 
-	delete_task_if_exists(PROCESS_OUTBOUND_TASK);
-	delete_task_if_exists(ADC_READ_TASK);
-	delete_task_if_exists(KEYPAD_TASK);
-	delete_task_if_exists(LED_STATUS_TASK);
+		delete_task_if_exists(PROCESS_OUTBOUND_TASK);
+		delete_task_if_exists(ADC_READ_TASK);
+		delete_task_if_exists(KEYPAD_TASK);
+		delete_task_if_exists(LED_STATUS_TASK);
+	}
 }
 
 static void cleanup_comm_subsystem(void)
@@ -369,6 +379,7 @@ static void cleanup_comm_subsystem(void)
  */
 static void uart_event_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint8_t receive_buffer[CDC_READ_CHUNK_SIZE];
 	encoded_framer_t framer;
@@ -474,6 +485,7 @@ static void uart_event_task(void *pvParameters)
  */
 static void cdc_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	uint32_t loop_count = 0U;
 	for (;;)
@@ -492,12 +504,44 @@ static void cdc_task(void *pvParameters)
 }
 
 /**
+ * @brief Decode one received frame and dispatch it when it belongs to the current session.
+ *
+ * Frames from a previous USB session are dropped silently.
+ *
+ * @param[in]  frame         Encoded frame taken from the reception queue.
+ * @param[out] decode_buffer Scratch buffer receiving the decoded packet.
+ * @param[in]  capacity      Size of @p decode_buffer in bytes.
+ */
+static void decode_frame(const encoded_frame_t *frame, uint8_t *decode_buffer, size_t capacity)
+{
+	if (app_context_is_cdc_ready() && (frame->session == app_context_cdc_session()))
+	{
+		size_t num_decoded = 0U;
+
+		if (0U == frame->length)
+		{
+			statistics_increment_counter(COBS_DECODE_ERROR);
+		}
+		else if (cobs_decode_checked(frame->data, frame->length, decode_buffer, capacity, &num_decoded) &&
+		         (num_decoded > 0U))
+		{
+			app_comm_process_inbound(decode_buffer, num_decoded);
+		}
+		else
+		{
+			statistics_increment_counter(COBS_DECODE_ERROR);
+		}
+	}
+}
+
+/**
  * @brief Task that decodes COBS-framed packets received from the host.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
 static void decode_reception_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 	encoded_frame_t frame;
 	uint8_t decode_buffer[MAX_ENCODED_BUFFER_SIZE];
@@ -525,27 +569,11 @@ static void decode_reception_task(void *pvParameters)
 		if (pdFALSE == xQueueReceive(queue, &frame, portMAX_DELAY))
 		{
 			statistics_increment_counter(QUEUE_RECEIVE_ERROR);
-			continue;
-		}
-
-		task_health_progress(DECODE_RECEPTION_TASK, time_us_32());
-		if (!app_context_is_cdc_ready() || (frame.session != app_context_cdc_session()))
-			continue;
-
-		if (0U == frame.length)
-		{
-			statistics_increment_counter(COBS_DECODE_ERROR);
-			continue;
-		}
-
-		size_t num_decoded = 0U;
-		if (cobs_decode_checked(frame.data, frame.length, decode_buffer, sizeof(decode_buffer), &num_decoded) && (num_decoded > 0U))
-		{
-			app_comm_process_inbound(decode_buffer, num_decoded);
 		}
 		else
 		{
-			statistics_increment_counter(COBS_DECODE_ERROR);
+			task_health_progress(DECODE_RECEPTION_TASK, time_us_32());
+			decode_frame(&frame, decode_buffer, sizeof(decode_buffer));
 		}
 	}
 }
@@ -557,6 +585,7 @@ static void decode_reception_task(void *pvParameters)
  */
 static void process_outbound_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t *props = pvParameters;
 	uint32_t loop_count = 0U;
 	for (;;)
@@ -570,23 +599,35 @@ static void process_outbound_task(void *pvParameters)
 			uint8_t slot;
 			uint32_t version;
 			// Bounded batch keeps input scanning schedulable.
-			for (unsigned i = 0U; i < 8U; i++)
+			bool sending = true;
+			for (uint32_t i = 0U; sending && (i < 8U); i++)
 			{
 				if (!input_delivery_next(&event, &slot, &version))
-					break;
-				if (!app_comm_send_input(&event, slot, version, session))
+				{
+					sending = false;
+				}
+				else if (!app_comm_send_input(&event, slot, version, session))
 				{
 					input_delivery_complete(slot, version, session, false);
-					break;
+					sending = false;
+				}
+				else
+				{
+					// Snapshot queued; completion is confirmed by the writer
 				}
 			}
 			QueueHandle_t queue = app_context_get_data_event_queue();
 			if ((queue != NULL) && (xQueueReceive(queue, &event, 0U) == pdPASS) &&
 			    (event.session == session))
+			{
 				(void)app_comm_send_input(&event, INPUT_SNAPSHOT_NONE, 0U, session);
+			}
 		}
-		if ((loop_count++ & 63U) == 0U)
+		if ((loop_count & 63U) == 0U)
+		{
 			props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 		vTaskDelay(pdMS_TO_TICKS(1U));
 	}
 }
@@ -598,6 +639,7 @@ static void process_outbound_task(void *pvParameters)
  */
 static void cdc_write_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t *props = pvParameters;
 	uint32_t session = app_context_cdc_session();
 	uint32_t loop_count = 0U;
@@ -633,7 +675,9 @@ static void cdc_write_task(void *pvParameters)
 				uint32_t amount = (available < remaining) ? available : remaining;
 				uint32_t written = 0U;
 				if (amount != 0U)
+				{
 					written = tud_cdc_n_write(0, &packet.data[written_total], amount);
+				}
 				written_total += written;
 				(void)tud_cdc_write_flush();
 				if (written == 0U)
@@ -658,11 +702,16 @@ static void cdc_write_task(void *pvParameters)
 			                (packet.session == app_context_cdc_session());
 			input_delivery_complete(packet.snapshot_slot, packet.snapshot_version, packet.session, complete);
 			if (!complete)
+			{
 				statistics_increment_counter(CDC_QUEUE_SEND_ERROR);
+			}
 			statistics_add_to_counter(BYTES_SENT, (uint32_t)written_total);
 		}
-		if ((loop_count++ & 63U) == 0U)
+		if ((loop_count & 63U) == 0U)
+		{
 			props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
 	}
 }
 
@@ -673,6 +722,7 @@ static void cdc_write_task(void *pvParameters)
  */
 static void led_status_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t *task_prop = (task_props_t *)pvParameters;
 
 	for (;;)
@@ -722,6 +772,7 @@ static void led_status_task(void *pvParameters)
  *
  * @return Monotonic runtime value used by the kernel statistics module.
  */
+// MISRA Deviation D2 (Rule 8.7): hook referenced by lib/ code
 uint32_t ulPortGetRunTime(void)
 {
 	return time_us_32();

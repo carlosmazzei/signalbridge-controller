@@ -20,14 +20,14 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "error_management.h"
-#include <stdatomic.h>
+#include "atomic_u32.h"
 
 /**
  * @brief Statistics counters instance (module scope).
  */
 static _Atomic uint32_t counters[NUM_STATISTICS_COUNTERS];
-static _Atomic error_type_t current_error_type;
-static atomic_bool fatal_error;
+static _Atomic uint32_t current_error_type;
+static _Atomic uint32_t fatal_error;
 
 static bool error_type_non_fatal(error_type_t type)
 {
@@ -52,45 +52,55 @@ bool error_management_is_fatal(error_type_t type)
 
 void statistics_increment_counter(statistics_counter_enum_t index)
 {
-	if ((unsigned)index < NUM_STATISTICS_COUNTERS)
-		(void)atomic_fetch_add_explicit(&counters[index], 1U, memory_order_relaxed);
-
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		atomic_u32_add(&counters[index], 1U);
+	}
 }
 
 void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	if ((unsigned)index < NUM_STATISTICS_COUNTERS)
-		(void)atomic_fetch_add_explicit(&counters[index], value, memory_order_relaxed);
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		atomic_u32_add(&counters[index], value);
+	}
 }
 
 void statistics_set_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	if ((unsigned)index < NUM_STATISTICS_COUNTERS)
-		atomic_store_explicit(&counters[index], value, memory_order_relaxed);
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		atomic_u32_store(&counters[index], value);
+	}
 }
 
 uint32_t statistics_get_counter(statistics_counter_enum_t index)
 {
-	return ((unsigned)index < NUM_STATISTICS_COUNTERS)
-	? atomic_load_explicit(&counters[index], memory_order_relaxed) : 0U;
+	uint32_t value = 0U;
+
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		value = atomic_u32_load(&counters[index]);
+	}
+	return value;
 }
 
 void statistics_reset_all_counters(void)
 {
-	for (uint32_t i = 0; i < (uint32_t)NUM_STATISTICS_COUNTERS; i++)
+	for (uint32_t i = 0U; i < (uint32_t)NUM_STATISTICS_COUNTERS; i++)
 	{
-		atomic_store_explicit(&counters[i], 0U, memory_order_relaxed);
+		atomic_u32_store(&counters[i], 0U);
 	}
 }
 
 bool statistics_is_error_state(void)
 {
-	return atomic_load_explicit(&current_error_type, memory_order_relaxed) != ERROR_NONE;
+	return atomic_u32_load(&current_error_type) != (uint32_t)ERROR_NONE;
 }
 
 error_type_t statistics_get_error_type(void)
 {
-	return atomic_load_explicit(&current_error_type, memory_order_relaxed);
+	return (error_type_t)atomic_u32_load(&current_error_type);
 }
 
 void show_error_pattern_blocking(error_type_t error_type)
@@ -124,7 +134,7 @@ void show_error_pattern_blocking(error_type_t error_type)
 
 void error_management_set_error_state(error_type_t type)
 {
-	atomic_store_explicit(&current_error_type, type, memory_order_relaxed);
+	atomic_u32_store(&current_error_type, (uint32_t)type);
 
 	switch (type)
 	{
@@ -166,7 +176,10 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 
 /**
  * @brief Panic handler for critical errors.
+ *
+ * Installed as the Pico SDK panic() target through PICO_PANIC_FUNCTION.
  */
+// MISRA Deviation D2 (Rule 8.7): hook referenced by lib/ code
 void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
 {
 	(void)fmt;
@@ -181,7 +194,7 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
 {
-	atomic_store_explicit(&fatal_error, true, memory_order_release);
+	atomic_u32_store(&fatal_error, 1U);
 	watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
 	while (true)
 	{
@@ -191,5 +204,5 @@ void __attribute__((noreturn)) fatal_halt(error_type_t type)
 
 bool error_management_has_fatal_error(void)
 {
-	return atomic_load_explicit(&fatal_error, memory_order_acquire);
+	return atomic_u32_load(&fatal_error) != 0U;
 }

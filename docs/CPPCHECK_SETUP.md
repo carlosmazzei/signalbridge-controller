@@ -2,9 +2,11 @@
 > The script reads `build-release/compile_commands.json` explicitly (override
 > with `CPPCHECK_COMPILE_COMMANDS`). It normalizes SDK `-isystem` include paths,
 > loads the ARM compiler atomic declarations around Pico's `include_next`,
-> and uses 32-bit target sizes. Analyzer errors return nonzero. Existing MISRA
-> and selected style debt remains visible but advisory in `.cppcheck_advisory`;
-> a passing run is not a MISRA compliance claim.
+> and uses 32-bit target sizes. Analyzer errors and every MISRA C:2012
+> diagnostic return nonzero; only selected non-MISRA style checks are advisory
+> in `.cppcheck_advisory`. Accepted deviations are listed in
+> [MISRA_DEVIATIONS.md](MISRA_DEVIATIONS.md). A passing run is not a MISRA
+> compliance certification.
 
 # Cppcheck with MISRA C:2012 Setup
 
@@ -25,9 +27,7 @@ This guide explains how to run static analysis with cppcheck and the MISRA C:201
 - Hardened the base configuration to prevent critical errors from stopping analysis before results are produced.
 
 ## MISRA Compliance Notes
-Suppressions are grouped by rationale: external libraries, hardware register access, and FreeRTOS integrations. Keep suppressions specific to affected files or functions and include the deviation category so reviewers understand the context.
-
-When adding new suppressions, document the exact location and the reason. Prefer focused patterns over broad wildcards to keep reports actionable.
+MISRA C:2012 is enforced strictly, advisory rules included. Fix the code first. When a finding cannot be fixed (third-party macros or callbacks), record a deviation in [MISRA_DEVIATIONS.md](MISRA_DEVIATIONS.md) and mark the site with an inline `// cppcheck-suppress <id> ; Deviation Dn: <reason>` comment. Library callbacks flagged by rule 8.7 use a `// MISRA Deviation D2 (Rule 8.7): <reason>` marker instead, which `run_cppcheck.sh` converts into a suppression for the following line. Never add `misra-c2012-*` entries to `.cppcheck_advisory` and never suppress a MISRA rule project-wide without a register entry.
 
 ## Troubleshooting
 - If cppcheck is not found, rebuild the DevContainer or install the package on your host environment.
@@ -41,7 +41,7 @@ When adding new suppressions, document the exact location and the reason. Prefer
 - Record any new suppression rules with a clear rationale to maintain auditability.
 
 ## CI/CD Integration
-Static analysis can run in continuous integration by invoking the full cppcheck script as part of the build workflow. Allow the job to report warnings while still capturing output for review. In `.github/workflows/build-all.yml` cppcheck and the host tests are currently non-blocking: failures are reported as warnings and in the job summary. Set the repository variable `ENFORCE_QUALITY_GATES=true` to make them fail the workflow and block releases. Pre-commit hooks can also invoke cppcheck on staged C or header files to catch issues before they reach the repository.
+Static analysis can run in continuous integration by invoking the full cppcheck script as part of the build workflow. In `.github/workflows/build-all.yml` the uncrustify format check, cppcheck and the host tests are currently non-blocking: failures are reported as warnings and in the job summary. Set the repository variable `ENFORCE_QUALITY_GATES=true` to make them fail the workflow and block releases. Pre-commit hooks can also invoke cppcheck on staged C or header files to catch issues before they reach the repository.
 
 ## Best Practices
 1. Run analysis regularly and prioritize real defects over stylistic warnings.

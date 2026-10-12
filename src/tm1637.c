@@ -319,7 +319,9 @@ tm1637_result_t tm1637_display_on(output_driver_t *config)
 		uint8_t level = (config->brightness == 0U) ? 0U : (uint8_t)(config->brightness - 1U);
 		result = tm1637_send_command(config, (uint8_t)TM1637_CMD_DISPLAY_ON | level);
 		if (result == TM1637_OK)
+		{
 			config->display_on = true;
+		}
 	}
 
 	return result;
@@ -334,6 +336,7 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 	output_driver_t *config = NULL;
 	uint8_t valid = 1U;
 
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	config = pvPortMalloc(sizeof(output_driver_t));
 	if (NULL == config)
 	{
@@ -687,27 +690,15 @@ output_result_t tm1637_set_leds(output_driver_t *config, const uint8_t leds, con
 	return tm1637_to_output_result(tm_result);
 }
 
-tm1637_result_t tm1637_display_off(output_driver_t *config)
-{
-	tm1637_result_t result = TM1637_OK;
-	if (NULL == config)
-	{
-		result = TM1637_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		result = tm1637_send_command(config, TM1637_CMD_DISPLAY_OFF);
-		if (result == TM1637_OK)
-			config->display_on = false;
-	}
-	return result;
-}
-
 tm1637_result_t tm1637_clear(output_driver_t *config)
 {
-	if (config == NULL)
-		return TM1637_ERR_INVALID_PARAM;
-	(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
-	config->buffer_modified = true;
-	return tm1637_flush(config);
+	tm1637_result_t result = TM1637_ERR_INVALID_PARAM;
+
+	if (config != NULL)
+	{
+		(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
+		config->buffer_modified = true;
+		result = tm1637_flush(config);
+	}
+	return result;
 }

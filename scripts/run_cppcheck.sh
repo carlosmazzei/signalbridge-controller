@@ -104,6 +104,7 @@ echo "✅ Configuration loaded"
 CPPCHECK_CMD=(
     cppcheck
     --error-exitcode=2
+    --inline-suppr
     --exitcode-suppressions="$PROJECT_ROOT/.cppcheck_advisory"
     --include="$(arm-none-eabi-gcc -print-file-name=include)/stdatomic.h"
     --std=c11
@@ -122,6 +123,12 @@ if [ "$ENABLE_MISRA" = true ] && [ -f "$MISRA_CONFIG" ] && [ -f "$MISRA_RULES" ]
     CPPCHECK_CMD+=(--dump)
     echo "ℹ️  MISRA enabled"
 fi
+
+# Rule 8.7 deviation D2: cross-translation-unit findings ignore inline
+# suppressions, so suppress the declaration that follows each marker comment.
+while IFS=: read -r marker_file marker_line _; do
+    CPPCHECK_CMD+=("--suppress=misra-c2012-8.7:*${marker_file}:$((marker_line + 1))")
+done < <(cd "$PROJECT_ROOT" && grep -rn "MISRA Deviation D2 (Rule 8.7)" src)
 
 # Load defines from config
 while IFS= read -r line; do

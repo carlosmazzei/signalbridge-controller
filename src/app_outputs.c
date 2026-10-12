@@ -99,6 +99,19 @@ static output_result_t init_mux(void)
 	return output_result;
 }
 
+static output_result_t output_init_resources(void);
+
+/**
+ * @brief SPI instance shared by all display drivers.
+ *
+ * @return The SPI0 instance.
+ */
+static spi_inst_t *output_spi(void)
+{
+	// cppcheck-suppress misra-c2012-11.3 ; Deviation D3: Pico SDK instance macro casts the register block
+	return spi0;
+}
+
 /**
  * @brief Toggle the multiplexer lines for the requested device.
  *
@@ -116,10 +129,9 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
 		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
-		return OUTPUT_ERR_INVALID_PARAM;
+		result = OUTPUT_ERR_INVALID_PARAM;
 	}
-
-	if (select)
+	else if (select)
 	{
 		// Convert chip number to individual bits for multiplexer control
 		gpio_put(SPI_MUX_A_PIN, (chip_select & (uint8_t)0x01));       // LSB
@@ -134,8 +146,11 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 		gpio_put(SPI_MUX_CS, 0);
 	}
 
-	// Small delay to ensure stable signal
-	sleep_us(1);
+	if (OUTPUT_OK == result)
+	{
+		// Small delay to ensure stable signal
+		sleep_us(1);
+	}
 
 	return result;
 }
@@ -154,7 +169,9 @@ static output_result_t init_driver(void)
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
 		if (output_drivers.driver_handles[i] != NULL)
+		{
 			vPortFree(output_drivers.driver_handles[i]);
+		}
 		output_drivers.driver_handles[i] = NULL;
 
 		if (((uint8_t)DEVICE_TM1639_DIGIT == device_config_map[i]) ||
@@ -163,14 +180,13 @@ static output_result_t init_driver(void)
 			// Initialize TM1639 driver
 			output_drivers.driver_handles[i] = tm1639_init(i,
 			                                               &select_interface,
-			                                               spi0,
+			                                               output_spi(),
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
 			if (NULL == output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
 				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
-				continue;
 			}
 		}
 		else if (((uint8_t)DEVICE_TM1637_DIGIT == device_config_map[i]) ||
@@ -179,20 +195,23 @@ static output_result_t init_driver(void)
 			// Initialize TM1637 driver using same SPI infrastructure as TM1639
 			output_drivers.driver_handles[i] = tm1637_init(i,
 			                                               &select_interface,
-			                                               spi0,
+			                                               output_spi(),
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
 			if (NULL == output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
 				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
-				continue;
 			}
 		}
 		else if (((uint8_t)DEVICE_GENERIC_DIGIT == device_config_map[i]) ||
 		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
 			// Initialize generic driver (if needed)
+		}
+		else
+		{
+			// DEVICE_NONE or unsupported entry: slot stays without a driver
 		}
 	}
 
@@ -217,7 +236,8 @@ static output_result_t init_driver(void)
 static void uart0_init(uint32_t baudrate)
 {
 	// Initialize UART0 hardware
-	uart_init(uart0, baudrate);
+	// cppcheck-suppress misra-c2012-11.3 ; Deviation D3: Pico SDK instance macro casts the register block
+	(void)uart_init(uart0, baudrate);
 
 	// Set GPIO 12 as UART0 TX
 	gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
@@ -226,13 +246,30 @@ static void uart0_init(uint32_t baudrate)
 	gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
 
 	// Optional: Enable FIFO
+	// cppcheck-suppress misra-c2012-11.3 ; Deviation D3: Pico SDK instance macro casts the register block
 	uart_set_fifo_enabled(uart0, true);
 }
 
 output_result_t output_init(void)
 {
-	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
-		return OUTPUT_ERR_INIT;
+	output_result_t result = OUTPUT_ERR_INIT;
+
+	// Outputs may only be (re)initialised before the scheduler starts.
+	if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
+	{
+		result = output_init_resources();
+	}
+
+	return result;
+}
+
+/**
+ * @brief Create the SPI mutex and configure the multiplexer, SPI, UART, PWM and drivers.
+ *
+ * @return OUTPUT_OK on success or an output error code otherwise.
+ */
+static output_result_t output_init_resources(void)
+{
 	output_result_t result = OUTPUT_OK;
 
 	// Create mutex
@@ -256,8 +293,8 @@ output_result_t output_init(void)
 	}
 
 	// Initialize SPI
-	spi_init(spi0, SPI_FREQUENCY);
-	spi_set_format(spi0, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+	(void)spi_init(output_spi(), SPI_FREQUENCY);
+	spi_set_format(output_spi(), 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
 	gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
 	gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
@@ -272,6 +309,7 @@ output_result_t output_init(void)
 	}
 
 	// Make the SPI pins available to picotool
+	// cppcheck-suppress [misra-c2012-10.1,misra-c2012-10.4,misra-c2012-10.8,misra-c2012-12.2] ; Deviation D4: SDK binary-info metadata macro
 	bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI))
 
 	// Initialize UART0
@@ -286,7 +324,9 @@ output_result_t output_init(void)
 
 	// Initialize drivers (for 7 segment display)
 	if (init_driver() != OUTPUT_OK)
+	{
 		result = OUTPUT_ERR_INIT;
+	}
 
 	return result;
 }
@@ -334,6 +374,10 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 			{
 				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 				result = OUTPUT_ERR_INVALID_PARAM;
+			}
+			else
+			{
+				// Payload length matches the command (or command checked below)
 			}
 		}
 
@@ -416,6 +460,10 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	{
 		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		// Validation already failed: result carries the error
 	}
 
 	/**

@@ -58,7 +58,9 @@ Output firmware: `build-release/src/pi_controller.uf2`
 ```
 
 - MISRA config: `misra.json`, rule texts in `misra.txt`
-- Suppressions: `.cppcheck_suppressions`; visible legacy MISRA/style diagnostics are advisory via `.cppcheck_advisory`. Analyzer failures and other diagnostics block CI. This is not a MISRA compliance certification.
+- Suppressions: `.cppcheck_suppressions` (documented deviations only). MISRA C:2012 is enforced strictly: every MISRA diagnostic, including advisory rules such as 15.5 (single point of exit), fails `run_cppcheck.sh`. Never add `misra-c2012-*` entries to `.cppcheck_advisory`; fix the code or record a deviation in `docs/MISRA_DEVIATIONS.md` and mark the site inline.
+- Atomics: use the `atomic_u32_*` wrappers (`include/atomic_u32.h`); `<stdatomic.h>` generics are only allowed in `src/atomic_u32.c` (deviation D1).
+- Test-only accessors go under `#ifdef SIGNALBRIDGE_UNIT_TEST` (defined for host builds only).
 - SonarQube: configured in `sonar-project.properties`
 
 ## Code Style
@@ -139,6 +141,7 @@ assets/        — Logos and diagrams
 ## Operational Boundaries
 
 **ALWAYS**
+- Run uncrustify on changed `src/` and `include/` files before committing
 - Run `ctest --preset host-tests` before committing
 - Run lint/static analysis before finishing
 - Update documentation when behavior/logic changes

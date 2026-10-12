@@ -66,8 +66,11 @@ heap FreeRTOS; piso do heap C de 32.768 bytes e 8.192 bytes reservados para
 pilhas dos cores. A folga estática calculada é 75.632 bytes. Esses valores não
 medem ocupação máxima das pilhas das tarefas em execução.
 
-Os diagnósticos MISRA e alguns avisos de estilo legados permanecem visíveis,
-mas consultivos em `.cppcheck_advisory`. Falhas internas do analisador,
+Atualização de 2026-10-12: o MISRA C:2012 passou a ser aplicado de forma
+estrita. Todo diagnóstico MISRA, inclusive regras advisory como 15.5 e 15.6,
+reprova o `run_cppcheck.sh`; os desvios aceitos estão em
+[MISRA_DEVIATIONS.md](MISRA_DEVIATIONS.md). Apenas avisos de estilo não-MISRA
+permanecem consultivos em `.cppcheck_advisory`. Falhas internas do analisador,
 configuração incompleta e outros diagnósticos continuam bloqueantes. Não há
 alegação de conformidade MISRA. LeakSanitizer foi desabilitado para os
 fixtures host que mantêm alocações de boot até encerrar o processo; ASan e

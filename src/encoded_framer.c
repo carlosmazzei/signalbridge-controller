@@ -26,17 +26,16 @@ framer_result_t encoded_framer_push_byte(encoded_framer_t *framer,
 
 	if (NULL == framer)
 	{
-		return FRAMER_OVERFLOW;
+		result = FRAMER_OVERFLOW;
 	}
-
-	if (framer->discarding)
+	else if (framer->discarding)
 	{
 		if (PACKET_MARKER == byte)
+		{
 			encoded_framer_reset(framer);
-		return FRAMER_NEED_MORE_DATA;
+		}
 	}
-
-	if (PACKET_MARKER == byte)
+	else if (PACKET_MARKER == byte)
 	{
 		if (0U == framer->length)
 		{
@@ -53,11 +52,11 @@ framer_result_t encoded_framer_push_byte(encoded_framer_t *framer,
 			result = FRAMER_FRAME_READY;
 		}
 	}
-	else if (framer->length < (size_t)MAX_ENCODED_BUFFER_SIZE)
+	else if (framer->length < MAX_ENCODED_BUFFER_SIZE)
 	{
 		framer->buffer[framer->length] = byte;
 		framer->length++;
-		if (framer->length >= (size_t)MAX_ENCODED_BUFFER_SIZE)
+		if (framer->length >= MAX_ENCODED_BUFFER_SIZE)
 		{
 			/* No room for more bytes and no marker received: the current
 			 * accumulation is not a valid frame.  Drop it and report

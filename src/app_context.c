@@ -4,6 +4,7 @@
  */
 
 #include "app_context.h"
+#include "atomic_u32.h"
 
 #include <stdint.h>
 
@@ -14,17 +15,23 @@ static app_context_t s_app_context;
 
 bool app_context_is_cdc_ready(void)
 {
-	return (atomic_load_explicit(&s_app_context.cdc_state, memory_order_acquire) & 1U) != 0U;
+	return (atomic_u32_load(&s_app_context.cdc_state) & 1U) != 0U;
 }
 
 uint32_t app_context_cdc_session(void)
 {
-	return atomic_load_explicit(&s_app_context.cdc_state, memory_order_acquire) >> 1U;
+	return atomic_u32_load(&s_app_context.cdc_state) >> 1U;
 }
 
 task_props_t *app_context_task_props(task_enum_t task_id)
 {
-	return ((unsigned)task_id < NUM_TASKS) ? &app_context_get()->task_props[task_id] : NULL;
+	task_props_t *props = NULL;
+
+	if ((uint32_t)task_id < (uint32_t)NUM_TASKS)
+	{
+		props = &app_context_get()->task_props[task_id];
+	}
+	return props;
 }
 
 QueueHandle_t app_context_get_encoded_queue(void)
@@ -64,7 +71,7 @@ app_context_t *app_context_get(void)
 
 void app_context_reset_task_props(void)
 {
-	for (uint32_t i = 0; i < (uint32_t)NUM_TASKS; i++)
+	for (uint32_t i = 0U; i < (uint32_t)NUM_TASKS; i++)
 	{
 		s_app_context.task_props[i].high_watermark = 0U;
 		s_app_context.task_props[i].task_handle = NULL;
@@ -73,36 +80,39 @@ void app_context_reset_task_props(void)
 
 void app_context_reset_queues(void)
 {
-	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
-		return;
-	if (s_app_context.encoded_reception_queue != NULL)
+	// Queues may only be released before the scheduler starts.
+	if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
 	{
-		vQueueDelete(s_app_context.encoded_reception_queue);
-		s_app_context.encoded_reception_queue = NULL;
-	}
-	if (s_app_context.data_event_queue != NULL)
-	{
-		vQueueDelete(s_app_context.data_event_queue);
-		s_app_context.data_event_queue = NULL;
-	}
-	if (s_app_context.cdc_transmit_queue != NULL)
-	{
-		vQueueDelete(s_app_context.cdc_transmit_queue);
-		s_app_context.cdc_transmit_queue = NULL;
+		if (s_app_context.encoded_reception_queue != NULL)
+		{
+			vQueueDelete(s_app_context.encoded_reception_queue);
+			s_app_context.encoded_reception_queue = NULL;
+		}
+		if (s_app_context.data_event_queue != NULL)
+		{
+			vQueueDelete(s_app_context.data_event_queue);
+			s_app_context.data_event_queue = NULL;
+		}
+		if (s_app_context.cdc_transmit_queue != NULL)
+		{
+			vQueueDelete(s_app_context.cdc_transmit_queue);
+			s_app_context.cdc_transmit_queue = NULL;
+		}
 	}
 }
 
 void app_context_set_line_state(bool dtr, bool rts)
 {
-	uint32_t old = atomic_load_explicit(&s_app_context.cdc_state, memory_order_relaxed);
-	uint32_t ready = (dtr && rts) ? 1U : 0U;
-	while ((old & 1U) != ready)
+	uint32_t old = atomic_u32_load(&s_app_context.cdc_state);
+	const uint32_t ready = (dtr && rts) ? 1U : 0U;
+	bool done = ((old & 1U) == ready);
+
+	// Each readiness change starts a new session generation (upper 31 bits).
+	while (!done)
 	{
-		uint32_t next = ((old + 2U) & ~1U) | ready;
-		bool changed = atomic_compare_exchange_weak_explicit(&s_app_context.cdc_state, &old, next,
-		                                                     memory_order_release, memory_order_relaxed);
-		if (changed)
-			break;
+		const uint32_t next = ((old + 2U) & ~1U) | ready;
+		// On failure old is refreshed; stop if another writer already applied ready.
+		done = atomic_u32_compare_exchange(&s_app_context.cdc_state, &old, next) || ((old & 1U) == ready);
 	}
 }
 

@@ -109,7 +109,7 @@ For protocol framing, payload layouts, and pre-COBS example frames, see `docs/CO
 - Only the supervisor feeds the five-second watchdog. Four seconds without progress from an active task stops feeding; fatal errors also stop feeding. An intentional indefinite decode queue wait is exempt. SPI operates at 1 MHz.
 
 ## Code Quality and Documentation
-- MISRA C:2012 guidance informs implementation choices; suppressions are documented for external dependencies and hardware access.
+- MISRA C:2012 is enforced strictly by `scripts/run_cppcheck.sh` (advisory rules included); every accepted deviation is listed in [docs/MISRA_DEVIATIONS.md](docs/MISRA_DEVIATIONS.md).
 - Formatting uses Uncrustify with `uncrustify.cfg`. VS Code tasks cover formatting, builds, and documentation generation.
 - Static analysis relies on cppcheck with the MISRA addon, SonarLint, and Flawfinder. Helper scripts under `scripts/` wrap common checks.
 - Doxygen configuration lives in `docs/Doxyfile`, and generated HTML output is written to `docs/html/`.

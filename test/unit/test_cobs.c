@@ -11,6 +11,14 @@
 #include "app_config.h"
 #include <string.h>
 
+/* Decode helper for tests: returns the decoded length, or zero when invalid. */
+static size_t cobs_decode(const uint8_t *buffer, size_t length, uint8_t *data)
+{
+	size_t decoded_length = 0U;
+	(void)cobs_decode_checked(buffer, length, data, length, &decoded_length);
+	return decoded_length;
+}
+
 static void test_cobs_encode_empty_data(void **state)
 {
 	(void) state;

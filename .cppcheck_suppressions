@@ -1,45 +1,19 @@
-# External library suppressions - MISRA DEVIATION (D5)
+# Cppcheck suppressions. MISRA C:2012 is enforced strictly: every MISRA entry
+# below is a documented deviation (see docs/MISRA_DEVIATIONS.md). Prefer an
+# inline "// cppcheck-suppress <id> ; Deviation Dn: ..." comment at the site;
+# use this file only where cppcheck ignores inline comments.
+
+# External code - Pico SDK, FreeRTOS and TinyUSB sources and headers (Deviation D0)
 *:*lib/*
+# Pico SDK headers generated into the build tree (e.g. pico/version.h) (Deviation D0)
+*:*/generated/*
 
-# Specific MISRA C:2012 suppressions for project code
-# Only suppress when actually needed and document reason
-
-# TinyUSB integration suppressions
-
-# Configuration file suppressions - cppcheck cannot track macro usage across translation units
+# Rule 2.5 (Deviation D7): the addon cannot track macro use across translation
+# units and reports macros used only in .c files, plus FreeRTOS/TinyUSB
+# configuration macros consumed by lib/ code.
 misra-c2012-2.5:*
-misra-c2012-11.5:*
 
-# Hardware abstraction layer suppressions
-misra-c2012-11.4:*
-
-# FreeRTOS integration suppressions
-misra-c2012-11.1:*            # FreeRTOS API requires function pointer casts
-misra-c2012-8.13:*            # FreeRTOS task parameters cannot be const
-
-# General cppcheck suppressions for false positives
-unusedStructMember:*                        # Many hardware structs have reserved fields
-missingIncludeSystem:*                      # System includes handled by build system
-unmatchedSuppression:*                      # Allow flexible suppression matching
-
-# Specific function suppressions for FreeRTOS hooks
-unusedFunction:*src/hooks.c                      # Used by FreeRTOS
-misra-c2012-8.7:*src/hooks.c                     # FreeRTOS hook prototypes
-
-# Specific function suppressions for error management
-misra-c2012-17.3:*src/error_management.c:149            # Used by FreeRTOS
-unusedFunction:*src/error_management.c:168              # Used by FreeRTOS
-misra-c2012-8.4:*src/error_management.c:168             # typedef needed for clarity
-
-# Specific function suppressions for false positives
-unusedFunction:*src/app_comm.c:30                       # Used by TinyUSB stack
-unusedFunction:*src/app_inputs.c:560                    # Used by app_outputs
-unusedFunction:*src/tm1637.c:300                        # Used by app_outputs
-unusedFunction:*src/tm1637.c:660                        # Used by app_outputs
-unusedFunction:*src/tm1639.c:205                        # Used by app_outputs
-unusedFunction:*src/tm1639.c:528                        # Used by app_outputs
-unusedFunction:*src/tm1639.c:617                        # Used by app_outputs
-misra-c2012-17.3:*src/tm1639.c:236                      # Used by app_outputs
-misra-c2012-8.4:*src/app_comm.c:30                      # typedef needed for clarity
-misra-c2012-17.7:*src/app_comm.c                        # Return value intentionally ignored for non-blocking calls
-misra-c2012-8.7:*src/app_tasks.c:561                    # FreeRTOS task function
+# Rule 8.7 (Deviation D2): callbacks and hooks with external linkage that are
+# referenced only by lib/ code. Cross-translation-unit findings ignore inline
+# suppressions, so scripts/run_cppcheck.sh suppresses the line that follows each
+# "MISRA Deviation D2 (Rule 8.7)" comment.

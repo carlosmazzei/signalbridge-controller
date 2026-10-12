@@ -83,16 +83,6 @@ typedef enum statistics_counter_enum_t {
 } statistics_counter_enum_t;
 
 /**
- * @struct statistics_counters_t
- * @brief Holds counters for different error types.
- */
-typedef struct statistics_counters_t {
-	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
-	bool error_state;                  /**< Flag indicating critical error state */
-	error_type_t current_error_type;
-} statistics_counters_t;
-
-/**
  * @brief Increment a statistics counter.
  *
  * @param[in] index Counter index to increment.
@@ -157,6 +147,11 @@ void error_management_set_error_state(error_type_t type);
  *
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type);
+
+/**
+ * @brief Panic handler for critical errors; records a fatal error and halts.
+ */
+void __attribute__((noreturn)) panic_handler(const char *fmt, ...);
 
 /**
  * @brief Check if an error type supports automatic recovery.

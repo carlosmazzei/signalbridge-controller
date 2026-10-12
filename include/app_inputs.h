@@ -221,6 +221,7 @@ void keypad_task(void *pvParameters);
  */
 void adc_read_task(void *pvParameters);
 
+#ifdef SIGNALBRIDGE_UNIT_TEST
 /**
  * @brief Query whether a keypad matrix position is mapped to an encoder.
  *
@@ -230,8 +231,11 @@ void adc_read_task(void *pvParameters);
  * @retval true  The position is part of an encoder pair and is excluded
  *               from keypad scanning.
  * @retval false The position is a regular key.
+ *
+ * Test-only accessor, compiled into host unit-test builds only.
  */
 bool input_is_encoder_position(uint8_t row, uint8_t col);
+#endif // SIGNALBRIDGE_UNIT_TEST
 
 /**
  * @brief Decide whether a new ADC reading is significant enough to emit.

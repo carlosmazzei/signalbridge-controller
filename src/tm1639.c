@@ -422,6 +422,7 @@ output_driver_t* tm1639_init(uint8_t chip_id,
 	output_driver_t *config = NULL;
 	uint8_t valid = 1U;
 
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	config = pvPortMalloc(sizeof(output_driver_t));
 	if (NULL == config)
 	{
@@ -549,11 +550,15 @@ output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level)
 
 tm1639_result_t tm1639_clear(output_driver_t *config)
 {
-	if (config == NULL)
-		return TM1639_ERR_INVALID_PARAM;
-	(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
-	config->buffer_modified = true;
-	return tm1639_flush(config);
+	tm1639_result_t result = TM1639_ERR_INVALID_PARAM;
+
+	if (config != NULL)
+	{
+		(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
+		config->buffer_modified = true;
+		result = tm1639_flush(config);
+	}
+	return result;
 }
 
 output_result_t tm1639_set_leds(output_driver_t *config, const uint8_t leds, const uint8_t ledstate)

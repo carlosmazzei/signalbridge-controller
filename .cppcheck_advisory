@@ -1,6 +1,6 @@
-# Legacy MISRA/style debt remains visible, but is not a compliance gate.
-# Analyzer failures and correctness diagnostics MUST still return nonzero.
-misra-c2012-*:*
+# Non-MISRA style checks that stay visible without failing the run.
+# MISRA C:2012 diagnostics MUST NOT be listed here: they always return nonzero
+# (see docs/MISRA_DEVIATIONS.md). Analyzer failures also return nonzero.
 unusedFunction:*
 constParameterPointer:*
 constVariablePointer:*

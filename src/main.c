@@ -27,7 +27,7 @@
 int main(void)
 {
 	board_init();
-	stdio_init_all();
+	(void)stdio_init_all();
 
 	app_tasks_cleanup_application();
 	app_context_reset_queues();
@@ -65,7 +65,9 @@ int main(void)
 
 	// Initialize application tasks
 	if (!app_tasks_create_application())
+	{
 		fatal_halt(ERROR_RESOURCE_ALLOCATION);
+	}
 
 	// Initialize task scheduler
 	vTaskStartScheduler();

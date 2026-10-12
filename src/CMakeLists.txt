@@ -1,5 +1,6 @@
 # Create single static library for all modules (always available for testing)
 add_library(signalbridge_core STATIC
+    atomic_u32.c
     cobs.c
     encoded_framer.c
     input_delivery.c
@@ -45,6 +46,10 @@ if(NOT HOST_BUILD)
         hardware_adc
         FreeRTOS-Kernel  # This uses RP2040 port automatically
     )
+    # Route SDK panic() to panic_handler (records ERROR_PICO_SDK_PANIC and
+    # blinks until the watchdog resets). PUBLIC so every target compiling the
+    # SDK panic sources sees it and no default panic() can win at link time.
+    target_compile_definitions(signalbridge_core PUBLIC PICO_PANIC_FUNCTION=panic_handler)
 else()
     # Host/test builds: Use FreeRTOS POSIX port and mock headers
     
@@ -77,6 +82,9 @@ else()
     
     # Link pthread for POSIX port
     target_link_libraries(signalbridge_core PUBLIC pthread)
+
+    # Test-only accessors are compiled out of the firmware (no dead code on target).
+    target_compile_definitions(signalbridge_core PUBLIC SIGNALBRIDGE_UNIT_TEST)
 endif()
 
 # Only build executable for Pico platform

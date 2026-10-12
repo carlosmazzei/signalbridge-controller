@@ -1,41 +1,51 @@
 #include "task_health.h"
-#include <stdatomic.h>
+#include "atomic_u32.h"
 
 static _Atomic uint32_t last_progress[NUM_TASKS];
-static atomic_bool waiting[NUM_TASKS];
+static _Atomic uint32_t waiting[NUM_TASKS];
 
 void task_health_reset(uint32_t now_us)
 {
-	for (unsigned i = 0U; i < NUM_TASKS; i++)
+	for (uint32_t i = 0U; i < (uint32_t)NUM_TASKS; i++)
 	{
-		atomic_store(&last_progress[i], now_us);
-		atomic_store(&waiting[i], false);
+		atomic_u32_store(&last_progress[i], now_us);
+		atomic_u32_store(&waiting[i], 0U);
 	}
 }
 
 void task_health_progress(task_enum_t task, uint32_t now_us)
 {
-	if ((unsigned)task >= NUM_TASKS)
-		return;
-	atomic_store_explicit(&last_progress[task], now_us, memory_order_relaxed);
-	atomic_store_explicit(&waiting[task], false, memory_order_release);
+	if ((uint32_t)task < (uint32_t)NUM_TASKS)
+	{
+		atomic_u32_store(&last_progress[task], now_us);
+		atomic_u32_store(&waiting[task], 0U);
+	}
 }
 
 void task_health_wait(task_enum_t task)
 {
-	if ((unsigned)task < NUM_TASKS)
-		atomic_store_explicit(&waiting[task], true, memory_order_release);
+	if ((uint32_t)task < (uint32_t)NUM_TASKS)
+	{
+		atomic_u32_store(&waiting[task], 1U);
+	}
 }
 
 bool task_health_check(uint32_t now_us)
 {
-	for (unsigned i = 0U; i < NUM_TASKS; i++)
+	bool healthy = true;
+
+	for (uint32_t i = 0U; (i < (uint32_t)NUM_TASKS) && healthy; i++)
 	{
-		bool blocked = atomic_load_explicit(&waiting[i], memory_order_acquire);
-		uint32_t last = atomic_load_explicit(&last_progress[i], memory_order_relaxed);
-		// The other core may publish a timestamp just after now_us.
-		if (!blocked && ((int32_t)(now_us - last) >= (int32_t)TASK_HEALTH_TIMEOUT_US))
-			return false;
+		const bool blocked = (atomic_u32_load(&waiting[i]) != 0U);
+		const uint32_t last = atomic_u32_load(&last_progress[i]);
+		const uint32_t elapsed = now_us - last;
+		// The other core may publish a timestamp just after now_us, which wraps
+		// elapsed to a huge value: only a forward gap below 2^31 counts.
+		const bool overdue = (elapsed >= TASK_HEALTH_TIMEOUT_US) && (elapsed < 0x80000000U);
+		if (!blocked && overdue)
+		{
+			healthy = false;
+		}
 	}
-	return true;
+	return healthy;
 }

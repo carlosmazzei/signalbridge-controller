@@ -42,6 +42,10 @@ static input_config_t input_config = {
 		{ .row = 7U, .col = 2U, .enabled = true },
 		{ .row = 7U, .col = 4U, .enabled = true },
 		{ .row = 7U, .col = 6U, .enabled = true },
+		{ .row = 0U, .col = 0U, .enabled = false },
+		{ .row = 0U, .col = 0U, .enabled = false },
+		{ .row = 0U, .col = 0U, .enabled = false },
+		{ .row = 0U, .col = 0U, .enabled = false },
 	},
 	.col_mux_settling_us      = 1U,  // 74HC138: tPD ~12 ns; 1 µs provides 83x margin
 	.row_mux_settling_us      = 1U,  // 74HC4051: tEN ~100 ns; 1 µs provides 10x margin
@@ -139,11 +143,34 @@ static bool check_config_params(const input_config_t *config)
 	return result;
 }
 
+static input_result_t input_init_resources(void);
+
 input_result_t input_init(void)
 {
 	input_result_t result = INPUT_OK;
+
+	// Inputs may only be (re)initialised before the scheduler starts.
 	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
-		return INPUT_ERROR;
+	{
+		result = INPUT_ERROR;
+	}
+	else
+	{
+		result = input_init_resources();
+	}
+
+	return result;
+}
+
+/**
+ * @brief Allocate the event queue and configure the input GPIOs and ADC.
+ *
+ * @return INPUT_OK on success or an input error code otherwise.
+ */
+static input_result_t input_init_resources(void)
+{
+	input_result_t result = INPUT_OK;
+
 	input_delivery_reset();
 
 	QueueHandle_t existing_queue = app_context_get_data_event_queue();
@@ -198,10 +225,12 @@ input_result_t input_init(void)
 	return result;
 }
 
+#ifdef SIGNALBRIDGE_UNIT_TEST
 bool input_is_encoder_position(uint8_t row, uint8_t col)
 {
 	return encoder_skip[row][col];
 }
+#endif
 
 /**
  * @brief Control the chip select (CS) for the keypad row multiplexer.
@@ -285,29 +314,23 @@ static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 	if (NULL != app_context_get_data_event_queue())
 	{
 		data_events_t encoder_event = {0};
-		if (!app_context_is_cdc_ready())
-			return;
-		encoder_event.session = app_context_cdc_session();
-		encoder_event.data[0] = 0;
-		encoder_event.data[1] = 0;
-		encoder_event.command = PC_ROTARY_CMD;
-		encoder_event.data[0] |= rotary << 4;
-		encoder_event.data[1] |= direction;
-		encoder_event.data_length = 2;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, 0U))
+		// Relative encoder steps are dropped while the host is disconnected.
+		if (app_context_is_cdc_ready())
 		{
-			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+			encoder_event.session = app_context_cdc_session();
+			encoder_event.data[0] = 0;
+			encoder_event.data[1] = 0;
+			encoder_event.command = PC_ROTARY_CMD;
+			encoder_event.data[0] |= rotary << 4;
+			encoder_event.data[1] |= direction;
+			encoder_event.data_length = 2;
+			if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, 0U))
+			{
+				statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+			}
 		}
 	}
 }
-
-/**
- * @brief Quadrature lookup table used by the encoder state machine.
- *
- * The four LSBs encode the previous and current A/B samples. Each entry
- * provides the detent delta (-1, 0, or +1) for that transition.
- */
-static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 
 /**
  * @brief Sample all enabled rotary encoders and emit rotation events.
@@ -319,6 +342,10 @@ static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0,
  */
 static void scan_encoders(encoder_states_t encoder_state[MAX_NUM_ENCODERS])
 {
+	/* Quadrature lookup table: the four LSBs encode the previous and current
+	 * A/B samples; each entry is the detent delta (-1, 0 or +1). */
+	static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+
 	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
 	{
 		if (!input_config.encoder_map[i].enabled)
@@ -369,6 +396,7 @@ static void scan_encoders(encoder_states_t encoder_state[MAX_NUM_ENCODERS])
 
 void keypad_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t * task_props = (task_props_t*) pvParameters;
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
 	uint32_t loop_count = 0U;
@@ -523,14 +551,19 @@ static uint16_t adc_read_oversampled(uint8_t samples)
 
 bool adc_should_emit(uint16_t previous, uint16_t current, uint16_t hysteresis)
 {
+	bool emit = false;
+
 	if (0U == hysteresis)
 	{
-		return previous != current;
+		emit = (previous != current);
 	}
-
-	uint16_t delta = (current >= previous) ? (uint16_t)(current - previous)
-	                                       : (uint16_t)(previous - current);
-	return delta >= hysteresis;
+	else
+	{
+		const uint16_t delta = (current >= previous) ? (uint16_t)(current - previous)
+		                                             : (uint16_t)(previous - current);
+		emit = (delta >= hysteresis);
+	}
+	return emit;
 }
 
 void adc_read_task(void *pvParameters)
@@ -541,6 +574,7 @@ void adc_read_task(void *pvParameters)
 	static adc_states_t adc_states;
 	static bool adc_channel_primed[ADC_CHANNELS];
 
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t * task_props = (task_props_t*) pvParameters;
 	uint32_t loop_count = 0U;
 

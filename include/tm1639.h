@@ -59,14 +59,6 @@ typedef enum tm1639_result_t {
 } tm1639_result_t;
 
 /**
- * @brief Key scan descriptor returned by @ref tm1639_get_key_states().
- */
-typedef struct tm1639_key_t {
-	uint8_t ks; /**< Key scan line (1-4). */
-	uint8_t k;  /**< Key input line (0-1). */
-} tm1639_key_t;
-
-/**
  * @brief Allocate and configure a TM1639 driver instance.
  *
  * The helper initialises the driver bookkeeping structure, clears the display,

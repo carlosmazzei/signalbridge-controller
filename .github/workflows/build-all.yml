@@ -302,7 +302,7 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    # Quality checks (cppcheck, host tests) report failures but do not fail
+    # Quality checks (uncrustify, cppcheck, host tests) report failures but do not fail
     # this job yet. Set the repository variable ENFORCE_QUALITY_GATES=true to
     # turn them into blocking gates for the workflow and the release.
     steps:
@@ -344,6 +344,16 @@ jobs:
           echo "compile_commands.json present:"
           ls -l ./compile_commands.json
 
+      - name: Check formatting (uncrustify)
+        id: check_format
+        continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            uncrustify -q -c uncrustify.cfg --check "$file" > /dev/null || { echo "::error file=$file::Not formatted with uncrustify"; status=1; }
+          done < <(find src include \( -name '*.c' -o -name '*.h' \) -print0)
+          exit $status
+
       - name: Run Cppcheck (MISRA)
         id: run_cppcheck
         continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
@@ -368,7 +378,8 @@ jobs:
         if: always()
         run: |
           failed=""
-          for check in "cppcheck=${{ steps.run_cppcheck.outcome }}" \
+          for check in "format=${{ steps.check_format.outcome }}" \
+                       "cppcheck=${{ steps.run_cppcheck.outcome }}" \
                        "configure_tests=${{ steps.configure_tests.outcome }}" \
                        "build_tests=${{ steps.build_tests.outcome }}" \
                        "run_tests=${{ steps.run_tests.outcome }}"; do

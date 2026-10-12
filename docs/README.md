@@ -16,6 +16,7 @@ Technical documentation for the Signalbridge controller firmware. For build/test
 ## Tooling
 
 - [CPPCHECK_SETUP.md](CPPCHECK_SETUP.md) — Cppcheck + MISRA C:2012 configuration and workflow.
+- [MISRA_DEVIATIONS.md](MISRA_DEVIATIONS.md) — MISRA C:2012 deviation register (strict enforcement).
 
 ## Meta
 
