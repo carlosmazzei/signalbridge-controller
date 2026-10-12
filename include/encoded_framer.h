@@ -41,7 +41,7 @@ typedef struct encoded_framer_t {
 } encoded_framer_t;
 
 /**
- * @enum framer_result_t
+ * @typedef framer_result_t
  * @brief Outcome of pushing a single byte into the framer.
  */
 typedef enum framer_result_t {
@@ -61,12 +61,12 @@ void encoded_framer_reset(encoded_framer_t *framer);
 /**
  * @brief Feed a single byte into the framer.
  *
- * When the byte is the packet marker (0x00) and the accumulator is non-empty
- * the accumulated bytes are copied into @p out_frame and the framer is
- * reset.  A marker received with an empty accumulator signals
- * @ref FRAMER_EMPTY_FRAME.  When the accumulator is full and a non-marker
- * byte arrives, @ref FRAMER_OVERFLOW is returned and subsequent bytes are
- * discarded through the next marker.
+ * When the byte is the packet marker (0x00) and the accumulator is non-empty,
+ * the accumulated bytes are copied into @p out_frame and the framer is reset.
+ * A marker received with an empty accumulator signals @ref FRAMER_EMPTY_FRAME.
+ * When the encoded buffer fills, @ref FRAMER_OVERFLOW is returned and all
+ * subsequent bytes are discarded through the next marker; that marker only
+ * re-arms the framer and does not produce a frame.
  *
  * @param[in,out] framer    Framer instance maintained across calls.
  * @param[in]     byte      Byte read from the USB CDC endpoint.

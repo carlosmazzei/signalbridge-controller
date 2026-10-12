@@ -1,3 +1,12 @@
+/**
+ * @file input_delivery.c
+ * @brief Retain and schedule versioned keypad and ADC snapshots for USB delivery.
+ *
+ * Absolute input state is preserved across queue or USB-session failures.
+ * Each slot tracks its current, delivered, and pending versions so failed
+ * attempts can be retried without losing a newer value.
+ */
+
 #include "input_delivery.h"
 
 #include <string.h>
@@ -5,16 +14,19 @@
 #include "task.h"
 #include "commands.h"
 
+/**
+ * @brief Latest event and delivery state for one absolute input slot.
+ */
 typedef struct {
-	data_events_t event;
-	uint32_t version;
-	uint32_t delivered;
-	uint32_t pending;
+	data_events_t event; /**< Most recently observed event for this slot. */
+	uint32_t version;    /**< Nonzero version of the current event. */
+	uint32_t delivered;  /**< Version accepted by the writer in the current session. */
+	uint32_t pending;    /**< Version currently selected for delivery, or zero. */
 } input_snapshot_t;
 
-static input_snapshot_t snapshots[INPUT_SNAPSHOT_COUNT];
-static uint32_t current_session;
-static uint8_t cursor;
+static input_snapshot_t snapshots[INPUT_SNAPSHOT_COUNT]; /**< Key and ADC snapshot table. */
+static uint32_t current_session; /**< CDC session generation currently tracked. */
+static uint8_t cursor; /**< Next slot scanned by the round-robin selector. */
 
 void input_delivery_reset(void)
 {
@@ -40,6 +52,12 @@ void input_delivery_session(uint32_t session)
 	taskEXIT_CRITICAL();
 }
 
+/**
+ * @brief Replace a slot's event and advance its version when its value changes.
+ *
+ * @param[in] slot Snapshot slot to update.
+ * @param[in] event New event value.
+ */
 static void update(uint8_t slot, const data_events_t *event)
 {
 	taskENTER_CRITICAL();

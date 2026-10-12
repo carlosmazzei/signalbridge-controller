@@ -210,12 +210,20 @@ input_result_t input_init(void);
 /**
  * @brief FreeRTOS task that scans the keypad matrix and generates key events.
  *
+ * Absolute key states are retained for retry until accepted by the USB writer;
+ * relative encoder steps remain best-effort queue events.
+ *
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void keypad_task(void *pvParameters);
 
 /**
  * @brief FreeRTOS task that samples the ADC multiplexer and reports changes.
+ *
+ * It reports the first filtered sample for each channel and later values only
+ * when their absolute delta meets the configured hysteresis threshold.
+ * Suppressed samples increment the diagnostic
+ * @ref INPUT_HYSTERESIS_SUPPRESSED counter.
  *
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */

@@ -1,8 +1,16 @@
+/**
+ * @file task_health.c
+ * @brief Track task progress and intentional waits for watchdog supervision.
+ *
+ * Timestamps and wait markers are atomic because application tasks on both
+ * RP2040 cores publish progress while the supervisor checks their state.
+ */
+
 #include "task_health.h"
 #include "atomic_u32.h"
 
-static _Atomic uint32_t last_progress[NUM_TASKS];
-static _Atomic uint32_t waiting[NUM_TASKS];
+static _Atomic uint32_t last_progress[NUM_TASKS]; /**< Most recent progress timestamp per task. */
+static _Atomic uint32_t waiting[NUM_TASKS]; /**< Nonzero when a task is in an intentional kernel wait. */
 
 void task_health_reset(uint32_t now_us)
 {

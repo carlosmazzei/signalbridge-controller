@@ -23,11 +23,22 @@
  *
  */
 
+/**
+ * @file usb_descriptors.c
+ * @brief USB device, configuration, and string descriptors for TinyUSB.
+ *
+ * The descriptors expose one CDC interface and provide English strings plus
+ * a serial number derived from the RP2040 unique board ID.
+ */
+
 #include "tusb.h"
 #include "pico/unique_id.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
+/**
+ * @brief Product ID derived from the configured USB class combination.
+ *
+ * A combination of interfaces must have a unique product ID because host
+ * operating systems cache device drivers by VID/PID.
  *
  * Auto ProductID layout's Bitmap:
  *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
@@ -35,7 +46,9 @@
 #define USB_PID           (0x4000U | ((uint16_t)CFG_TUD_CDC << 0U) | ((uint16_t)CFG_TUD_MSC << 1U) | \
 			   ((uint16_t)CFG_TUD_HID << 2U) | ((uint16_t)CFG_TUD_MIDI << 3U) | ((uint16_t)CFG_TUD_VENDOR << 4U))
 
+/** USB vendor identifier assigned to this firmware. */
 #define USB_VID   0xCAFEU
+/** USB device release number in binary-coded decimal form. */
 #define USB_BCD   0x0200U
 
 /** USB language ID for English (United States), string descriptor index 0. */
@@ -48,8 +61,13 @@
 // Device Descriptors
 //--------------------------------------------------------------------+
 
-// Invoked when received GET DEVICE DESCRIPTOR
-// Application return pointer to descriptor
+/**
+ * @brief Provide the USB device descriptor requested by the host.
+ *
+ * @return Pointer to the static device descriptor.
+ *
+ * @note TinyUSB descriptor callback.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint8_t const * tud_descriptor_device_cb(void)
 {
@@ -83,59 +101,89 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
+/**
+ * @brief Interface numbers used by the single-CDC configuration descriptor.
+ */
 enum
 {
-	ITF_NUM_CDC_0 = 0,
-	ITF_NUM_CDC_0_DATA,
-	ITF_NUM_TOTAL
+	ITF_NUM_CDC_0 = 0, /**< CDC control interface number. */
+	ITF_NUM_CDC_0_DATA, /**< CDC data interface number. */
+	ITF_NUM_TOTAL /**< Number of interfaces in the configuration. */
 };
 
 _Static_assert(CFG_TUD_CDC == 1, "Application supports exactly one CDC interface");
 
-/* Configuration + one CDC (IAD, 2 interfaces, functional descriptors, 3 endpoints).
- * The static assertion on the descriptor array keeps this in sync with TinyUSB. */
+/**
+ * @brief Total byte length of the configuration descriptor for one CDC function.
+ *
+ * The static assertion below checks this value against the generated descriptor.
+ */
 #define CONFIG_TOTAL_LEN    75U
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
 // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
 // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+/** CDC 0 notification endpoint address for LPC USB controllers. */
   #define EPNUM_CDC_0_NOTIF   0x81
+/** CDC 0 bulk OUT endpoint address for LPC USB controllers. */
   #define EPNUM_CDC_0_OUT     0x02
+/** CDC 0 bulk IN endpoint address for LPC USB controllers. */
   #define EPNUM_CDC_0_IN      0x82
 
+/** Reserved CDC 1 notification endpoint address for LPC USB controllers. */
   #define EPNUM_CDC_1_NOTIF   0x84
+/** Reserved CDC 1 bulk OUT endpoint address for LPC USB controllers. */
   #define EPNUM_CDC_1_OUT     0x05
+/** Reserved CDC 1 bulk IN endpoint address for LPC USB controllers. */
   #define EPNUM_CDC_1_IN      0x85
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
 // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
 //    e.g EP1 OUT & EP1 IN cannot exist together
+/** CDC 0 notification endpoint address for SAM USB controllers. */
   #define EPNUM_CDC_0_NOTIF   0x81
+/** CDC 0 bulk OUT endpoint address for SAM USB controllers. */
   #define EPNUM_CDC_0_OUT     0x02
+/** CDC 0 bulk IN endpoint address for SAM USB controllers. */
   #define EPNUM_CDC_0_IN      0x83
 
+/** Reserved CDC 1 notification endpoint address for SAM USB controllers. */
   #define EPNUM_CDC_1_NOTIF   0x84
+/** Reserved CDC 1 bulk OUT endpoint address for SAM USB controllers. */
   #define EPNUM_CDC_1_OUT     0x05
+/** Reserved CDC 1 bulk IN endpoint address for SAM USB controllers. */
   #define EPNUM_CDC_1_IN      0x86
 
 #elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
 // FT9XX doesn't support a same endpoint number with different direction IN and OUT
 //    e.g EP1 OUT & EP1 IN cannot exist together
+/** CDC 0 notification endpoint address for FT USB controllers. */
   #define EPNUM_CDC_0_NOTIF   0x81
+/** CDC 0 bulk OUT endpoint address for FT USB controllers. */
   #define EPNUM_CDC_0_OUT     0x02
+/** CDC 0 bulk IN endpoint address for FT USB controllers. */
   #define EPNUM_CDC_0_IN      0x83
 
+/** Reserved CDC 1 notification endpoint address for FT USB controllers. */
   #define EPNUM_CDC_1_NOTIF   0x84
+/** Reserved CDC 1 bulk OUT endpoint address for FT USB controllers. */
   #define EPNUM_CDC_1_OUT     0x05
+/** Reserved CDC 1 bulk IN endpoint address for FT USB controllers. */
   #define EPNUM_CDC_1_IN      0x86
 
 #else
+/** USB CDC 0 notification endpoint address. */
   #define EPNUM_CDC_0_NOTIF   0x81
+/** USB CDC 0 bulk OUT endpoint address. */
   #define EPNUM_CDC_0_OUT     0x02
+/** USB CDC 0 bulk IN endpoint address. */
   #define EPNUM_CDC_0_IN      0x82
 
+/** Reserved notification endpoint address for a second CDC function. */
   #define EPNUM_CDC_1_NOTIF   0x83
+/** Reserved bulk OUT endpoint address for a second CDC function. */
   #define EPNUM_CDC_1_OUT     0x04
+/** Reserved bulk IN endpoint address for a second CDC function. */
   #define EPNUM_CDC_1_IN      0x84
 #endif
 
@@ -166,6 +214,7 @@ static uint8_t const *fs_configuration(void)
 #if TUD_OPT_HIGH_SPEED
 // Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
 
+/** High-speed configuration descriptor for the single CDC function. */
 static uint8_t const desc_hs_configuration[] =
 {
 	// Config number, interface count, string index, total length, attribute, power in mA
@@ -176,7 +225,9 @@ static uint8_t const desc_hs_configuration[] =
 
 };
 
-// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+/**
+ * @brief Static USB device qualifier descriptor for high-speed capable hosts.
+ */
 static tusb_desc_device_qualifier_t const desc_device_qualifier =
 {
 	.bLength            = sizeof(tusb_desc_device_t),
@@ -192,19 +243,29 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier =
 	.bReserved          = 0x00
 };
 
-// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
-// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
-// device_qualifier descriptor describes information about a high-speed capable device that would
-// change if the device were operating at the other speed. If not highspeed capable stall this request.
+/**
+ * @brief Provide the device qualifier descriptor to a high-speed-capable host.
+ *
+ * @return Pointer to the static device qualifier descriptor.
+ *
+ * @note TinyUSB descriptor callback; compiled when high-speed support is enabled.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint8_t const* tud_descriptor_device_qualifier_cb(void)
 {
 	return (uint8_t const*) &desc_device_qualifier;
 }
 
-// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
-// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+/**
+ * @brief Provide the configuration descriptor for the speed opposite the link.
+ *
+ * @param[in] index Configuration index; ignored because only one configuration
+ *                  is supported.
+ *
+ * @return Pointer to the full- or high-speed configuration descriptor.
+ *
+ * @note TinyUSB descriptor callback; compiled when high-speed support is enabled.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 {
@@ -216,9 +277,16 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 
 #endif // highspeed
 
-// Invoked when received GET CONFIGURATION DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
+/**
+ * @brief Provide the configuration descriptor matching the current link speed.
+ *
+ * @param[in] index Configuration index; ignored because only one configuration
+ *                  is supported.
+ *
+ * @return Pointer to the static configuration descriptor.
+ *
+ * @note TinyUSB descriptor callback.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
@@ -241,7 +309,7 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 /**
  * @brief Return the ASCII text for a string descriptor index.
  *
- * @param[in] index String descriptor index (1-4).
+ * @param[in] index String descriptor index, excluding language descriptor 0.
  *
  * @return Pointer to a NUL-terminated string, or NULL for an unknown index.
  */
@@ -280,8 +348,22 @@ static char const *string_descriptor_text(uint8_t index)
 	return str;
 }
 
-// Invoked when received GET STRING DESCRIPTOR request
-// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+/**
+ * @brief Build a USB string descriptor in the static UTF-16 response buffer.
+ *
+ * Index 0 returns the supported English language ID. Other indices are
+ * converted from ASCII and truncated to @ref USB_STRING_MAX_CHARS.
+ *
+ * @param[in] index String descriptor index requested by the host.
+ * @param[in] langid Requested language ID; ignored because only English is
+ *                   provided.
+ *
+ * @return Pointer to the static descriptor buffer, or `NULL` for an unknown
+ *         index.
+ *
+ * @note TinyUSB descriptor callback; the returned buffer is reused by later
+ *       string requests.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {

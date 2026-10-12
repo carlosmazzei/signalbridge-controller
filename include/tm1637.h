@@ -42,7 +42,7 @@
 #define TM1637_BCD_MAX_VALUE 9U
 
 /**
- * @enum tm1637_result_t
+ * @typedef tm1637_result_t
  * @brief Result codes for TM1637 driver functions.
  */
 typedef enum tm1637_result_t {
@@ -60,7 +60,8 @@ typedef enum tm1637_result_t {
  *
  * The helper initialises the driver bookkeeping structure, clears the attached
  * display, programs the default brightness level and enables the panel. The
- * returned handle is owned by the caller and must later be released with
+ * returned handle contains the callbacks and state used by the outputs
+ * subsystem.
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
  * @param[in] select_interface Callback used to acquire and release the shared

@@ -23,6 +23,12 @@
 
 /**
  * @brief Application entry point initialising hardware and starting FreeRTOS.
+ *
+ * Startup initialises USB communication and I/O resources before creating the
+ * application and watchdog-supervisor tasks. If the scheduler returns, the
+ * firmware records a fatal scheduler error.
+ *
+ * @return Zero if the scheduler unexpectedly returns through the startup path.
  */
 int main(void)
 {

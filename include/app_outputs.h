@@ -154,7 +154,7 @@ struct output_driver_t {
 	output_result_t (*select_interface)(uint8_t chip_id, bool select); /**< Mux control callback. */
 	output_result_t (*set_digits)(output_driver_t *config, const uint8_t *digits, size_t length, uint8_t dot_position); /**< Digit update callback. */
 	output_result_t (*set_leds)(output_driver_t *config, uint8_t leds, uint8_t ledstate); /**< LED update callback. */
-	output_result_t (*set_brightness)(output_driver_t *config, uint8_t brightness); /**< Brightness update callback (0-7). */
+	output_result_t (*set_brightness)(output_driver_t *config, uint8_t brightness); /**< Brightness callback: 0 off, 1-8 increasing; larger values clamp to 8. */
 	spi_inst_t *spi; /**< SPI instance used by the device (if applicable). */
 	uint8_t dio_pin; /**< GPIO pin used as DIO for TM1637 bit-banging. */
 	uint8_t clk_pin; /**< GPIO pin used as CLK for TM1637 bit-banging. */

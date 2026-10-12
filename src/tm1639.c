@@ -114,8 +114,9 @@ static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 /**
  * @brief Flush the prepared buffer to the TM1639 display.
  *
- * This function copies the preparation buffer to the active buffer, resets the modified flag,
- * and writes all buffer data to the TM1639 device using auto-increment mode.
+ * The active buffer is updated and the modified flag is cleared only after
+ * the command and all data bytes have been written successfully in
+ * auto-increment mode.
  *
  * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
  *

@@ -15,17 +15,38 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/** @brief Atomically read @p obj. */
+/**
+ * @brief Atomically read @p obj using sequentially consistent ordering.
+ *
+ * @param[in] obj Atomic 32-bit object to read.
+ *
+ * @return The value observed in @p obj.
+ */
 uint32_t atomic_u32_load(const _Atomic uint32_t *obj);
 
-/** @brief Atomically write @p value to @p obj. */
+/**
+ * @brief Atomically write @p value to @p obj using sequentially consistent ordering.
+ *
+ * @param[in,out] obj Atomic 32-bit object to update.
+ * @param[in] value Value to store.
+ */
 void atomic_u32_store(_Atomic uint32_t *obj, uint32_t value);
 
-/** @brief Atomically add @p value to @p obj (modulo 2^32). */
+/**
+ * @brief Atomically add @p value to @p obj modulo 2^32.
+ *
+ * @param[in,out] obj Atomic 32-bit object to update.
+ * @param[in] value Addend.
+ */
 void atomic_u32_add(_Atomic uint32_t *obj, uint32_t value);
 
 /**
  * @brief Replace @p obj with @p desired if it still holds @p *expected.
+ *
+ * @param[in,out] obj Atomic 32-bit object to compare and update.
+ * @param[in,out] expected Expected old value; receives the observed value if
+ *                         the comparison fails.
+ * @param[in] desired Value to store when the comparison succeeds.
  *
  * @return true when the exchange happened; otherwise @p *expected receives the current value.
  */

@@ -25,11 +25,17 @@
 #include "app_context.h"
 
 /**
- * @brief Callback invoked when line state changes (DTR, RTS).
+ * @brief Handle a TinyUSB CDC line-state change for interface 0.
+ *
+ * CDC is ready only while both DTR and RTS are asserted. A readiness change
+ * flushes unread RX bytes and advances the session generation, invalidating
+ * queued frames from the previous session.
  *
  * @param[in] itf Interface number.
  * @param[in] dtr Data Terminal Ready state.
  * @param[in] rts Request To Send state.
+ *
+ * @note TinyUSB invokes this callback from the USB task, not an ISR.
  */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
@@ -186,6 +192,25 @@ static void send_heap_status(uint8_t index)
 	}
 }
 
+/**
+ * @brief Encode a packet, attach session metadata, and enqueue it for USB output.
+ *
+ * The packet is accepted only when its payload fits the protocol buffer and
+ * the transmit queue accepts the complete encoded packet.
+ *
+ * @param[in] id Device identifier to encode in the packet header.
+ * @param[in] command Command identifier to encode.
+ * @param[in] send_data Payload bytes to encode.
+ * @param[in] length Payload length in bytes.
+ * @param[in] slot Snapshot slot, or @ref INPUT_SNAPSHOT_NONE for ordinary data.
+ * @param[in] version Snapshot version associated with @p slot.
+ * @param[in] session CDC session generation associated with this packet.
+ *
+ * @return `true` if the complete packet was accepted by the transmit queue;
+ *         otherwise `false`.
+ *
+ * @note Task context only; this helper uses the blocking FreeRTOS queue API.
+ */
 static bool queue_packet(uint16_t id, uint8_t command, const uint8_t *send_data, uint8_t length,
                          uint8_t slot, uint32_t version, uint32_t session)
 {
@@ -262,12 +287,27 @@ bool app_comm_send_input(const data_events_t *event, uint8_t slot, uint32_t vers
 	return queue_packet(BOARD_ID, event->command, event->data, event->data_length, slot, version, session);
 }
 
+/**
+ * @brief End the active CDC session when TinyUSB unmounts the device.
+ *
+ * Clearing readiness advances the session generation when a session was
+ * active, so pending work from that connection cannot be transmitted later.
+ *
+ * @note TinyUSB callback; runs in the USB task context.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_umount_cb(void)
 {
 	app_context_reset_line_state();
 }
 
+/**
+ * @brief Clear CDC readiness when TinyUSB suspends the device.
+ *
+ * @param[in] remote_wakeup_en TinyUSB remote-wakeup capability flag; not used.
+ *
+ * @note TinyUSB callback; runs in the USB task context.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_suspend_cb(bool remote_wakeup_en)
 {
@@ -379,6 +419,14 @@ void app_comm_process_inbound(const uint8_t *rx_buffer, size_t length)
 	}
 }
 
+/**
+ * @brief Record USB task progress after a CDC transmit completion event.
+ *
+ * @param[in] itf CDC interface number; this callback updates the CDC task
+ *                heartbeat for the configured single-interface device.
+ *
+ * @note TinyUSB callback; runs in the USB task context.
+ */
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 void tud_cdc_tx_complete_cb(uint8_t itf)
 {

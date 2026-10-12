@@ -138,46 +138,61 @@
  * must stay above the CDC writer to avoid same-priority re-entrancy into the
  * device stack under time slicing.
  */
+/** Priority of the TinyUSB CDC device task. */
 #define mainCDC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 3U)
+/** Priority of the USB CDC transmit task. */
 #define mainCDC_WRITE_TASK_PRIORITY     (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
+/** Priority of the task that drains the CDC receive FIFO. */
 #define mainUART_TASK_PRIORITY          (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
+/** Priority of the status LED task. */
 #define mainLED_STATUS_TASK_PRIORITY    (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+/** Priority of the COBS decode task. */
 #define mainDECODE_TASK_PRIORITY        (tskIDLE_PRIORITY + ( UBaseType_t ) 2U)
+/** Priority of the task that dispatches outbound input events. */
 #define mainPROCESS_QUEUE_TASK_PRIORITY (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+/** Priority of the ADC sampling task. */
 #define mainADC_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
+/** Priority of the keypad and rotary-encoder task. */
 #define mainKEY_TASK_PRIORITY           (tskIDLE_PRIORITY + ( UBaseType_t ) 1U)
 
 /**
  * @brief FreeRTOS stack sizes for the tasks.
  */
+/** Stack depth of the TinyUSB CDC device task. */
 #define CDC_STACK_SIZE              (3U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the CDC receive-FIFO reader task. */
 #define UART_EVENT_STACK_SIZE       (3U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the system status LED task. */
 #define LED_STATUS_STACK_SIZE       (2U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the inbound COBS decode task. */
 #define DECODE_RECEPTION_STACK_SIZE (3U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the outbound input-event task. */
 #define PROCESS_OUTBOUND_STACK_SIZE (3U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the ADC sampling task. */
 #define ADC_READ_STACK_SIZE         (4U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the keypad and rotary-encoder task. */
 #define KEYPAD_STACK_SIZE           (5U * configMINIMAL_STACK_SIZE)
 
 /**
  * @brief Task core affinity masks.
  */
-#define CORE_0_AFFINITY (1U << 0U)
-#define CORE_1_AFFINITY (1U << 1U)
+#define CORE_0_AFFINITY (1U << 0U) /**< FreeRTOS affinity mask for core 0. */
+#define CORE_1_AFFINITY (1U << 1U) /**< FreeRTOS affinity mask for core 1. */
 
 /**
  * @brief Core affinity for the CDC task.
  */
-#define CDC_TASK_CORE_AFFINITY              CORE_0_AFFINITY
-#define UART_EVENT_TASK_CORE_AFFINITY       CORE_0_AFFINITY
-#define LED_STATUS_TASK_CORE_AFFINITY       CORE_1_AFFINITY
-#define DECODE_RECEPTION_TASK_CORE_AFFINITY CORE_1_AFFINITY
-#define PROCESS_OUTBOUND_TASK_CORE_AFFINITY CORE_1_AFFINITY
-#define ADC_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY
-#define KEYPAD_TASK_CORE_AFFINITY           CORE_1_AFFINITY
+#define CDC_TASK_CORE_AFFINITY              CORE_0_AFFINITY /**< Core assigned to the TinyUSB device task. */
+#define UART_EVENT_TASK_CORE_AFFINITY       CORE_0_AFFINITY /**< Core assigned to the CDC receive-FIFO reader. */
+#define LED_STATUS_TASK_CORE_AFFINITY       CORE_1_AFFINITY /**< Core assigned to the status LED task. */
+#define DECODE_RECEPTION_TASK_CORE_AFFINITY CORE_1_AFFINITY /**< Core assigned to the COBS decode task. */
+#define PROCESS_OUTBOUND_TASK_CORE_AFFINITY CORE_1_AFFINITY /**< Core assigned to the outbound event task. */
+#define ADC_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY /**< Core assigned to the ADC sampling task. */
+#define KEYPAD_TASK_CORE_AFFINITY           CORE_1_AFFINITY /**< Core assigned to the keypad task. */
 
 /**
- * @enum task_enum_t
  * @brief Enumerates the tasks created in the system.
+ * @typedef task_enum_t
  */
 typedef enum task_enum_t {
 	CDC_TASK,              /**< TinyUSB CDC device task */

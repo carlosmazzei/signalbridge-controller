@@ -23,6 +23,14 @@
  *
  */
 
+/**
+ * @file tusb_config.h
+ * @brief TinyUSB device-stack configuration for the RP2040 firmware.
+ *
+ * Configures the USB device controller, CDC class, endpoint buffers, and
+ * FreeRTOS-backed TinyUSB task integration used by the application.
+ */
+
 #ifndef TUSB_CONFIG_H
 #define TUSB_CONFIG_H
 
@@ -36,11 +44,13 @@ extern "C" {
 
 // RHPort number used for device can be defined by board.mk, default to port 0
 #ifndef BOARD_TUD_RHPORT
+/** Default USB device-controller root-hub port. */
 #define BOARD_TUD_RHPORT      0
 #endif
 
 // RHPort max operational speed can defined by board.mk
 #ifndef BOARD_TUD_MAX_SPEED
+/** Default maximum USB link speed, overridable by the board build. */
 #define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
@@ -50,6 +60,7 @@ extern "C" {
 
 // defined by board.mk
 #ifndef CFG_TUSB_MCU
+/** TinyUSB MCU identifier for the RP2040 target. */
 #define CFG_TUSB_MCU          OPT_MCU_RP2040
 #endif
 
@@ -59,17 +70,21 @@ extern "C" {
 // event queue instead of polling. This fallback only exists so IDEs/linters
 // that parse the header without the build flags resolve to the same OSAL.
 #ifndef CFG_TUSB_OS
+/** Use TinyUSB's FreeRTOS operating-system abstraction. */
 #define CFG_TUSB_OS           OPT_OS_FREERTOS
 #endif
 
 #ifndef CFG_TUSB_DEBUG
+/** TinyUSB debug verbosity; zero disables debug logging. */
 #define CFG_TUSB_DEBUG        0
 #endif
 
 // Enable Device stack
+/** Enable TinyUSB device mode. */
 #define CFG_TUD_ENABLED       1
 
 // Default is max speed that hardware controller could support with on-chip PHY
+/** Maximum device speed supported by the selected board. */
 #define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
@@ -80,10 +95,12 @@ extern "C" {
  * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
  */
 #ifndef CFG_TUSB_MEM_SECTION
+/** Optional section attribute for TinyUSB transfer buffers. */
 #define CFG_TUSB_MEM_SECTION
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
+/** Alignment attribute required for TinyUSB transfer buffers. */
 #define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
 #endif
 
@@ -92,21 +109,30 @@ extern "C" {
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
+/** Control endpoint maximum packet size in bytes. */
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
 //------------- CLASS -------------//
+/** Enable one CDC device interface. */
 #define CFG_TUD_CDC               1
+/** Disable the MSC device class. */
 #define CFG_TUD_MSC               0
+/** Disable the HID device class. */
 #define CFG_TUD_HID               0
+/** Disable the MIDI device class. */
 #define CFG_TUD_MIDI              0
+/** Disable the vendor-specific device class. */
 #define CFG_TUD_VENDOR            0
 
 // CDC FIFO size of TX and RX
+/** Capacity of the TinyUSB CDC receive FIFO, in bytes. */
 #define CFG_TUD_CDC_RX_BUFSIZE   4096
+/** Capacity of the TinyUSB CDC transmit FIFO, in bytes. */
 #define CFG_TUD_CDC_TX_BUFSIZE   4096
 
 // CDC Endpoint transfer buffer size, more is faster
+/** TinyUSB CDC endpoint transfer buffer capacity, in bytes. */
 #define CFG_TUD_CDC_EP_BUFSIZE   1024
 
 #ifdef __cplusplus

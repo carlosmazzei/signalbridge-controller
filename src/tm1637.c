@@ -51,10 +51,12 @@ static output_result_t tm1637_set_brightness_output(output_driver_t *config, uin
 
 // ---- Bit-bang helpers (open-drain emulation) ----
 
-/* Half-period of the bit-banged clock. 2 µs -> 250 kHz, a 2x margin under
- * the TM1637 datasheet maximum of 500 kHz. Every byte costs ~16 delays while
- * the caller holds the SPI mutex, so this value directly bounds display
- * latency. Build-overridable; raise back to 3 if long/loaded wiring needs it. */
+/**
+ * @brief Half-period of the TM1637 bit-banged clock, in microseconds.
+ *
+ * The default 2 µs delay yields approximately 250 kHz. The value may be
+ * overridden at build time for longer or more heavily loaded wiring.
+ */
 #ifndef TM1637_DELAY_US
 #define TM1637_DELAY_US (2)
 #endif
@@ -404,7 +406,15 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 }
 
 /**
- * @brief Update specific bytes in the preparation buffer
+ * @brief Update one byte in the TM1637 preparation buffer.
+ *
+ * @param[in,out] config Driver handle whose staging buffer is updated.
+ * @param[in] addr Display-memory address to update.
+ * @param[in] data Byte to store at @p addr.
+ *
+ * @retval TM1637_OK The byte was stored and the buffer marked modified.
+ * @retval TM1637_ERR_INVALID_PARAM @p config is NULL.
+ * @retval TM1637_ERR_ADDRESS_RANGE @p addr is outside the display buffer.
  */
 static tm1637_result_t tm1637_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data)
 {
@@ -431,8 +441,8 @@ static tm1637_result_t tm1637_update_buffer(output_driver_t *config, uint8_t add
 /**
  * @brief Flush the prepared buffer to the TM1637 display.
  *
- * This function copies the preparation buffer to the active buffer, resets the modified flag,
- * and writes all buffer data to the TM1637 device.
+ * The active buffer is updated and the modified flag is cleared only after all
+ * display writes succeed.
  *
  * @param[in,out] config Pointer to the TM1637 output driver configuration structure. Must not be NULL.
  *

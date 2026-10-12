@@ -26,9 +26,16 @@
  * @brief Statistics counters instance (module scope).
  */
 static _Atomic uint32_t counters[NUM_STATISTICS_COUNTERS];
-static _Atomic uint32_t current_error_type;
-static _Atomic uint32_t fatal_error;
+static _Atomic uint32_t current_error_type; /**< Most recently reported non-fatal error code. */
+static _Atomic uint32_t fatal_error; /**< Nonzero after a fatal halt has been requested. */
 
+/**
+ * @brief Determine whether an error code is handled as recoverable.
+ *
+ * @param[in] type Error code to classify.
+ *
+ * @return `true` for error codes that can be reported without halting.
+ */
 static bool error_type_non_fatal(error_type_t type)
 {
 	bool result = false;

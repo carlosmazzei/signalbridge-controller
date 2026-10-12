@@ -35,15 +35,28 @@ static void process_outbound_task(void *pvParameters);
 static void cdc_write_task(void *pvParameters);
 static void led_status_task(void *pvParameters);
 static void cleanup_comm_subsystem(void);
-static TaskHandle_t supervisor_handle;
+static TaskHandle_t supervisor_handle; /**< Handle of the watchdog supervisor task. */
 
+/**
+ * @brief Check TinyUSB endpoint readiness and host line-state readiness.
+ *
+ * @return `true` when CDC is ready for transfers; otherwise `false`.
+ */
 static bool usb_ready(void)
 {
 	return tud_cdc_n_ready(0) && app_context_is_cdc_ready();
 }
 
-/* TinyUSB invokes this hook for bus events, including reset without a line
- * state request. It may run in IRQ context: only atomic state is touched. */
+/**
+ * @brief Reset CDC line state on USB bus reset or unplug events.
+ *
+ * @param[in] rhport Root-hub port reported by TinyUSB.
+ * @param[in] eventid Device-controller event identifier.
+ * @param[in] in_isr Whether TinyUSB reports that the event originated in an ISR.
+ *
+ * Bus reset and unplug can occur without a line-state callback. The hook only
+ * updates atomic session state and is safe when invoked in interrupt context.
+ */
 // MISRA Deviation D2 (Rule 8.7): hook referenced by lib/ code
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr)
 {
@@ -55,6 +68,22 @@ void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr)
 	}
 }
 
+/**
+ * @brief Supervise task progress and feed the hardware watchdog when healthy.
+ *
+ * Every 100 ms this task checks the fatal-error flag, task progress deadlines,
+ * and that every application task has a non-suspended handle. It withholds
+ * watchdog updates when any check fails, allowing the hardware to reset the
+ * device.
+ *
+ * The CDC heartbeat is published by the CDC task and CDC data callbacks;
+ * descriptor callbacks do not publish progress. The status LED task reports
+ * progress after each error-pattern pulse.
+ *
+ * @param[in] params Unused task argument.
+ *
+ * @note Runs as a FreeRTOS task on core 0; it is not an ISR or TinyUSB callback.
+ */
 static void watchdog_task(void *params)
 {
 	(void)params;
@@ -155,6 +184,13 @@ static inline QueueHandle_t create_queue_or_flag(UBaseType_t length, UBaseType_t
 	return queue;
 }
 
+/**
+ * @brief Delete a task if it has a handle and clear its bookkeeping state.
+ *
+ * @param[in] task_id Identifier of the task to delete.
+ *
+ * @note Used during task-subsystem startup rollback and pre-scheduler cleanup.
+ */
 static void delete_task_if_exists(task_enum_t task_id)
 {
 	task_props_t *props = app_context_task_props(task_id);
@@ -166,6 +202,13 @@ static void delete_task_if_exists(task_enum_t task_id)
 	props->high_watermark = 0U;
 }
 
+/**
+ * @brief Create the I/O, outbound-event, status-LED, and watchdog tasks.
+ *
+ * The watchdog supervisor is created only after all application tasks succeed.
+ *
+ * @return `true` when all tasks were created; otherwise `false`.
+ */
 bool app_tasks_create_application(void)
 {
 	bool success;
@@ -230,6 +273,13 @@ bool app_tasks_create_application(void)
 	return success;
 }
 
+/**
+ * @brief Create the TinyUSB, CDC receive, decode, and transmit tasks and queues.
+ *
+ * Partial task or queue creation is rolled back before returning on failure.
+ *
+ * @return `true` when the communication subsystem was created; otherwise `false`.
+ */
 bool app_tasks_create_comm(void)
 {
 	bool success;
@@ -311,6 +361,12 @@ bool app_tasks_create_comm(void)
 	return success;
 }
 
+/**
+ * @brief Delete application tasks and the data-event queue during boot cleanup.
+ *
+ * Cleanup is performed only before the scheduler starts, when no running task
+ * can still use the queue handles.
+ */
 void app_tasks_cleanup_application(void)
 {
 	// Boot-only lifecycle: running tasks may hold the queue handles.
@@ -335,6 +391,11 @@ void app_tasks_cleanup_application(void)
 	}
 }
 
+/**
+ * @brief Release communication queues and tasks after startup failure.
+ *
+ * @note Called during task creation, before the scheduler starts.
+ */
 static void cleanup_comm_subsystem(void)
 {
 	QueueHandle_t queue = app_context_get_encoded_queue();
@@ -372,8 +433,9 @@ static void cleanup_comm_subsystem(void)
  * registered in the application context).
  *
  * Each wake-up drains the FIFO in bulk chunks of @ref CDC_READ_CHUNK_SIZE
- * bytes, feeding bytes into an @ref encoded_framer_t state machine.  Only
- * complete frames are pushed to the encoded queue.
+ * bytes, feeding bytes into an @ref encoded_framer_t state machine. Overflow
+ * discards input through the next zero delimiter. Complete frames are tagged
+ * with the current session before being pushed to the encoded queue.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -535,7 +597,11 @@ static void decode_frame(const encoded_frame_t *frame, uint8_t *decode_buffer, s
 }
 
 /**
- * @brief Task that decodes COBS-framed packets received from the host.
+ * @brief Decode queued COBS frames and dispatch packets from the current session.
+ *
+ * Frames tagged with an earlier CDC session are silently dropped. The task
+ * marks its indefinite queue wait as intentional so the watchdog supervisor
+ * does not treat an idle receive queue as a stalled task.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -579,7 +645,11 @@ static void decode_reception_task(void *pvParameters)
 }
 
 /**
- * @brief Task that sends queued input events to the host.
+ * @brief Schedule retained input snapshots and relative events for USB output.
+ *
+ * Absolute keypad and ADC values are selected round-robin and remain pending
+ * until the writer completes the packet. Relative events are dequeued
+ * best-effort, and each loop sends at most eight snapshots before yielding.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -633,7 +703,11 @@ static void process_outbound_task(void *pvParameters)
 }
 
 /**
- * @brief Task that transmits encoded packets over USB CDC.
+ * @brief Transmit queued encoded packets over USB CDC.
+ *
+ * A line-state session change clears any partial TinyUSB TX FIFO contents.
+ * Packets from stale sessions are abandoned; an absolute snapshot is marked
+ * delivered only after the full packet is accepted by the USB writer.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
@@ -716,7 +790,11 @@ static void cdc_write_task(void *pvParameters)
 }
 
 /**
- * @brief Task that drives the status LED based on system state.
+ * @brief Drive the status LED and publish progress heartbeats.
+ *
+ * In error state the task emits the configured blink pattern and reports
+ * progress after each pulse so long patterns do not appear stalled. In normal
+ * state it polls the USB connection LED at @ref LED_POLL_INTERVAL_MS.
  *
  * @param[in,out] pvParameters Pointer to the owning task properties structure.
  */
