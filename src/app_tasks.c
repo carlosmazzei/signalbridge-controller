@@ -741,7 +741,7 @@ static void led_status_task(void *pvParameters)
 				{
 					vTaskDelay(pdMS_TO_TICKS(BLINK_OFF_MS));
 				}
-				/* A long blink pattern must not look like a hang to the supervisor. */
+				// A long blink pattern must not look like a hang to the supervisor.
 				task_health_progress(LED_STATUS_TASK, time_us_32());
 			}
 
