@@ -25,8 +25,6 @@
 
 #include "tusb.h"
 #include "pico/unique_id.h"
-#include "task_health.h"
-#include "pico/time.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -79,7 +77,6 @@ uint8_t const * tud_descriptor_device_cb(void)
 		.bNumConfigurations = 0x01
 	};
 
-	task_health_progress(CDC_TASK, time_us_32());
 	return (uint8_t const *) &desc_device;
 }
 
@@ -211,7 +208,6 @@ uint8_t const* tud_descriptor_device_qualifier_cb(void)
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 {
-	task_health_progress(CDC_TASK, time_us_32());
 	(void) index; // for multiple configurations
 
 	// if link speed is high return fullspeed config, and vice versa
@@ -226,7 +222,6 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 // MISRA Deviation D2 (Rule 8.7): TinyUSB callback referenced by the stack in lib/
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-	task_health_progress(CDC_TASK, time_us_32());
 	(void) index; // for multiple configurations
 
 #if TUD_OPT_HIGH_SPEED
@@ -294,7 +289,6 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 	uint16_t const *result = desc_str;
 	uint8_t chr_count = 0U;
 
-	task_health_progress(CDC_TASK, time_us_32());
 	(void) langid;
 
 	if (index == 0U)
