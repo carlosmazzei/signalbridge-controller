@@ -90,14 +90,7 @@ Validate the resulting image before retrying **Dev Containers: Rebuild Container
 docker build --progress=plain -t signalbridge-devcontainer .devcontainer
 ```
 
-On 2026-10-11, the manifest was refreshed for `bash`, `curl`, `gpg`, `nodejs`
-and `jq`, after querying the Debian ARM64 and AMD64 package indexes. The
-`uncrustify` pin was split by architecture because its Debian binary rebuild
-version differs between ARM64 and AMD64.
-Exact version pins against changing repositories do not provide historical
-reproducibility; that requires a Debian snapshot repository as well.
-
-Validation: a complete ARM64 image build, installed-version checks for all 25
-manifest packages, all 15 CTest entries (including coverage and tooling), the
-Pico release build and Cppcheck passed. AMD64 pins were checked against the
-Debian package index; an AMD64 image build was not run.
+The `uncrustify` pin is split by architecture because its Debian binary
+rebuild version differs between ARM64 and AMD64. Exact version pins against
+changing repositories do not provide historical reproducibility; that
+requires a Debian snapshot repository as well.

@@ -255,14 +255,15 @@ static tm1637_result_t tm1637_send_command(const output_driver_t *config, uint8_
 }
 
 /**
- * @brief Set the display brightness level (0-7).
+ * @brief Set the display brightness level.
  *
- * This function sets the brightness level of the TM1637 display. The brightness value
- * is clamped to the range 0 to 7. The function updates the driver configuration and
- * sends the appropriate command to the TM1637 device.
+ * This function sets the brightness level of the TM1637 display. A level of 0 turns
+ * the display off; levels 1 to 8 select increasing brightness. Values above 8 are
+ * clamped to 8. The function updates the driver configuration and sends the
+ * appropriate command to the TM1637 device.
  *
  * @param[in,out] config Pointer to the TM1637 output driver configuration structure. Must not be NULL.
- * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
+ * @param[in]     level  Desired brightness (0 = off, 1–8 = increasing brightness).
  *
  * @return TM1637_OK on success,
  *         TM1637_ERR_INVALID_PARAM if config is NULL,

@@ -114,12 +114,13 @@ output_result_t tm1639_set_digits(output_driver_t *config,
                                   const size_t length,
                                   const uint8_t dot_position);
 
-/** * @brief Set the display brightness level (0-7).
- * This function sets the brightness level of the TM1639 display. The brightness value
- * is clamped to the range 0 to 7. The function updates the driver configuration and
+/** * @brief Set the display brightness level.
+ * This function sets the brightness level of the TM1639 display. A level of 0 turns
+ * the display off; levels 1 to 8 select increasing brightness. Values above 8 are
+ * clamped to 8. The function updates the driver configuration and
  * sends the appropriate command to the TM1639 device.
  * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
+ * @param[in]     level  Desired brightness (0 = off, 1–8 = increasing brightness).
  * @return OUTPUT_OK on success,
  *         OUTPUT_ERR_INVALID_PARAM if config is NULL,
  *         or error code from tm1639_send_command.

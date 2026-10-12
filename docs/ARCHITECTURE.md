@@ -17,7 +17,7 @@ Eight application tasks and a separate watchdog supervisor divide responsibiliti
 | CDC task | 0 | Maintains the TinyUSB device stack. |
 | CDC write task | 0 | Pulls formatted packets from the transmit queue and delivers them to the host. |
 | UART event task | 0 | Receives raw bytes from the host and forwards them to the decoding pipeline. |
-| LED status task | 0 | Updates the status LED to reflect system state. |
+| LED status task | 1 | Updates the status LED to reflect system state. |
 | Decode reception task | 1 | Decodes COBS packets and validates checksums before dispatching commands. |
 | Process outbound task | 1 | Formats outbound events and places them in the transmit queue. |
 | ADC read task | 1 | Samples ADC channels with µs-resolution settling, oversamples and applies a moving-average filter plus hysteresis deadband, and generates events only on significant change. Tunable via `adc_settling_us`, `adc_oversample`, `adc_hysteresis`, `adc_scan_interval_ms` and `adc_channels` (lower the channel count to scan only active throttle/sidestick axes for higher refresh rate). |
@@ -48,10 +48,21 @@ The single CDC function requires DTR and RTS. Bus reset, unmount, suspend and li
 
 Only the supervisor feeds the five-second hardware watchdog. It checks heartbeats every 100 ms, using a four-second deadline. The decode task explicitly marks its indefinite queue wait; a suspended task or a fatal error still prevents feeding. A partial hang therefore resets the board within roughly nine seconds, while loss of the supervisor itself resets it within five seconds. Statistics, health timestamps and the USB session state use sequentially consistent C11 atomics through the `atomic_u32_*` wrappers (`src/atomic_u32.c`), backed by the Pico SDK on RP2040.
 
+The LED status task publishes its heartbeat after every blink, so long error blink patterns do not look like a hang. USB descriptor callbacks do not publish heartbeats; the CDC heartbeat comes from `cdc_task`.
+
 Initialization and queue cleanup APIs are restricted to boot, before the scheduler runs. Output reinitialization releases old driver handles. Display active buffers and brightness state are committed only after a successful driver transfer; failures keep the desired buffer dirty. TM1639 SPI transfer success cannot prove that a physical panel accepted the data.
 
 ## Error Management and Diagnostics
 Twenty-two counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, bytes transmitted or received, and output/input driver errors. Critical errors persist in watchdog scratch registers (a Pico SDK `panic()` is routed to `panic_handler` through `PICO_PANIC_FUNCTION` and recorded as `ERROR_PICO_SDK_PANIC`), and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.
+
+## Known limitations
+
+- The following have not yet been validated on a physical board: USB enumeration on the host operating systems in use, TX saturation and reconnect, electrical ACKs, SMP behaviour under load, input latency, peak task stack usage, and watchdog reset on partial/fatal hangs. Host tests use the POSIX port on a single core and cannot cover these cases; see [`test/README.md`](../test/README.md).
+- Command dispatch drives display and LED hardware synchronously inside the decode task (priority 2, Core 1, the same core as the priority-1 input tasks). Decoupling it needs latency measurements and a defined priority/coalescing/drop policy.
+- Display controller IDs are 1–7: the three-bit ID field cannot address an eighth slot, and changing that is a protocol compatibility decision. Digit count per driver comes from the type map; there is no generic driver-capability interface.
+- Input delivery is confirmed at TinyUSB FIFO acceptance; the protocol has no application-level acknowledgement. Encoder events and command responses are best effort.
+- Toolchain reproducibility is limited: the DevContainer pins exact APT versions, but without a Debian snapshot repository old pins can disappear (see [`.devcontainer/README.md`](../.devcontainer/README.md)).
+- CI (`.github/workflows/build-all.yml`) has no `pull_request` trigger; on push, it runs only when the listed paths change. The quality checks (format, Cppcheck/MISRA, host tests) are non-blocking unless the repository variable `ENFORCE_QUALITY_GATES=true` is set. Release publication requires `build-firmware` and `unit-tests` to succeed.
 
 ## Suggested Improvements
 A prioritized performance analysis — including which of these items have already been implemented and which remain proposed — is maintained in [PERFORMANCE.md](PERFORMANCE.md). Key recommendations for strengthening the architecture include:

@@ -31,8 +31,8 @@ changing the code.
 
 ## Tool limitations
 
-cppcheck's MISRA addon is not a complete checker. During the 2026-10-12
-cleanup it missed a function with two `return` statements and a braceless
-`if` (`tm1639_clear`), which a manual scan found. A passing run is therefore
-not a MISRA compliance certification; reviews must still check rules 15.5
-and 15.6 by reading the code.
+cppcheck's MISRA addon is not a complete checker. It has missed, for example,
+a function with two `return` statements and a braceless `if` (`tm1639_clear`)
+that a manual scan found. A passing run is therefore not a MISRA compliance
+certification; reviews must still check rules 15.5 and 15.6 by reading the
+code.

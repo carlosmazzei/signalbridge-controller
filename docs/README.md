@@ -27,5 +27,3 @@ Technical documentation for the Signalbridge controller firmware. For build/test
 
 `Doxyfile` and `mainpage.dox` produce HTML output under `docs/html/` when the
 Doxygen target is built. See the **Code Quality and Documentation** section of the [root README](../README.md) for details.
-
-- [Revisão de 2026-10-03](REVISAO_2026-10-03.md) e [correções implementadas](CORRECOES_2026-10-03.md).

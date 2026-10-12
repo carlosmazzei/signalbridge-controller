@@ -33,6 +33,37 @@ The firmware expects `rxID` to match `BOARD_ID` (configured as `0x01`).
 **COBS framing:** The decoded bytes above are COBS-encoded and terminated with
 `0x00` on the wire.
 
+## Inbound validation and error counters
+
+Valid packets contain at most 24 decoded bytes (3-byte header, up to 20 payload
+bytes, and 1 checksum byte), which encode to at most 25 COBS bytes plus the
+`0x00` delimiter: 26 bytes on the wire.
+
+Inbound processing applies these checks in order:
+
+1. The encoded framer reports `RECEIVE_BUFFER_OVERFLOW_ERROR` when the 26th
+   non-delimiter byte arrives without a `0x00`. It discards all following bytes
+   through the next `0x00`; that delimiter only re-arms the framer and does not
+   increment another counter.
+2. An empty frame (`0x00` with nothing buffered), or a COBS decode failure
+   (including a truncated block, embedded zero, or zero code byte), increments
+   `COBS_DECODE_ERROR`.
+3. A decoded length below 4 bytes, or a decoded length that differs from the
+   header's payload length (`len`) plus 4, increments `MSG_MALFORMED_ERROR`.
+4. A payload length `len` greater than 20 increments `BUFFER_OVERFLOW_ERROR`.
+   This check is defensive: a frame with `len` greater than 20 is at least 25
+   decoded bytes and therefore at least 26 COBS bytes, so the framer rejects it
+   first on the wire as `RECEIVE_BUFFER_OVERFLOW_ERROR`.
+5. A board ID different from `BOARD_ID` increments `UNKNOWN_CMD_ERROR`.
+6. An XOR checksum mismatch increments `CHECKSUM_ERROR`.
+7. `PC_PWM_CMD`, `PC_ERROR_STATUS_CMD`, and `PC_TASK_STATUS_CMD` require a
+   payload length of exactly 1; otherwise they increment `MSG_MALFORMED_ERROR`.
+   An otherwise valid but unrecognized command also increments
+   `UNKNOWN_CMD_ERROR`.
+
+Frames queued during a previous USB session are dropped without incrementing a
+counter.
+
 ## Command IDs
 
 Defined in `include/commands.h`:
