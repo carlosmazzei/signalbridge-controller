@@ -53,7 +53,7 @@ The LED status task publishes its heartbeat after every blink, so long error bli
 Initialization and queue cleanup APIs are restricted to boot, before the scheduler runs. Output reinitialization releases old driver handles. Display active buffers and brightness state are committed only after a successful driver transfer; failures keep the desired buffer dirty. TM1639 SPI transfer success cannot prove that a physical panel accepted the data.
 
 ## Error Management and Diagnostics
-Twenty-two counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, bytes transmitted or received, and output/input driver errors. Critical errors persist in watchdog scratch registers (a Pico SDK `panic()` is routed to `panic_handler` through `PICO_PANIC_FUNCTION` and recorded as `ERROR_PICO_SDK_PANIC`), and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.
+Twenty-three counters track issues such as queue send or receive failures, watchdog timeouts, malformed messages, buffer overflows, bytes transmitted or received, and output/input driver errors. Critical errors persist in watchdog scratch registers (a Pico SDK `panic()` is routed to `panic_handler` through `PICO_PANIC_FUNCTION` and recorded as `ERROR_PICO_SDK_PANIC`), and the status LED communicates fault categories through distinct blink patterns so that resets can be diagnosed without host connectivity.
 
 ## Known limitations
 

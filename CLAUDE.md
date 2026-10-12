@@ -124,7 +124,7 @@ assets/        — Logos and diagrams
 - **Core 1**: Status LED, input scanning (keypad, ADC, encoders), output driving (SPI/TM1639/TM1637/PWM), COBS decode
 - **Communication**: COBS framing with 0x00 delimiter. 3-byte header + 20-byte payload + checksum
 - **SPI bus**: 1 MHz, mutex-protected, with multiplexer routing for multiple display drivers
-- **Error handling**: Watchdog (5s timeout), scratch registers persist error info across resets, status LED blink patterns, 22 statistics counters
+- **Error handling**: Watchdog (5s timeout), scratch registers persist error info across resets, status LED blink patterns, 23 statistics counters
 - **Memory constraints**: 2MB Flash, 264KB RAM, 128KB FreeRTOS heap, stack-usage warnings at 3.5KB
 
 ## Key Guidelines
