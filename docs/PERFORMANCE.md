@@ -90,18 +90,17 @@ Notes per item:
    500 kHz datasheet max. Override with `-DTM1637_DELAY_US=3` if long/loaded
    wiring needs the slower clock.
 6. **CDC write loop (item 6).** Previously the drain loop executed
-   `taskYIELD()` on every iteration (even after successful writes) and flushed
-   after every 27-byte packet. Now it yields only when the FIFO is actually
-   full and drains every queued packet before one flush (latency unchanged —
-   the flush still happens as soon as the queue empties).
-   Disconnect handling is preserved from the original one-packet-per-iteration
-   design: host readiness (DTR+RTS) is re-checked **before every packet**, and
-   the task parks on it rather than writing into a FIFO that cannot drain —
-   flushing whatever is already buffered first so those bytes are not stranded.
-   Only a link drop *mid-packet* abandons the remainder; that case increments
-   `CDC_QUEUE_SEND_ERROR` and the truncated frame is discarded by the host's
-   COBS resynchronisation. This replaces the original behaviour of spinning on
-   `taskYIELD()` until the host returned.
+   `taskYIELD()` on every iteration (even after successful writes) and spun
+   while the host was not ready. Now `cdc_write_task` writes each packet in
+   FIFO-sized chunks and calls `tud_cdc_write_flush()` after every chunk, so
+   bytes are handed to the USB stack as soon as they are buffered (no
+   batching across queued packets). When the FIFO is full it sleeps 10 ms
+   instead of spinning, keeps the partial frame, and records one
+   `CDC_QUEUE_SEND_ERROR` if no progress is made for 1 s. Host readiness
+   (DTR+RTS) and the USB session are re-checked on every chunk; a link drop
+   or session change mid-packet abandons the remainder, increments
+   `CDC_QUEUE_SEND_ERROR`, and the truncated frame is discarded by the host's
+   COBS resynchronisation.
 7. **Run-time stats (item 7) — rejected.** Initially disabled on the
    assumption nothing consumed them, but the `PC_TASK_STATUS_CMD` handler
    (`send_heap_status` in `src/app_comm.c`) reports per-task and idle CPU

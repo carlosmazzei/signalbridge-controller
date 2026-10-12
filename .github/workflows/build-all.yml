@@ -347,6 +347,7 @@ jobs:
       - name: Check formatting (uncrustify)
         id: check_format
         continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
+        shell: bash
         run: |
           status=0
           while IFS= read -r -d '' file; do
@@ -387,7 +388,10 @@ jobs:
               failed="$failed ${check%%=*}"
             fi
           done
-          if [ -n "$failed" ]; then
+          if [ -n "$failed" ] && [ "${{ vars.ENFORCE_QUALITY_GATES }}" = "true" ]; then
+            echo "::error title=Quality checks failed::Failed:$failed (blocking: ENFORCE_QUALITY_GATES is true)"
+            echo "❌ Quality checks failed (blocking):$failed" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$failed" ]; then
             echo "::warning title=Quality checks failed::Failed:$failed (not blocking: ENFORCE_QUALITY_GATES is not true)"
             echo "⚠️ Quality checks failed (not blocking):$failed" >> "$GITHUB_STEP_SUMMARY"
           else

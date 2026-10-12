@@ -34,6 +34,10 @@ static void mixed_drivers(void **state)
 	assert_true(mock_spi_call_count() > 0U);
 	digits[0] = 0x40U;
 	assert_int_equal(display_out(digits, sizeof(digits)), OUTPUT_OK); // real TM1637, 4 digits
+	digits[5] = 0x06U;
+	assert_int_equal(display_out(digits, sizeof(digits)), OUTPUT_OK); // TM1637, dot on missing digit ignored
+	digits[5] = 0x08U;
+	assert_int_equal(display_out(digits, sizeof(digits)), OUTPUT_ERR_INVALID_PARAM); // out of range for any driver
 	uint8_t leds[] = {3U, 0U, 0xAAU};
 	assert_int_equal(led_out(leds, sizeof(leds)), OUTPUT_OK);
 }

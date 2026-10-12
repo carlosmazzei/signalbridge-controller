@@ -430,9 +430,18 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
 		{
-			size_t digit_count = (device_config_map[physical_cs] == DEVICE_TM1637_DIGIT)
-		    ? TM1637_DIGIT_COUNT : TM1639_DIGIT_COUNT;
-			result = handle->set_digits(handle, digits, digit_count, payload[5]);
+			size_t digit_count = TM1639_DIGIT_COUNT;
+			uint8_t dot_position = payload[5];
+			if (device_config_map[physical_cs] == DEVICE_TM1637_DIGIT)
+			{
+				digit_count = TM1637_DIGIT_COUNT;
+				// Digits 4-7 do not exist on a TM1637; a dot there is ignored.
+				if ((dot_position >= TM1637_DIGIT_COUNT) && (dot_position < TM1639_DIGIT_COUNT))
+				{
+					dot_position = TM1637_NO_DECIMAL_POINT;
+				}
+			}
+			result = handle->set_digits(handle, digits, digit_count, dot_position);
 		}
 		else
 		{
