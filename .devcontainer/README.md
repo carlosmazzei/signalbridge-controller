@@ -57,6 +57,14 @@ Access via Command Palette (Ctrl+Shift+P) → "Tasks: Run Task":
 
 ## Rebuild and pinned APT versions
 
+In CI (`.github/workflows/build-all.yml`) the image is rebuilt and pushed to
+GHCR only when a file baked into it changes: `Dockerfile`, `dependencies.json`
+or `resolve-dependencies.jq`. Otherwise the jobs reuse the published
+`devcontainer-embedded-debian:latest` image; Docker layers are cached between
+rebuilds. Changes to `post-create.sh` or `install_misra_addon.sh` run from the
+checkout and only trigger the firmware and quality jobs. To force a rebuild,
+run the workflow manually with **rebuild_devcontainer** enabled.
+
 `dependencies.json` pins exact Debian package versions. The Docker build fails
 if a pinned version is no longer available in the configured Trixie repositories.
 A `Version ... was not found` error means the manifest needs an update; it is
