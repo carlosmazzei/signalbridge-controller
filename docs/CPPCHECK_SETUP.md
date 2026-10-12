@@ -41,7 +41,7 @@ When adding new suppressions, document the exact location and the reason. Prefer
 - Record any new suppression rules with a clear rationale to maintain auditability.
 
 ## CI/CD Integration
-Static analysis can run in continuous integration by invoking the full cppcheck script as part of the build workflow. Allow the job to report warnings while still capturing output for review. Pre-commit hooks can also invoke cppcheck on staged C or header files to catch issues before they reach the repository.
+Static analysis can run in continuous integration by invoking the full cppcheck script as part of the build workflow. Allow the job to report warnings while still capturing output for review. In `.github/workflows/build-all.yml` cppcheck and the host tests are currently non-blocking: failures are reported as warnings and in the job summary. Set the repository variable `ENFORCE_QUALITY_GATES=true` to make them fail the workflow and block releases. Pre-commit hooks can also invoke cppcheck on staged C or header files to catch issues before they reach the repository.
 
 ## Best Practices
 1. Run analysis regularly and prioritize real defects over stylistic warnings.

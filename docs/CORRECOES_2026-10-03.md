@@ -9,7 +9,7 @@ O diagnóstico original permanece em [REVISAO_2026-10-03.md](REVISAO_2026-10-03.
 |---|---|---|
 | R01 | Validação de comprimento e ID antes do acesso ao mapa de displays | IDs zero com todos os subcomandos; ASan/UBSan |
 | R02 | Uma CDC, duas interfaces, descriptor de 75 bytes e assertions de tamanho | Teste compila o descriptor real e percorre interfaces/endpoints |
-| R03 | Firmware, análise e testes executados no mesmo job obrigatório | YAML validado; dependência de release explícita |
+| R03 | Estrutura original do workflow mantida; `unit-tests` declara `build-devcontainer` em `needs`, roda também em releases e exige `build-firmware` com sucesso | YAML e `actionlint` validados |
 | R04 | Exit code bloqueante, configuração ARM de 32 bits, headers SDK/GCC resolvidos, sem compilação duplicada de `app_context.c` | Cppcheck completo e simplificado passaram; teste injeta erro no analisador e exige saída 2 |
 | R05 | Primeira leitura ADC publicada mesmo sem mudança | Duas varreduras da tarefa real com ADC constante em 2048 |
 | R06 | Snapshots de teclas/ADC com versão, tentativa pendente, confirmação pelo writer e reenvio por sessão | Falha/retry, atualização durante envio e ACK de sessão antiga |
@@ -23,7 +23,7 @@ O diagnóstico original permanece em [REVISAO_2026-10-03.md](REVISAO_2026-10-03.
 | R14 | Geração de sessão invalida quadros, snapshots e fragmentos em reset/unmount/suspend/mudança de linhas; a transição de DTR/RTS limpa RX pendente | Transições de sessão, limpeza de RX e invalidação de ACKs; integração TinyUSB compilada para RP2040 |
 | R15 | Writer mantém quadro parcial e bloqueia 10 ms sem progresso; registra stall após 1 s | Inspeção do laço e build ARM; ensaio de host parado em placa ainda necessário |
 | R16 | Supervisor único verifica oito tarefas e deixa o watchdog expirar em falha parcial/fatal | Heartbeats, tarefa parada, espera intencional, wrap do relógio e publicação concorrente de timestamp |
-| R17 | Release só publica artefatos do job que concluiu todas as verificações com sucesso | Inspeção do grafo; sem `always()` no caminho de publicação |
+| R17 | Release exige `build-firmware` e `unit-tests` com resultado `success` | Inspeção do grafo; `always()` só para avaliar resultados explícitos |
 
 A confirmação de entrada significa aceitação integral do pacote na FIFO
 TinyUSB. O protocolo não possui ACK da aplicação no computador. Eventos
@@ -37,7 +37,7 @@ retomada da leitura/reconexão.
 - Políticas de warnings, stack usage e stack protector também aplicadas à biblioteca de firmware.
 - Buffer ativo, brilho e limpeza de displays só são confirmados depois da transferência; falhas mantêm o buffer desejado pendente.
 - Inicialização/limpeza de filas limitada ao boot; reinicialização de saídas libera handles anteriores.
-- CI cobre PRs, scripts, análise, workflow, toolchain e submódulos; constrói a imagem a partir do checkout e exige as versões de pacotes do manifesto.
+- CI mantém a estrutura original (imagem no GHCR, filtros de caminho, Doxygen e artefatos `.bin`/`.hex`). As checagens de qualidade (Cppcheck, configuração/build/execução dos testes host) ainda não bloqueiam: falhas geram aviso e resumo no job. Para torná-las gates do workflow e da release, defina a variável de repositório `ENFORCE_QUALITY_GATES=true`.
 - Cobertura usa atualização atômica dos contadores GCC nos testes concorrentes.
 - Análise de placement usa o tamanho real de `ucHeap`, `__end__`/`__HeapLimit` e os limites de ambas as pilhas. Não presume volatile, alinhamento de quatro bytes para todos os objetos, ou problemas de cache em scratch SRAM.
 - README, arquitetura, protocolo e instruções de teste sincronizados com a implementação.
