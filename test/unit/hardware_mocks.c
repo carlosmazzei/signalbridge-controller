@@ -7,11 +7,13 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <string.h>
 #include "hardware/pwm.h"
+#include "mock_spi_capture.h"
 
 // Pico SDK mock types and functions
 typedef struct {
-    uint32_t scratch[8];
+	uint32_t scratch[8];
 } watchdog_hw_t;
 
 static watchdog_hw_t mock_watchdog_instance = {0};
@@ -21,18 +23,50 @@ static bool mock_watchdog_reboot_flag = false;
 
 void mock_watchdog_set_reboot_flag(bool flag)
 {
-    mock_watchdog_reboot_flag = flag;
+	mock_watchdog_reboot_flag = flag;
 }
 
 // GPIO functions
-void gpio_init(uint32_t gpio) { (void)gpio; }
-void gpio_set_dir(uint32_t gpio, bool out) { (void)gpio; (void)out; }
-void gpio_put(uint32_t gpio, bool value) { (void)gpio; (void)value; }
-bool gpio_get(uint32_t gpio) { (void)gpio; return false; }
-void gpio_init_mask(uint32_t gpio_mask) { (void)gpio_mask; }
-void gpio_set_dir_masked(uint32_t gpio_mask, uint32_t value) { (void)gpio_mask; (void)value; }
-void gpio_put_masked(uint32_t gpio_mask, uint32_t value) { (void)gpio_mask; (void)value; }
-void gpio_deinit(uint32_t gpio) { (void)gpio; }
+static uint32_t gpio_functions[30];
+static bool gpio_input_high;
+void mock_gpio_set_input(bool value)
+{
+	gpio_input_high = value;
+}
+
+void gpio_init(uint32_t gpio)
+{
+	if (gpio < 30U)
+		gpio_functions[gpio] = 4U;
+}
+void gpio_set_dir(uint32_t gpio, bool out)
+{
+	(void)gpio; (void)out;
+}
+void gpio_put(uint32_t gpio, bool value)
+{
+	(void)gpio; (void)value;
+}
+bool gpio_get(uint32_t gpio)
+{
+	(void)gpio; return gpio_input_high;
+}
+void gpio_init_mask(uint32_t gpio_mask)
+{
+	(void)gpio_mask;
+}
+void gpio_set_dir_masked(uint32_t gpio_mask, uint32_t value)
+{
+	(void)gpio_mask; (void)value;
+}
+void gpio_put_masked(uint32_t gpio_mask, uint32_t value)
+{
+	(void)gpio_mask; (void)value;
+}
+void gpio_deinit(uint32_t gpio)
+{
+	(void)gpio;
+}
 
 // Time functions
 static uint32_t mock_time_current = 0;
@@ -40,68 +74,168 @@ static uint32_t mock_time_step = 0;
 
 void mock_time_config(uint32_t initial_value, uint32_t step)
 {
-    mock_time_current = initial_value;
-    mock_time_step = step;
+	mock_time_current = initial_value;
+	mock_time_step = step;
 }
 
-void busy_wait_ms(uint32_t ms) { (void)ms; }
-void busy_wait_us_32(uint32_t delay_us) { (void)delay_us; }
+void busy_wait_ms(uint32_t ms)
+{
+	(void)ms;
+}
+void busy_wait_us_32(uint32_t delay_us)
+{
+	(void)delay_us;
+}
 uint32_t time_us_32(void)
 {
-    uint32_t now = mock_time_current;
-    mock_time_current += mock_time_step;
-    return now;
+	uint32_t now = mock_time_current;
+	mock_time_current += mock_time_step;
+	return now;
 }
 
 // Watchdog functions
-void watchdog_enable(uint32_t timeout_ms, int pause) { (void)timeout_ms; (void)pause; }
-void watchdog_update(void) {}
+void watchdog_enable(uint32_t timeout_ms, int pause)
+{
+	(void)timeout_ms; (void)pause;
+}
+void watchdog_update(void)
+{
+}
 bool watchdog_caused_reboot(void)
 {
-    return mock_watchdog_reboot_flag;
+	return mock_watchdog_reboot_flag;
 }
 
 // Interrupt functions
-uint32_t save_and_disable_interrupts(void) { return 0; }
-void restore_interrupts(uint32_t status) { (void)status; }
+uint32_t save_and_disable_interrupts(void)
+{
+	return 0;
+}
+void restore_interrupts(uint32_t status)
+{
+	(void)status;
+}
 
-// ADC functions  
-void adc_init(void) {}
-void adc_gpio_init(uint32_t gpio) { (void)gpio; }
-void adc_select_input(uint32_t input) { (void)input; }
-uint16_t adc_read(void) { return 0; }
+// ADC functions
+void adc_init(void)
+{
+}
+void adc_gpio_init(uint32_t gpio)
+{
+	(void)gpio;
+}
+void adc_select_input(uint32_t input)
+{
+	(void)input;
+}
+static uint16_t mock_adc_value;
+void mock_adc_set_value(uint16_t value)
+{
+	mock_adc_value = value;
+}
+uint16_t adc_read(void)
+{
+	return mock_adc_value;
+}
 
 // PWM functions
-uint32_t pwm_gpio_to_slice_num(uint32_t gpio) { (void)gpio; return 0; }
-void pwm_set_wrap(uint32_t slice, uint16_t wrap) { (void)slice; (void)wrap; }
-void pwm_set_chan_level(uint32_t slice, uint32_t chan, uint16_t level) {
-    (void)slice; (void)chan; (void)level;
+uint32_t pwm_gpio_to_slice_num(uint32_t gpio)
+{
+	(void)gpio; return 0;
 }
-void pwm_set_gpio_level(uint pin, uint16_t level) { (void)pin; (void)level; }
-void pwm_set_enabled(uint32_t slice, bool enabled) { (void)slice; (void)enabled; }
-uint32_t pwm_gpio_to_channel(uint32_t gpio) { (void)gpio; return 0; }
-pwm_config pwm_get_default_config(void) { pwm_config cfg = {0}; return cfg; }
-void pwm_config_set_clkdiv(pwm_config *config, float div) { (void)config; (void)div; }
-void pwm_init(uint32_t slice_num, pwm_config *config, bool start) { (void)slice_num; (void)config; (void)start; }
+void pwm_set_wrap(uint32_t slice, uint16_t wrap)
+{
+	(void)slice; (void)wrap;
+}
+void pwm_set_chan_level(uint32_t slice, uint32_t chan, uint16_t level)
+{
+	(void)slice; (void)chan; (void)level;
+}
+void pwm_set_gpio_level(uint pin, uint16_t level)
+{
+	(void)pin; (void)level;
+}
+void pwm_set_enabled(uint32_t slice, bool enabled)
+{
+	(void)slice; (void)enabled;
+}
+uint32_t pwm_gpio_to_channel(uint32_t gpio)
+{
+	(void)gpio; return 0;
+}
+pwm_config pwm_get_default_config(void)
+{
+	pwm_config cfg = {0}; return cfg;
+}
+void pwm_config_set_clkdiv(pwm_config *config, float div)
+{
+	(void)config; (void)div;
+}
+void pwm_init(uint32_t slice_num, pwm_config *config, bool start)
+{
+	(void)slice_num; (void)config; (void)start;
+}
 
 // SPI functions
 typedef struct spi_inst {
-    int dummy; // Placeholder member
+	int dummy; // Placeholder member
 } spi_inst_t;
 static spi_inst_t mock_spi_inst = {0};
 spi_inst_t *spi0 = &mock_spi_inst;
 
-uint32_t spi_init(spi_inst_t *spi, uint32_t baudrate) { (void)spi; return baudrate; }
-void spi_set_format(spi_inst_t *spi, uint32_t data_bits, uint32_t cpol, uint32_t cpha, uint32_t order) {
-    (void)spi; (void)data_bits; (void)cpol; (void)cpha; (void)order;
+uint32_t spi_init(spi_inst_t *spi, uint32_t baudrate)
+{
+	(void)spi; return baudrate;
 }
-void gpio_set_function(uint32_t gpio, uint32_t fn) { (void)gpio; (void)fn; }
-int spi_write_blocking(spi_inst_t *spi, const uint8_t *src, size_t len) { (void)spi; (void)src; return (int)len; }
+void spi_set_format(spi_inst_t *spi, uint32_t data_bits, uint32_t cpol, uint32_t cpha, uint32_t order)
+{
+	(void)spi; (void)data_bits; (void)cpol; (void)cpha; (void)order;
+}
+void gpio_set_function(uint32_t gpio, uint32_t fn)
+{
+	if (gpio < 30U)
+		gpio_functions[gpio] = fn;
+}
+static mock_spi_call_t mock_spi_calls[MOCK_SPI_MAX_CALLS];
+static size_t mock_spi_num_calls = 0U;
+
+void mock_spi_reset(void)
+{
+	mock_spi_num_calls = 0U;
+	memset(mock_spi_calls, 0, sizeof(mock_spi_calls));
+}
+
+size_t mock_spi_call_count(void)
+{
+	return mock_spi_num_calls;
+}
+
+const mock_spi_call_t *mock_spi_call(size_t index)
+{
+	return (index < mock_spi_num_calls) ? &mock_spi_calls[index] : NULL;
+}
+
+int spi_write_blocking(spi_inst_t *spi, const uint8_t *src, size_t len)
+{
+	(void)spi;
+	if (mock_spi_num_calls < MOCK_SPI_MAX_CALLS)
+	{
+		mock_spi_call_t *call = &mock_spi_calls[mock_spi_num_calls];
+		call->len = len;
+		size_t capture = (len < MOCK_SPI_CAPTURE_BYTES) ? len : (size_t)MOCK_SPI_CAPTURE_BYTES;
+		if (src != NULL)
+		{
+			memcpy(call->data, src, capture);
+		}
+		mock_spi_num_calls++;
+	}
+	return (int)len;
+}
 
 // FreeRTOS real implementation now used - no more mocks needed
 size_t xPortGetMinimumEverFreeHeapSize(void)
 {
-    return 0U;
+	return 0U;
 }
 
 // Constants
@@ -109,14 +243,29 @@ size_t xPortGetMinimumEverFreeHeapSize(void)
 #define GPIO_OUT true
 #define GPIO_IN false
 
-uint32_t gpio_get_function(uint32_t gpio) { (void)gpio; return 0; }
-void gpio_pull_up(uint32_t gpio) { (void)gpio; }
-void sleep_us(uint64_t us) { (void)us; }
+uint32_t gpio_get_function(uint32_t gpio)
+{
+	return (gpio < 30U) ? gpio_functions[gpio] : 0U;
+}
+void gpio_pull_up(uint32_t gpio)
+{
+	(void)gpio;
+}
+void sleep_us(uint64_t us)
+{
+	(void)us;
+}
 
 typedef struct uart_inst {
-    int dummy;
+	int dummy;
 } uart_inst_t;
 static uart_inst_t mock_uart_inst_uart0 = {0};
 uart_inst_t *uart0 = &mock_uart_inst_uart0;
-void uart_init(uart_inst_t *uart, uint32_t baudrate) { (void)uart; (void)baudrate; }
-void uart_set_fifo_enabled(uart_inst_t *uart, bool enabled) { (void)uart; (void)enabled; }
+void uart_init(uart_inst_t *uart, uint32_t baudrate)
+{
+	(void)uart; (void)baudrate;
+}
+void uart_set_fifo_enabled(uart_inst_t *uart, bool enabled)
+{
+	(void)uart; (void)enabled;
+}

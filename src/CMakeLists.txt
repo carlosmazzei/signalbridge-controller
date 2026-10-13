@@ -1,7 +1,10 @@
 # Create single static library for all modules (always available for testing)
 add_library(signalbridge_core STATIC
+    atomic_u32.c
     cobs.c
     encoded_framer.c
+    input_delivery.c
+    task_health.c
     error_management.c
     app_outputs.c
     app_inputs.c
@@ -10,11 +13,19 @@ add_library(signalbridge_core STATIC
     tm1637.c
 )
 
+# Apply diagnostics to the firmware library as well as the executable.
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(signalbridge_core PRIVATE -Wall -Wextra -Wshadow -fstack-usage -Wstack-usage=3584)
+    if(NOT HOST_BUILD)
+        target_compile_options(signalbridge_core PRIVATE -fstack-protector-strong)
+    endif()
+endif()
+
 # (Headers linked later to control include order in host builds)
 
 # Enable coverage instrumentation when requested for GNU compilers
 if(ENABLE_COVERAGE AND CMAKE_C_COMPILER_ID MATCHES "GNU")
-    target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage)
+    target_compile_options(signalbridge_core PUBLIC --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
     target_link_libraries(signalbridge_core PUBLIC gcov)
 endif()
 
@@ -22,7 +33,7 @@ endif()
 target_link_libraries(signalbridge_core PUBLIC pico_controller_headers)
 
 # Add platform-specific dependencies to core library
-if(PICO_PLATFORM)
+if(NOT HOST_BUILD)
     # Pico target: Use RP2040 port and Pico SDK
     target_link_libraries(signalbridge_core PUBLIC
         pico_stdlib
@@ -35,6 +46,10 @@ if(PICO_PLATFORM)
         hardware_adc
         FreeRTOS-Kernel  # This uses RP2040 port automatically
     )
+    # Route SDK panic() to panic_handler (records ERROR_PICO_SDK_PANIC and
+    # blinks until the watchdog resets). PUBLIC so every target compiling the
+    # SDK panic sources sees it and no default panic() can win at link time.
+    target_compile_definitions(signalbridge_core PUBLIC PICO_PANIC_FUNCTION=panic_handler)
 else()
     # Host/test builds: Use FreeRTOS POSIX port and mock headers
     
@@ -50,6 +65,11 @@ else()
         ${FREERTOS_POSIX_PORT_PATH}/port.c
         ${FREERTOS_POSIX_PORT_PATH}/utils/wait_for_event.c
     )
+    # wait_for_event.c uses robust mutex and clock APIs guarded by _GNU_SOURCE.
+    set_source_files_properties(
+        ${FREERTOS_POSIX_PORT_PATH}/utils/wait_for_event.c
+        PROPERTIES COMPILE_DEFINITIONS _GNU_SOURCE
+    )
     
     # Add FreeRTOS sources to core library
     target_sources(signalbridge_core PRIVATE ${FREERTOS_POSIX_SOURCES})
@@ -62,10 +82,13 @@ else()
     
     # Link pthread for POSIX port
     target_link_libraries(signalbridge_core PUBLIC pthread)
+
+    # Test-only accessors are compiled out of the firmware (no dead code on target).
+    target_compile_definitions(signalbridge_core PUBLIC SIGNALBRIDGE_UNIT_TEST)
 endif()
 
 # Only build executable for Pico platform
-if(NOT PICO_PLATFORM)
+if(HOST_BUILD)
     return()
 endif()
 
@@ -75,7 +98,6 @@ add_executable(pi_controller)
 target_sources(pi_controller PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/main.c
     ${CMAKE_CURRENT_SOURCE_DIR}/app_comm.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/app_context.c
     ${CMAKE_CURRENT_SOURCE_DIR}/app_tasks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/hooks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
@@ -90,7 +112,12 @@ target_compile_definitions(pi_controller PRIVATE
     PICO_USE_FASTEST_SUPPORTED_CLOCK=1
     PICO_STACK_SIZE=0x1000 # 4KB main stack
     PICO_CORE1_STACK_SIZE=0x1000 # 4KB Core 1 stack
-    PICO_HEAP_SZIE=0x20000
+    # Link-time floor for the C heap, not a runtime reservation: crt0.S emits
+    # .space PICO_HEAP_SIZE into the NOLOAD .heap section while sbrk still grows
+    # to __HeapLimit at the end of RAM. 32KB guards a nearly unused C heap while
+    # leaving room for static/.bss growth. (Task stacks come from the FreeRTOS
+    # heap; the two 4KB core stacks live in the separate SCRATCH_X/Y banks.)
+    PICO_HEAP_SIZE=0x8000
     PICO_USE_STACK_GUARDS=1
     PICO_STACK_GUARDS=1
 )
@@ -154,7 +181,7 @@ target_link_libraries(pi_controller PRIVATE
     FreeRTOS-Kernel-Heap4
 )
 
-# Run memory analysis script after build
+# Run memory analysis after every firmware build.
 add_custom_target(memory_analysis ALL
     DEPENDS pi_controller
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/memory_analysis.sh
@@ -162,4 +189,5 @@ add_custom_target(memory_analysis ALL
             ${CMAKE_CURRENT_BINARY_DIR}/memory_analysis_report.txt
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Running memory_analysis.sh after build"
+    VERBATIM
 )

@@ -20,16 +20,22 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "error_management.h"
+#include "atomic_u32.h"
 
 /**
  * @brief Statistics counters instance (module scope).
  */
-static volatile statistics_counters_t statistics_counters = {
-	.counters = {0},
-	.error_state = false,
-	.current_error_type = ERROR_NONE
-};
+static _Atomic uint32_t counters[NUM_STATISTICS_COUNTERS];
+static _Atomic uint32_t current_error_type; /**< Most recently reported non-fatal error code. */
+static _Atomic uint32_t fatal_error; /**< Nonzero after a fatal halt has been requested. */
 
+/**
+ * @brief Determine whether an error code is handled as recoverable.
+ *
+ * @param[in] type Error code to classify.
+ *
+ * @return `true` for error codes that can be reported without halting.
+ */
 static bool error_type_non_fatal(error_type_t type)
 {
 	bool result = false;
@@ -53,41 +59,55 @@ bool error_management_is_fatal(error_type_t type)
 
 void statistics_increment_counter(statistics_counter_enum_t index)
 {
-	statistics_counters.counters[index]++;
-
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		atomic_u32_add(&counters[index], 1U);
+	}
 }
 
 void statistics_add_to_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	statistics_counters.counters[index] += value;
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		atomic_u32_add(&counters[index], value);
+	}
 }
 
 void statistics_set_counter(statistics_counter_enum_t index, uint32_t value)
 {
-	statistics_counters.counters[index] = value;
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		atomic_u32_store(&counters[index], value);
+	}
 }
 
 uint32_t statistics_get_counter(statistics_counter_enum_t index)
 {
-	return statistics_counters.counters[index];
+	uint32_t value = 0U;
+
+	if ((uint32_t)index < (uint32_t)NUM_STATISTICS_COUNTERS)
+	{
+		value = atomic_u32_load(&counters[index]);
+	}
+	return value;
 }
 
 void statistics_reset_all_counters(void)
 {
-	for (uint32_t i = 0; i < (uint32_t)NUM_STATISTICS_COUNTERS; i++)
+	for (uint32_t i = 0U; i < (uint32_t)NUM_STATISTICS_COUNTERS; i++)
 	{
-		statistics_counters.counters[i] = 0;
+		atomic_u32_store(&counters[i], 0U);
 	}
 }
 
 bool statistics_is_error_state(void)
 {
-	return statistics_counters.error_state;
+	return atomic_u32_load(&current_error_type) != (uint32_t)ERROR_NONE;
 }
 
 error_type_t statistics_get_error_type(void)
 {
-	return statistics_counters.current_error_type;
+	return (error_type_t)atomic_u32_load(&current_error_type);
 }
 
 void show_error_pattern_blocking(error_type_t error_type)
@@ -121,8 +141,7 @@ void show_error_pattern_blocking(error_type_t error_type)
 
 void error_management_set_error_state(error_type_t type)
 {
-	statistics_counters.current_error_type = type;
-	statistics_counters.error_state = true;
+	atomic_u32_store(&current_error_type, (uint32_t)type);
 
 	switch (type)
 	{
@@ -164,7 +183,10 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 
 /**
  * @brief Panic handler for critical errors.
+ *
+ * Installed as the Pico SDK panic() target through PICO_PANIC_FUNCTION.
  */
+// MISRA Deviation D2 (Rule 8.7): hook referenced by lib/ code
 void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
 {
 	(void)fmt;
@@ -175,14 +197,19 @@ void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
 }
 
 /**
- * @brief Fatal halt helper that records error and shows pattern forever.
+ * @brief Record a fatal error and blink until the hardware watchdog resets.
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
 {
+	atomic_u32_store(&fatal_error, 1U);
 	watchdog_hw->scratch[WATCHDOG_ERROR_LAST_TYPE_REG] = (uint32_t)type;
 	while (true)
 	{
 		show_error_pattern_blocking(type);
-		watchdog_update();
 	}
+}
+
+bool error_management_has_fatal_error(void)
+{
+	return atomic_u32_load(&fatal_error) != 0U;
 }

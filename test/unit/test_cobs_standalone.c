@@ -17,6 +17,14 @@
 // Include the COBS source directly to avoid library dependencies  
 #include "../../src/cobs.c"
 
+/* Decode helper for tests: returns the decoded length, or zero when invalid. */
+static size_t cobs_decode(const uint8_t *buffer, size_t length, uint8_t *data)
+{
+	size_t decoded_length = 0U;
+	(void)cobs_decode_checked(buffer, length, data, length, &decoded_length);
+	return decoded_length;
+}
+
 // Test fixtures
 static int setup(void **state) {
     (void) state; // unused parameter

@@ -22,6 +22,7 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "task.h"
 
 #include "tm1639.h"
 #include "tm1637.h"
@@ -98,6 +99,19 @@ static output_result_t init_mux(void)
 	return output_result;
 }
 
+static output_result_t output_init_resources(void);
+
+/**
+ * @brief SPI instance shared by all display drivers.
+ *
+ * @return The SPI0 instance.
+ */
+static spi_inst_t *output_spi(void)
+{
+	// cppcheck-suppress misra-c2012-11.3 ; Deviation D3: Pico SDK instance macro casts the register block
+	return spi0;
+}
+
 /**
  * @brief Toggle the multiplexer lines for the requested device.
  *
@@ -115,10 +129,9 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 	if (chip_select >= (uint8_t)MAX_SPI_INTERFACES)
 	{
 		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
-		return OUTPUT_ERR_INVALID_PARAM;
+		result = OUTPUT_ERR_INVALID_PARAM;
 	}
-
-	if (select)
+	else if (select)
 	{
 		// Convert chip number to individual bits for multiplexer control
 		gpio_put(SPI_MUX_A_PIN, (chip_select & (uint8_t)0x01));       // LSB
@@ -133,8 +146,11 @@ static output_result_t select_interface(uint8_t chip_select, bool select)
 		gpio_put(SPI_MUX_CS, 0);
 	}
 
-	// Small delay to ensure stable signal
-	sleep_us(1);
+	if (OUTPUT_OK == result)
+	{
+		// Small delay to ensure stable signal
+		sleep_us(1);
+	}
 
 	return result;
 }
@@ -152,6 +168,10 @@ static output_result_t init_driver(void)
 	// Check the config map and initialize the drivers
 	for (uint8_t i = 0; i < (uint8_t)MAX_SPI_INTERFACES; i++)
 	{
+		if (output_drivers.driver_handles[i] != NULL)
+		{
+			vPortFree(output_drivers.driver_handles[i]);
+		}
 		output_drivers.driver_handles[i] = NULL;
 
 		if (((uint8_t)DEVICE_TM1639_DIGIT == device_config_map[i]) ||
@@ -160,14 +180,13 @@ static output_result_t init_driver(void)
 			// Initialize TM1639 driver
 			output_drivers.driver_handles[i] = tm1639_init(i,
 			                                               &select_interface,
-			                                               spi0,
+			                                               output_spi(),
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
 			if (NULL == output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
 				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
-				continue;
 			}
 		}
 		else if (((uint8_t)DEVICE_TM1637_DIGIT == device_config_map[i]) ||
@@ -176,20 +195,23 @@ static output_result_t init_driver(void)
 			// Initialize TM1637 driver using same SPI infrastructure as TM1639
 			output_drivers.driver_handles[i] = tm1637_init(i,
 			                                               &select_interface,
-			                                               spi0,
+			                                               output_spi(),
 			                                               PICO_DEFAULT_SPI_TX_PIN,
 			                                               PICO_DEFAULT_SPI_SCK_PIN);
 			if (NULL == output_drivers.driver_handles[i])
 			{
 				result = OUTPUT_ERR_INIT;
 				statistics_increment_counter(OUTPUT_DRIVER_INIT_ERROR);
-				continue;
 			}
 		}
 		else if (((uint8_t)DEVICE_GENERIC_DIGIT == device_config_map[i]) ||
 		         ((uint8_t)DEVICE_GENERIC_LED == device_config_map[i]))
 		{
 			// Initialize generic driver (if needed)
+		}
+		else
+		{
+			// DEVICE_NONE or unsupported entry: slot stays without a driver
 		}
 	}
 
@@ -214,7 +236,8 @@ static output_result_t init_driver(void)
 static void uart0_init(uint32_t baudrate)
 {
 	// Initialize UART0 hardware
-	uart_init(uart0, baudrate);
+	// cppcheck-suppress misra-c2012-11.3 ; Deviation D3: Pico SDK instance macro casts the register block
+	(void)uart_init(uart0, baudrate);
 
 	// Set GPIO 12 as UART0 TX
 	gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
@@ -223,10 +246,29 @@ static void uart0_init(uint32_t baudrate)
 	gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
 
 	// Optional: Enable FIFO
+	// cppcheck-suppress misra-c2012-11.3 ; Deviation D3: Pico SDK instance macro casts the register block
 	uart_set_fifo_enabled(uart0, true);
 }
 
 output_result_t output_init(void)
+{
+	output_result_t result = OUTPUT_ERR_INIT;
+
+	// Outputs may only be (re)initialised before the scheduler starts.
+	if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
+	{
+		result = output_init_resources();
+	}
+
+	return result;
+}
+
+/**
+ * @brief Create the SPI mutex and configure the multiplexer, SPI, UART, PWM and drivers.
+ *
+ * @return OUTPUT_OK on success or an output error code otherwise.
+ */
+static output_result_t output_init_resources(void)
 {
 	output_result_t result = OUTPUT_OK;
 
@@ -246,12 +288,13 @@ output_result_t output_init(void)
 	output_result_t result_mux = init_mux();
 	if (result_mux != OUTPUT_OK)
 	{
+		result = result_mux;
 		statistics_increment_counter(OUTPUT_INIT_ERROR);
 	}
 
 	// Initialize SPI
-	spi_init(spi0, SPI_FREQUENCY);
-	spi_set_format(spi0, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+	(void)spi_init(output_spi(), SPI_FREQUENCY);
+	spi_set_format(output_spi(), 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
 	gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
 	gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
@@ -266,6 +309,7 @@ output_result_t output_init(void)
 	}
 
 	// Make the SPI pins available to picotool
+	// cppcheck-suppress [misra-c2012-10.1,misra-c2012-10.4,misra-c2012-10.8,misra-c2012-12.2] ; Deviation D4: SDK binary-info metadata macro
 	bi_decl(bi_4pins_with_func(PICO_DEFAULT_SPI_RX_PIN, PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_CSN_PIN, GPIO_FUNC_SPI))
 
 	// Initialize UART0
@@ -279,7 +323,10 @@ output_result_t output_init(void)
 	pwm_init(slice_num, &config, true);
 
 	// Initialize drivers (for 7 segment display)
-	(void)init_driver();
+	if (init_driver() != OUTPUT_OK)
+	{
+		result = OUTPUT_ERR_INIT;
+	}
 
 	return result;
 }
@@ -296,7 +343,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	 * Checks for:
 	 * - Null pointer
 	 */
-	if ((NULL == payload) || ((uint8_t)0 == payload[0]))
+	if ((NULL == payload) || (length == 0U) || ((uint8_t)0 == payload[0]))
 	{
 		statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
@@ -307,7 +354,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		const uint8_t controller_id = (header >> DISPLAY_CMD_ID_SHIFT) & (uint8_t)0x07U;
 		command = header & DISPLAY_CMD_MASK;
 
-		if (controller_id >= (uint8_t)MAX_SPI_INTERFACES)
+		if ((controller_id == 0U) || (controller_id >= (uint8_t)MAX_SPI_INTERFACES))
 		{
 			statistics_increment_counter(OUTPUT_CONTROLLER_ID_ERROR);
 			result = OUTPUT_ERR_INVALID_PARAM;
@@ -317,16 +364,20 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 			physical_cs = controller_id - (uint8_t)1;
 
 			if ((DISPLAY_CMD_SET_DIGITS == command) &&
-			    (length < (uint8_t)6))
+			    (length != (uint8_t)6))
 			{
 				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 				result = OUTPUT_ERR_INVALID_PARAM;
 			}
 			else if ((DISPLAY_CMD_SET_BRIGHTNESS == command) &&
-			         (length < (uint8_t)2))
+			         (length != (uint8_t)2))
 			{
 				statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 				result = OUTPUT_ERR_INVALID_PARAM;
+			}
+			else
+			{
+				// Payload length matches the command (or command checked below)
 			}
 		}
 
@@ -350,7 +401,7 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	 */
 	if (OUTPUT_OK == result)
 	{
-		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+		if ((spi_mutex != NULL) && (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
 		{
 			mutex_taken = true;
 		}
@@ -379,7 +430,18 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 		output_driver_t *handle = output_drivers.driver_handles[physical_cs];
 		if ((handle != NULL) && (handle->set_digits))
 		{
-			result = handle->set_digits(handle, digits, sizeof(digits), payload[5]);
+			size_t digit_count = TM1639_DIGIT_COUNT;
+			uint8_t dot_position = payload[5];
+			if (device_config_map[physical_cs] == DEVICE_TM1637_DIGIT)
+			{
+				digit_count = TM1637_DIGIT_COUNT;
+				// Digits 4-7 do not exist on a TM1637; a dot there is ignored.
+				if ((dot_position >= TM1637_DIGIT_COUNT) && (dot_position < TM1639_DIGIT_COUNT))
+				{
+					dot_position = TM1637_NO_DECIMAL_POINT;
+				}
+			}
+			result = handle->set_digits(handle, digits, digit_count, dot_position);
 		}
 		else
 		{
@@ -407,6 +469,10 @@ output_result_t display_out(const uint8_t *payload, uint8_t length)
 	{
 		statistics_increment_counter(OUTPUT_INVALID_PARAM_ERROR);
 		result = OUTPUT_ERR_INVALID_PARAM;
+	}
+	else
+	{
+		// Validation already failed: result carries the error
 	}
 
 	/**
@@ -438,7 +504,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	 * - Valid controller ID (1-based, must be within range)
 	 */
 	if ((NULL == payload) ||
-	    ((uint8_t)3 > length) ||
+	    ((uint8_t)3 != length) ||
 	    (0U == payload[0]) ||
 	    ((uint8_t)MAX_SPI_INTERFACES < payload[0]))
 	{
@@ -468,7 +534,7 @@ output_result_t led_out(const uint8_t *payload, uint8_t length)
 	 */
 	if (OUTPUT_OK == result)
 	{
-		if (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000)))
+		if ((spi_mutex != NULL) && (pdTRUE == xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000))))
 		{
 			mutex_taken = true;
 

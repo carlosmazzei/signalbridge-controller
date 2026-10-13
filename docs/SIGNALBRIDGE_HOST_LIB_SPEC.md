@@ -187,8 +187,11 @@ checksum = byte0 ^ byte1 ^ byte2 ^ payload[0] ^ payload[1] ^ ... ^ payload[N-1]
 | Header | 3 bytes |
 | Checksum | 1 byte |
 | Max raw packet | 24 bytes |
-| Max COBS-encoded | 26 bytes (24 + ceil(24/254)) |
-| Max on-wire (with delimiter) | 27 bytes |
+| Max COBS-encoded | 25 bytes (24 + ceil(24/254)) |
+| Max on-wire (with delimiter) | 26 bytes |
+
+The device rejects 26 or more COBS-encoded bytes received without a delimiter
+and increments `RECEIVE_BUFFER_OVERFLOW_ERROR`.
 
 ### Packet validation (receiving)
 
@@ -315,7 +318,7 @@ Controls 7-segment digit displays. Two sub-commands are supported: set digits an
 
 **Payload header byte** (`payload[0]`):
 ```
-Bits 7–5: Controller ID (1-based, value 1–8 stored as 1–7 in 3 bits)
+Bits 7–5: Controller ID (`1`–`7`; `0` is invalid)
 Bits 4–0: Display sub-command
 ```
 
@@ -357,7 +360,7 @@ payload: [0x20] [0x12] [0x34] [0x56] [0x78] [0x02]
 | Byte | Description |
 |---:|---|
 | 0 | Header: `(controller_id << 5) \| 0x01` |
-| 1 | Brightness level: `0` = off, `1`–`7` = on |
+| 1 | Brightness level: `0` = off, `1`–`8` = increasing brightness; values above `8` clamp to `8` |
 
 **Example**: Controller 1, brightness 4:
 ```
@@ -448,9 +451,11 @@ Requests runtime metrics for a specific FreeRTOS task.
 
 | Byte | Description | Range |
 |---:|---|---|
-| 0 | Task index | `0`–`8` |
+| 0 | Task index | `0`–`9` |
 
-If the task index exceeds the number of tasks, the response is a single byte `0xFF`.
+Indices 0–7 report application tasks, index 8 reports idle runtime and minimum
+free heap, and index 9 reports the watchdog supervisor. An index above 9
+returns a single-byte `0xFF` response.
 
 **Response payload** (13 bytes):
 
@@ -459,9 +464,9 @@ If the task index exceeds the number of tasks, the response is a single byte `0x
 | 0 | Task index (echoed) |
 | 1–4 | Runtime counter (big-endian, 32-bit) |
 | 5–8 | Runtime percentage (big-endian, 32-bit) |
-| 9–12 | Stack high watermark in bytes (big-endian, 32-bit) |
+| 9–12 | Stack high watermark in FreeRTOS stack units (4-byte words on RP2040, big-endian, 32-bit) |
 
-When `index == 8` (equal to `NUM_TASKS`), the response returns idle task statistics with bytes 9–12 containing the minimum free heap size instead of a stack watermark.
+When `index == 8` (equal to `NUM_TASKS`), the response returns idle task statistics with bytes 9–12 containing the minimum free heap size instead of a stack watermark. Index 9 reports the watchdog supervisor's stack watermark.
 
 **Task indices:**
 
@@ -474,8 +479,9 @@ When `index == 8` (equal to `NUM_TASKS`), the response returns idle task statist
 | 4 | Process outbound task | 1 |
 | 5 | ADC read task | 1 |
 | 6 | Keypad task | 1 |
-| 7 | LED status task | 0 |
+| 7 | LED status task | 1 |
 | 8 | System (idle task + heap info) | — |
+| 9 | Watchdog supervisor | 0 |
 
 ---
 
@@ -597,12 +603,12 @@ This section describes the physical I/O available on a Signalbridge board so the
 |---|---:|---|---|
 | PWM brightness | 1 (global) | 8-bit (0–255) | Squared for perceptual linearity |
 | LED matrices | Up to 8 | 8×8 per controller | Column-addressable, 8 segments per column |
-| 7-segment displays | Up to 8 | 8 digits per controller | BCD digits, decimal point per digit |
-| Display brightness | Per controller | 3-bit (0–7) | 0 = off, 1–7 = on |
+| 7-segment displays | Up to 7 addressable controllers | Driver-dependent | BCD digits, decimal point per digit |
+| Display brightness | Per controller | `0`–`8` | `0` = off, `1`–`8` = increasing brightness; values above `8` clamp to `8` |
 
 ### Controller slots
 
-The device has 8 controller slots (IDs 1–8) accessible via an SPI multiplexer. Each slot can host one display/LED device. The default configuration has a TM1639 digit controller in slot 1; slots 2–8 are empty. The slot configuration is fixed at firmware compile time.
+The device has 8 physical controller slots accessible via an SPI multiplexer. Each slot can host one display/LED device. LED output IDs address slots 1–8; the display-control header can address only IDs 1–7 because its three-bit ID field reserves 0 as invalid. The default configuration has a TM1639 digit controller in slot 1; slots 2–8 are empty. The slot configuration is fixed at firmware compile time.
 
 ### Supported device types
 
@@ -667,11 +673,11 @@ All send methods are non-blocking. They encode the packet and enqueue it for the
 ```
 board.set_pwm(duty_cycle: 0–255)
 board.set_led(controller_id: 1–8, column: 0–7, bitmask: 0x00–0xFF)
-board.set_digits(controller_id: 1–8, digits: uint8[8], dot_position: 0–7 or NONE)
-board.set_display_brightness(controller_id: 1–8, brightness: 0–7)
+board.set_digits(controller_id: 1–7, digits: uint8[8], dot_position: 0–7 or NONE)
+board.set_display_brightness(controller_id: 1–7, brightness: 0–8 (values above 8 clamp to 8))
 board.send_echo(payload: bytes)
 board.query_error_counter(counter_index: 0–22)
-board.query_task_status(task_index: 0–8)
+board.query_task_status(task_index: 0–9)
 ```
 
 ### 7.4 Diagnostics
@@ -684,7 +690,7 @@ board.ping() → Future<round_trip_ms>       // convenience wrapper around echo
 
 `query_all_error_counters()` sends 23 individual error status queries (indices 0–22) and collects the responses. The library should handle response correlation by matching the counter index in the response payload to the original request.
 
-`query_all_task_stats()` sends 9 individual task status queries (indices 0–8) and collects the responses.
+`query_all_task_stats()` sends 10 individual task status queries (indices 0–9) and collects the responses.
 
 ### 7.5 Multi-Board Management
 
@@ -754,6 +760,9 @@ The Signalbridge board has a 5-second watchdog timer. If the watchdog fires, the
 | Payload too large | Length field > 20 | Discard packet, increment internal error counter |
 | Unknown command | Command ID not in table | Dispatch to `on_raw_packet` callback, log warning |
 | Board ID mismatch | Received ID ≠ expected | Discard packet silently (multi-board scenarios) |
+
+Device-side firmware counters for these failures and the exact validation order
+are documented in [COMMANDS.md](COMMANDS.md#inbound-validation-and-error-counters).
 
 ### Transport-level errors
 
@@ -934,7 +943,7 @@ All multi-byte integer values in the protocol are **big-endian** (network byte o
 |---|---|
 | **Board ID** | 11-bit identifier uniquely identifying a Signalbridge board (default: `0x01`) |
 | **COBS** | Consistent Overhead Byte Stuffing — encoding that eliminates zero bytes for framing |
-| **Controller ID** | 1-based identifier (1–8) for SPI-attached display/LED devices on a board |
+| **Controller ID** | 1-based identifier for an SPI-attached display/LED device; LED output IDs are 1–8 and display-control IDs are 1–7 |
 | **CDC** | USB Communications Device Class — virtual serial port over USB |
 | **BCD** | Binary-Coded Decimal — one decimal digit per nibble (4 bits) |
 | **Detent** | A physical click position on a rotary encoder |

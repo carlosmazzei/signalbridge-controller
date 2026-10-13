@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 
 # Copy dependencies.json from project root - build will FAIL if file doesn't exist
-COPY dependencies.json /tmp/dependencies.json
+COPY dependencies.json resolve-dependencies.jq /tmp/
 
 # Install packages from dependencies.json
 RUN apt-get update && \
@@ -22,24 +22,13 @@ RUN apt-get update && \
         echo "ERROR: dependencies.json is not valid JSON"; \
         exit 1; \
     fi && \
-    # Show what packages will be installed
-    echo "Packages to install:" && \
-    jq -r 'to_entries | .[] | "  - " + .key + " (version: " + .value + ")"' /tmp/dependencies.json && \
-    echo "Starting installation..." && \
-    # Install packages - try with version, fallback to package name only
-    jq -r 'keys[]' /tmp/dependencies.json | while read package; do \
-        version=$(jq -r --arg pkg "$package" '.[$pkg]' /tmp/dependencies.json); \
-        echo "Installing $package..."; \
-        if [ -n "$version" ] && [ "$version" != "" ] && [ "$version" != "null" ]; then \
-            if ! apt-get install -y "$package=$version" 2>/dev/null; then \
-                echo "Version $version not available for $package, installing latest..."; \
-                apt-get install -y "$package" || echo "Failed to install $package"; \
-            fi; \
-        else \
-            apt-get install -y "$package" || echo "Failed to install $package"; \
-        fi; \
-    done && \
-    echo "Package installation completed" && \
+    # Resolve exact pins for the architecture being built (ARM64/AMD64).
+    jq -r --arg architecture "$(dpkg --print-architecture)" \
+        -f /tmp/resolve-dependencies.jq /tmp/dependencies.json > /tmp/packages.txt && \
+    echo "Installing pinned packages for $(dpkg --print-architecture):" && \
+    cat /tmp/packages.txt && \
+    # Fail closed: missing pins and package installation errors stop the build.
+    xargs -r apt-get install -y --no-install-recommends < /tmp/packages.txt && \
     # Clean up
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/dependencies.json

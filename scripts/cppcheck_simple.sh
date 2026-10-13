@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 # Simplified cppcheck for quick analysis without MISRA
 # Uses compile_commands.json when available
 # Run this from the project root directory
@@ -29,13 +31,22 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # Check for compile_commands.json
-COMPILE_COMMANDS="$PROJECT_ROOT/compile_commands.json"
+COMPILE_COMMANDS="${CPPCHECK_COMPILE_COMMANDS:-$PROJECT_ROOT/build-release/compile_commands.json}"
 
 if [ -f "$COMPILE_COMMANDS" ]; then
     echo "✅ Using compile_commands.json for accurate compiler settings"
 
+    mkdir -p .cppcheck
+    python3 scripts/prepare_cppcheck.py "$COMPILE_COMMANDS" .cppcheck/compile_commands.json
+    COMPILE_COMMANDS="$PROJECT_ROOT/.cppcheck/compile_commands.json"
+
     # Run cppcheck with compilation database (no MISRA, no dump files)
     cppcheck \
+        --error-exitcode=2 \
+        --exitcode-suppressions="$PROJECT_ROOT/.cppcheck_advisory" \
+        '-Dbi_decl(x)=' \
+        --platform=unix32 \
+        --include="$(arm-none-eabi-gcc -print-file-name=include)/stdatomic.h" \
         --std=c11 \
         --enable=warning,style,performance,portability \
         --inline-suppr \
@@ -52,6 +63,11 @@ else
 
     # Fallback to basic manual configuration (minimal includes)
     cppcheck \
+        --error-exitcode=2 \
+        --exitcode-suppressions="$PROJECT_ROOT/.cppcheck_advisory" \
+        '-Dbi_decl(x)=' \
+        --platform=unix32 \
+        --include="$(arm-none-eabi-gcc -print-file-name=include)/stdatomic.h" \
         --std=c11 \
         --enable=warning,style,performance,portability \
         --inline-suppr \

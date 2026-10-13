@@ -80,18 +80,18 @@ If containers are not available, install CMake, Doxygen, Python 3, the GNU Arm E
 
 ### System layout
 - Raspberry Pi Pico running FreeRTOS SMP at a 2 kHz tick with dual-core scheduling.
-- Nine tasks with explicit core affinity: USB CDC maintenance, CDC read/write, UART ingestion, packet decoding, outbound processing, status LED handling, keypad scanning, ADC sampling, and encoder tracking.
-- Queues sized per `include/app_config.h`: encoded reception queue (2048 bytes), CDC transmit queue (2048 packets), and data event queue (500 events).
+- Eight application tasks plus a watchdog supervisor with explicit core affinity. Encoder polling runs inside the keypad task.
+- Queues sized per `include/app_config.h`: 256 encoded frames, 256 transmit packets and 500 relative encoder events. A separate snapshot store retains current key/ADC states and republishes them when USB reconnects.
 
 ### Input subsystem
 - Eight-by-eight keypad matrix with three-bit stability masks for debouncing. The scan loop uses separate hardware-settling parameters for the 74HC138 column decoder (`col_mux_settling_us`, default 1 µs) and the 74HC4051 row multiplexer (`row_mux_settling_us`, default 1 µs); the full matrix is scanned in under 100 µs per cycle. A configurable scan-cycle interval (`key_settling_time_ms`, default 2 ms) is applied once per full scan, giving a ~500 Hz matrix refresh rate while keeping the scan task's CPU load under ~5 %. The interval also defines the debounce window: window = `key_settling_time_ms` × number of required stable samples (2 × 2 ms = 4 ms for press, 3 × 2 ms = 6 ms for release with the default three-bit mask).
 - Sixteen ADC channels behind a four-bit multiplexer with moving-average filtering to smooth readings.
-- Up to eight rotary encoders controlled through a run-time mask and independent sampling delays.
+- Up to eight rotary encoders configured at build time and polled by the keypad task. Relative events are best effort and are discarded while disconnected or when queues fill.
 - GPIO assignments from `include/app_inputs.h`: keypad multiplexers on GPIO 0/1/2/17 and 6/7/3/8, ADC multiplexer selects on GPIO 20/21/22/11, and keypad sampling on GPIO 9.
 
 ### Output subsystem
 - Driver set defined in `include/app_outputs.h` supports generic LEDs and digits plus TM1639 and TM1637 devices.
-- Default mapping uses TM1639 digits on the first and third slots, a TM1637 digit set on the second slot, and a TM1639 LED matrix on the fourth slot; remaining positions are empty and can be reassigned at compile time.
+- Default mapping enables one TM1639 digit display in slot 1. `DEVICE_CONFIG` can select TM1637/TM1639 digit displays or TM1639 LED matrices at build time; mixed drivers are exercised by host tests.
 - Shared SPI fabric with multiplexer selects on GPIO 10, 14, and 15 and chip-select enable on GPIO 27. GPIO 28 provides PWM-based brightness control. TM1637 devices reuse the same infrastructure via bit-banged DIO and CLK pins.
 - A mutex protects SPI transfers, and drivers stage updates in preparation buffers before committing to hardware to avoid flicker.
 
@@ -104,12 +104,12 @@ For protocol framing, payload layouts, and pre-COBS example frames, see `docs/CO
 - The status LED indicates error categories using blink patterns while the watchdog records persistent fault types. Counters and error types feed the `PC_ERROR_STATUS_CMD` response for host-side inspection.
 
 ## Hardware Platform
-- Target: Raspberry Pi Pico (RP2040) with Pico SDK 2.1.1 or newer and the current FreeRTOS Kernel.
+- Target: Raspberry Pi Pico (RP2040) with the pinned Pico SDK 2.3.0 and FreeRTOS V11.3.0 submodules.
 - Output SPI clock uses the Pico default pins 18 (SCK) and 19 (TX). Input multiplexers and PWM run on the GPIO assignments listed above.
-- The watchdog enforces a five-second timeout, and the SPI bus operates at 500 kHz for TM1639 reliability.
+- Only the supervisor feeds the five-second watchdog. Four seconds without progress from an active task stops feeding; fatal errors also stop feeding. An intentional indefinite decode queue wait is exempt. SPI operates at 1 MHz.
 
 ## Code Quality and Documentation
-- MISRA C:2012 guidance informs implementation choices; suppressions are documented for external dependencies and hardware access.
+- MISRA C:2012 is enforced strictly by `scripts/run_cppcheck.sh` (advisory rules included); every accepted deviation is listed in [docs/MISRA_DEVIATIONS.md](docs/MISRA_DEVIATIONS.md).
 - Formatting uses Uncrustify with `uncrustify.cfg`. VS Code tasks cover formatting, builds, and documentation generation.
 - Static analysis relies on cppcheck with the MISRA addon, SonarLint, and Flawfinder. Helper scripts under `scripts/` wrap common checks.
 - Doxygen configuration lives in `docs/Doxyfile`, and generated HTML output is written to `docs/html/`.

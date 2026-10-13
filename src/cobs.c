@@ -21,63 +21,116 @@
  *
  * @return Number of encoded bytes written into @p buffer.
  */
-size_t cobs_encode(const void *data, size_t length, uint8_t *buffer)
+size_t cobs_encode(const uint8_t *data, size_t length, uint8_t *buffer)
 {
-	uint8_t *encode = buffer; // Encoded byte pointer
-	uint8_t *codep = encode;
-	encode++; // Output code pointer
-	uint8_t code = 1; // Code value
+	const uint8_t *input = data;
+	size_t write_index = 1U; // First slot is reserved for the first code byte
+	size_t code_index = 0U;
+	uint8_t code = 1U;
 
-	for (const uint8_t *byte = (const uint8_t *)data; length--; ++byte)
+	for (size_t read_index = 0U; read_index < length; read_index++)
 	{
-		if (*byte != 0) // Byte not zero, write it
+		const uint8_t byte = input[read_index];
+		const bool more_input = ((read_index + 1U) < length);
+
+		if (byte != 0U) // Byte not zero, write it
 		{
-			*encode++ = *byte, ++code;
+			buffer[write_index] = byte;
+			write_index++;
+			code++;
 		}
 
-		if (!*byte || code == 0xff) // Input is zero or block completed, restart
+		if ((byte == 0U) || (code == 0xFFU)) // Input is zero or block completed, restart
 		{
-			*codep = code, code = 1, codep = encode;
-			if (!*byte || length)
-				++encode;
+			buffer[code_index] = code;
+			code = 1U;
+			code_index = write_index;
+			if ((byte == 0U) || more_input)
+			{
+				write_index++;
+			}
 		}
 	}
-	*codep = code; // Write final code value
 
-	return (size_t)(encode - buffer);
+	if (code_index < write_index)
+	{
+		buffer[code_index] = code; // A full final block needs no extra code byte.
+	}
+
+	return write_index;
 }
 
 /*
  * @brief Decode a COBS-encoded payload.
  *
  * The function reconstructs the original payload produced by
- * cobs_encode(). If a delimiter code (zero) is encountered the operation
- * stops, mirroring the behaviour expected by typical framing layers.
+ * cobs_encode(). A zero code, a zero byte inside a block, a truncated block
+ * or insufficient output capacity rejects the whole frame.
  *
- * @param[in]  buffer Pointer to the COBS-encoded input bytes.
- * @param[in]  length Number of encoded bytes available in @p buffer.
- * @param[out] data   Destination buffer that receives the decoded bytes.
+ * @param[in]  buffer         Pointer to the COBS-encoded input bytes.
+ * @param[in]  length         Number of encoded bytes available in @p buffer.
+ * @param[out] data           Destination buffer that receives the decoded bytes.
+ * @param[in]  capacity       Size of @p data in bytes.
+ * @param[out] decoded_length Decoded byte count; zero on failure.
  *
- * @return Number of decoded payload bytes stored in @p data.
+ * @return true when the frame is valid and fully decoded.
  */
-size_t cobs_decode(const uint8_t *buffer, size_t length, void *data)
+bool cobs_decode_checked(const uint8_t *buffer, size_t length, uint8_t *data,
+                         size_t capacity, size_t *decoded_length)
 {
-	const uint8_t *byte = buffer; // Encoded input byte pointer
-	uint8_t *decode = (uint8_t *)data; // Decoded output byte pointer
+	size_t input = 0U;
+	size_t output = 0U;
+	uint8_t *decoded = data;
+	bool valid = false;
 
-	for (uint8_t code = 0xff, block = 0; byte < buffer + length; --block)
+	if (decoded_length != NULL)
 	{
-		if (block) // Decode block byte
-			*decode++ = *byte++;
-		else
+		*decoded_length = 0U;
+		valid = (buffer != NULL) && (data != NULL) && (length != 0U);
+	}
+
+	while (valid && (input < length))
+	{
+		const uint8_t code = buffer[input];
+		input++;
+		const size_t count = (size_t)code - 1U;
+
+		if ((code == 0U) || (count > (length - input)) || (count > (capacity - output)))
 		{
-			if (code != 0xff) // Encoded zero, write it
-				*decode++ = 0;
-			block = code = *byte++; // Next block length
-			if (!code) // Delimiter code found
-				break;
+			valid = false;
+		}
+
+		for (size_t i = 0U; valid && (i < count); i++)
+		{
+			if (buffer[input] == 0U)
+			{
+				valid = false;
+			}
+			else
+			{
+				decoded[output] = buffer[input];
+				output++;
+				input++;
+			}
+		}
+
+		if (valid && (code != 0xFFU) && (input < length))
+		{
+			if (output >= capacity)
+			{
+				valid = false;
+			}
+			else
+			{
+				decoded[output] = 0U;
+				output++;
+			}
 		}
 	}
 
-	return (size_t)(decode - (uint8_t *)data);
+	if (valid)
+	{
+		*decoded_length = output;
+	}
+	return valid;
 }

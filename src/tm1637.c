@@ -47,12 +47,19 @@ static output_result_t tm1637_to_output_result(tm1637_result_t tm_result)
 	return result;
 }
 
-static output_result_t tm1637_set_display(output_driver_t *config, bool display_on);
 static output_result_t tm1637_set_brightness_output(output_driver_t *config, uint8_t level);
 
 // ---- Bit-bang helpers (open-drain emulation) ----
 
-#define TM1637_DELAY_US (3)
+/**
+ * @brief Half-period of the TM1637 bit-banged clock, in microseconds.
+ *
+ * The default 2 µs delay yields approximately 250 kHz. The value may be
+ * overridden at build time for longer or more heavily loaded wiring.
+ */
+#ifndef TM1637_DELAY_US
+#define TM1637_DELAY_US (2)
+#endif
 
 /**
  * @brief Configure a TM1637 signal for open-drain high state.
@@ -250,14 +257,15 @@ static tm1637_result_t tm1637_send_command(const output_driver_t *config, uint8_
 }
 
 /**
- * @brief Set the display brightness level (0-7).
+ * @brief Set the display brightness level.
  *
- * This function sets the brightness level of the TM1637 display. The brightness value
- * is clamped to the range 0 to 7. The function updates the driver configuration and
- * sends the appropriate command to the TM1637 device.
+ * This function sets the brightness level of the TM1637 display. A level of 0 turns
+ * the display off; levels 1 to 8 select increasing brightness. Values above 8 are
+ * clamped to 8. The function updates the driver configuration and sends the
+ * appropriate command to the TM1637 device.
  *
  * @param[in,out] config Pointer to the TM1637 output driver configuration structure. Must not be NULL.
- * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
+ * @param[in]     level  Desired brightness (0 = off, 1–8 = increasing brightness).
  *
  * @return TM1637_OK on success,
  *         TM1637_ERR_INVALID_PARAM if config is NULL,
@@ -272,47 +280,28 @@ static tm1637_result_t tm1637_set_brightness(output_driver_t *config, uint8_t le
 	}
 	else
 	{
-		uint8_t set_level = (level > (uint8_t)7) ? (uint8_t)7 : level;
-		config->brightness = set_level;
-		config->display_on = true;
+		uint8_t set_level = (level > (uint8_t)8) ? (uint8_t)8 : level;
+
 
 		// Display control command with brightness level
-		uint8_t cmd = (uint8_t)TM1637_CMD_DISPLAY_ON | set_level;
+		uint8_t cmd = (set_level == 0U) ? TM1637_CMD_DISPLAY_OFF
+	    : ((uint8_t)TM1637_CMD_DISPLAY_ON | (uint8_t)(set_level - 1U));
 		result = tm1637_send_command(config, cmd);
+		if (result == TM1637_OK)
+		{
+			config->brightness = set_level;
+			config->display_on = (set_level != 0U);
+		}
 	}
 
 	return result;
 }
 
 /**
- * @brief Toggle the TM1637 display state.
- *
- * @param[in,out] config      Driver configuration.
- * @param[in]     display_on  true to enable, false to disable.
- *
- * @return OUTPUT_OK on success or an output error code otherwise.
- */
-static output_result_t tm1637_set_display(output_driver_t *config, bool display_on)
-{
-	tm1637_result_t tm_result;
-
-	if (display_on)
-	{
-		tm_result = tm1637_display_on(config);
-	}
-	else
-	{
-		tm_result = tm1637_display_off(config);
-	}
-
-	return tm1637_to_output_result(tm_result);
-}
-
-/**
  * @brief Update TM1637 brightness level.
  *
  * @param[in,out] config Driver configuration.
- * @param[in]     level  Brightness level (0-7).
+ * @param[in]     level  Brightness (0 off, 1-8 on).
  *
  * @return OUTPUT_OK on success or an output error code otherwise.
  */
@@ -330,8 +319,12 @@ tm1637_result_t tm1637_display_on(output_driver_t *config)
 	}
 	else
 	{
-		config->display_on = true;
-		result = tm1637_send_command(config, (uint8_t)TM1637_CMD_DISPLAY_ON | config->brightness);
+		uint8_t level = (config->brightness == 0U) ? 0U : (uint8_t)(config->brightness - 1U);
+		result = tm1637_send_command(config, (uint8_t)TM1637_CMD_DISPLAY_ON | level);
+		if (result == TM1637_OK)
+		{
+			config->display_on = true;
+		}
 	}
 
 	return result;
@@ -346,6 +339,7 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 	output_driver_t *config = NULL;
 	uint8_t valid = 1U;
 
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	config = pvPortMalloc(sizeof(output_driver_t));
 	if (NULL == config)
 	{
@@ -389,7 +383,7 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 		}
 
 		// Set maximum brightness
-		if (TM1637_OK != tm1637_set_brightness(config, 7U))
+		if (TM1637_OK != tm1637_set_brightness(config, 8U))
 		{
 			valid = 0U;
 		}
@@ -412,7 +406,15 @@ output_driver_t* tm1637_init(uint8_t chip_id,
 }
 
 /**
- * @brief Update specific bytes in the preparation buffer
+ * @brief Update one byte in the TM1637 preparation buffer.
+ *
+ * @param[in,out] config Driver handle whose staging buffer is updated.
+ * @param[in] addr Display-memory address to update.
+ * @param[in] data Byte to store at @p addr.
+ *
+ * @retval TM1637_OK The byte was stored and the buffer marked modified.
+ * @retval TM1637_ERR_INVALID_PARAM @p config is NULL.
+ * @retval TM1637_ERR_ADDRESS_RANGE @p addr is outside the display buffer.
  */
 static tm1637_result_t tm1637_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data)
 {
@@ -439,8 +441,8 @@ static tm1637_result_t tm1637_update_buffer(output_driver_t *config, uint8_t add
 /**
  * @brief Flush the prepared buffer to the TM1637 display.
  *
- * This function copies the preparation buffer to the active buffer, resets the modified flag,
- * and writes all buffer data to the TM1637 device.
+ * The active buffer is updated and the modified flag is cleared only after all
+ * display writes succeed.
  *
  * @param[in,out] config Pointer to the TM1637 output driver configuration structure. Must not be NULL.
  *
@@ -456,11 +458,6 @@ static tm1637_result_t tm1637_flush(output_driver_t *config)
 	}
 	else
 	{
-		// Copy prep buffer to active buffer
-		(void)memcpy(config->active_buffer, config->prep_buffer, TM1637_DISPLAY_BUFFER_SIZE); // flawfinder: ignore
-
-		// Reset the modified flag
-		config->buffer_modified = false;
 
 		// TM1637 Protocol: Send data command first
 		tm1637_start(config);
@@ -485,7 +482,7 @@ static tm1637_result_t tm1637_flush(output_driver_t *config)
 				// Write all 4 digits data to TM1637
 				for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
 				{
-					if (tm1637_write_byte(config, config->active_buffer[i]) != 1)
+					if (tm1637_write_byte(config, config->prep_buffer[i]) != 1)
 					{
 						result = TM1637_ERR_WRITE;
 					}
@@ -493,6 +490,12 @@ static tm1637_result_t tm1637_flush(output_driver_t *config)
 			}
 			tm1637_stop(config);
 		}
+	}
+
+	if (result == TM1637_OK)
+	{
+		(void)memcpy(config->active_buffer, config->prep_buffer, TM1637_DISPLAY_BUFFER_SIZE);
+		config->buffer_modified = false;
 	}
 
 	return result;
@@ -698,67 +701,15 @@ output_result_t tm1637_set_leds(output_driver_t *config, const uint8_t leds, con
 	return tm1637_to_output_result(tm_result);
 }
 
-tm1637_result_t tm1637_display_off(output_driver_t *config)
-{
-	tm1637_result_t result = TM1637_OK;
-	if (NULL == config)
-	{
-		result = TM1637_ERR_INVALID_PARAM;
-	}
-	else
-	{
-		config->display_on = false;
-		result = tm1637_send_command(config, TM1637_CMD_DISPLAY_OFF);
-	}
-	return result;
-}
-
 tm1637_result_t tm1637_clear(output_driver_t *config)
 {
-	tm1637_result_t result = TM1637_OK;
+	tm1637_result_t result = TM1637_ERR_INVALID_PARAM;
 
-	// Parameter validation
-	if (NULL == config)
+	if (config != NULL)
 	{
-		result = TM1637_ERR_INVALID_PARAM;
+		(void)memset(config->prep_buffer, 0, sizeof(config->prep_buffer));
+		config->buffer_modified = true;
+		result = tm1637_flush(config);
 	}
-	else
-	{
-		// Clear internal buffers first
-		(void)memset(config->active_buffer, 0, TM1637_DISPLAY_BUFFER_SIZE);
-		(void)memset(config->prep_buffer, 0, TM1637_DISPLAY_BUFFER_SIZE);
-		config->buffer_modified = false;
-
-		// Send clear data to display
-		tm1637_start(config);
-		if (1 == tm1637_write_byte(config, TM1637_CMD_DATA_WRITE))
-		{
-			tm1637_stop(config);
-
-			tm1637_start(config);
-			if (1 == tm1637_write_byte(config, TM1637_CMD_ADDR_BASE))
-			{
-				// Write zeros to clear all 4 digits
-				for (uint8_t i = 0U; (i < TM1637_DIGIT_COUNT) && (TM1637_OK == result); i++)
-				{
-					if (1 != tm1637_write_byte(config, 0U))
-					{
-						result = TM1637_ERR_WRITE;
-					}
-				}
-			}
-			else
-			{
-				result = TM1637_ERR_WRITE;
-			}
-			tm1637_stop(config);
-		}
-		else
-		{
-			tm1637_stop(config);
-			result = TM1637_ERR_WRITE;
-		}
-	}
-
 	return result;
 }

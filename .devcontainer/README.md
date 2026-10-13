@@ -54,3 +54,43 @@ Access via Command Palette (Ctrl+Shift+P) → "Tasks: Run Task":
 2. Container builds automatically with all dependencies
 3. Run `Tasks: Initialize Submodules` if needed
 4. Start coding with full IntelliSense support!
+
+## Rebuild and pinned APT versions
+
+In CI (`.github/workflows/build-all.yml`) the image is rebuilt and pushed to
+GHCR only when a file baked into it changes: `Dockerfile`, `dependencies.json`
+or `resolve-dependencies.jq`. Otherwise the jobs reuse the published
+`devcontainer-embedded-debian:latest` image; Docker layers are cached between
+rebuilds. Changes to `post-create.sh` or `install_misra_addon.sh` run from the
+checkout and only trigger the firmware and quality jobs. To force a rebuild,
+run the workflow manually with **rebuild_devcontainer** enabled.
+
+`dependencies.json` pins exact Debian package versions. The Docker build fails
+if a pinned version is no longer available in the configured Trixie repositories.
+A `Version ... was not found` error means the manifest needs an update; it is
+not a VS Code or Docker startup failure. Security updates can replace older
+versions in these repositories.
+
+Refresh the package lists in a working Trixie container, then run the existing
+updater from the repository root and inspect the manifest diff:
+
+```sh
+sudo apt-get update
+.devcontainer/update-dependencies.sh --no-backup
+```
+
+The updater needs `jq`, Python and APT, already included in the development
+image. It uses the container's package candidates, not packages from macOS.
+A package pin can be a string shared by all architectures or an object with
+`arm64` and `amd64` versions. The updater preserves entries for other architectures;
+the image build fails if its architecture has no pinned version.
+Validate the resulting image before retrying **Dev Containers: Rebuild Container**:
+
+```sh
+docker build --progress=plain -t signalbridge-devcontainer .devcontainer
+```
+
+The `uncrustify` pin is split by architecture because its Debian binary
+rebuild version differs between ARM64 and AMD64. Exact version pins against
+changing repositories do not provide historical reproducibility; that
+requires a Debian snapshot repository as well.

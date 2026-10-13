@@ -5,8 +5,8 @@
 Embedded firmware for Raspberry Pi Pico (RP2040) that acts as a USB-connected I/O panel controller for cockpit simulators. Bridges hardware inputs/outputs (keypad matrix, ADCs, rotary encoders, LED displays) to a host PC over USB CDC serial using COBS-framed messages.
 
 - **Target**: RP2040 (dual Cortex-M0+), Raspberry Pi Pico board
-- **RTOS**: FreeRTOS SMP (V11.2.0) — 9 tasks across 2 cores, 2kHz tick
-- **SDK**: Pico SDK 2.1.1+ (vendored in `lib/pico-sdk`)
+- **RTOS**: FreeRTOS SMP (V11.3.0) — 8 application tasks + watchdog supervisor across 2 cores, 2kHz tick
+- **SDK**: Pico SDK 2.3.0 (vendored in `lib/pico-sdk`)
 - **Language**: C11 (C++17 set for Pico SDK compatibility)
 - **Build**: CMake presets, Unix Makefiles generator
 - **License**: GPL v3
@@ -58,7 +58,9 @@ Output firmware: `build-release/src/pi_controller.uf2`
 ```
 
 - MISRA config: `misra.json`, rule texts in `misra.txt`
-- Suppressions: `.cppcheck_suppressions` (documented per file/line)
+- Suppressions: `.cppcheck_suppressions` (documented deviations only). MISRA C:2012 is enforced strictly: every MISRA diagnostic, including advisory rules such as 15.5 (single point of exit), fails `run_cppcheck.sh`. Never add `misra-c2012-*` entries to `.cppcheck_advisory`; fix the code or record a deviation in `docs/MISRA_DEVIATIONS.md` and mark the site inline.
+- Atomics: use the `atomic_u32_*` wrappers (`include/atomic_u32.h`); `<stdatomic.h>` generics are only allowed in `src/atomic_u32.c` (deviation D1).
+- Test-only accessors go under `#ifdef SIGNALBRIDGE_UNIT_TEST` (defined for host builds only).
 - SonarQube: configured in `sonar-project.properties`
 
 ## Code Style
@@ -118,11 +120,11 @@ assets/        — Logos and diagrams
 
 ## Architecture Notes
 
-- **Core 0**: USB CDC tasks (read/write/maintenance), status LED
-- **Core 1**: Input scanning (keypad, ADC, encoders), output driving (SPI/TM1639/TM1637/PWM), COBS decode
+- **Core 0**: USB CDC tasks (CDC, CDC write, UART event) and the watchdog supervisor
+- **Core 1**: Status LED, input scanning (keypad, ADC, encoders), output driving (SPI/TM1639/TM1637/PWM), COBS decode
 - **Communication**: COBS framing with 0x00 delimiter. 3-byte header + 20-byte payload + checksum
-- **SPI bus**: 500 kHz, mutex-protected, with multiplexer routing for multiple display drivers
-- **Error handling**: Watchdog (5s timeout), scratch registers persist error info across resets, status LED blink patterns, 22 statistics counters
+- **SPI bus**: 1 MHz, mutex-protected, with multiplexer routing for multiple display drivers
+- **Error handling**: Watchdog (5s timeout), scratch registers persist error info across resets, status LED blink patterns, 23 statistics counters
 - **Memory constraints**: 2MB Flash, 264KB RAM, 128KB FreeRTOS heap, stack-usage warnings at 3.5KB
 
 ## Key Guidelines
@@ -139,6 +141,7 @@ assets/        — Logos and diagrams
 ## Operational Boundaries
 
 **ALWAYS**
+- Run uncrustify on changed `src/` and `include/` files before committing
 - Run `ctest --preset host-tests` before committing
 - Run lint/static analysis before finishing
 - Update documentation when behavior/logic changes

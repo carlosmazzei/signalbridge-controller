@@ -44,7 +44,7 @@
 #define TM1639_BCD_MAX_VALUE 9U
 
 /**
- * @enum tm1639_result_t
+ * @typedef tm1639_result_t
  * @brief Result codes for TM1639 driver functions.
  */
 typedef enum tm1639_result_t {
@@ -59,18 +59,11 @@ typedef enum tm1639_result_t {
 } tm1639_result_t;
 
 /**
- * @brief Key scan descriptor returned by @ref tm1639_get_key_states().
- */
-typedef struct tm1639_key_t {
-	uint8_t ks; /**< Key scan line (1-4). */
-	uint8_t k;  /**< Key input line (0-1). */
-} tm1639_key_t;
-
-/**
  * @brief Allocate and configure a TM1639 driver instance.
  *
  * The helper initialises the driver bookkeeping structure, clears the display,
  * programs the default brightness level and enables the panel. The returned
+ * handle contains the callbacks and state used by the outputs subsystem.
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
  * @param[in] select_interface Callback used to acquire and release the shared
@@ -122,15 +115,19 @@ output_result_t tm1639_set_digits(output_driver_t *config,
                                   const size_t length,
                                   const uint8_t dot_position);
 
-/** * @brief Set the display brightness level (0-7).
- * This function sets the brightness level of the TM1639 display. The brightness value
- * is clamped to the range 0 to 7. The function updates the driver configuration and
- * sends the appropriate command to the TM1639 device.
- * @param[in,out] config Pointer to the TM1639 output driver configuration structure. Must not be NULL.
- * @param[in]     level  Desired brightness level (0 = minimum, 7 = maximum).
- * @return OUTPUT_OK on success,
- *         OUTPUT_ERR_INVALID_PARAM if config is NULL,
- *         or error code from tm1639_send_command.
+/**
+ * @brief Set the TM1639 display brightness.
+ *
+ * Level 0 turns the display off; levels 1-8 select increasing brightness.
+ * Values above 8 are clamped to 8. The cached driver state is updated only
+ * when the command succeeds.
+ *
+ * @param[in,out] config Driver handle obtained from @ref tm1639_init().
+ * @param[in] level Requested brightness; 0 is off and 1-8 are increasing levels.
+ *
+ * @retval OUTPUT_OK The brightness command was sent successfully.
+ * @retval OUTPUT_ERR_INVALID_PARAM @p config is NULL.
+ * @retval OUTPUT_ERR_DISPLAY_OUT The controller command failed.
  */
 output_result_t tm1639_set_brightness(output_driver_t *config, uint8_t level);
 

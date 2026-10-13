@@ -1,47 +1,42 @@
-# Unit Tests
+# Host tests
 
-This directory contains unit tests for the signalbridge-controller project.
+Run from the repository root inside the DevContainer:
 
-## Test Framework
-- **CMocka** - Modern C unit testing framework with powerful mocking capabilities
-- **Mock headers** - Hardware abstraction layer mocks for Pico SDK dependencies
-
-## Running Tests
-
-### Option 1: Using the main CMakeLists (when NOT building for Pico)
-```bash
-mkdir build-host
-cd build-host
-cmake -DPICO_PLATFORM=host ..
-make
-# Tests will be built but not run automatically
+```sh
+cmake --preset host-tests
+cmake --build --preset host-tests
+ctest --preset host-tests
 ```
 
-### Option 2: Building tests directly 
-```bash
-cd test
-mkdir build
-cd build
-cmake ..
-make
-./test_cobs
-./test_error_management
+The preset enables coverage. Reports are generated in `build-tests/coverage`,
+with LCOV data at `build-tests/test/coverage.info`. GCC coverage counters use
+atomic updates so the concurrent statistics test does not corrupt the report.
+
+For address and undefined-behavior checks:
+
+```sh
+cmake -S . -B build-sanitize -DHOST_BUILD=ON -DBUILD_TESTING=ON -DSIGNALBRIDGE_BUILD_DOCS=OFF -DENABLE_SANITIZERS=ON
+cmake --build build-sanitize -j4
+ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build-sanitize --output-on-failure
 ```
 
-## Test Structure
+Leak detection is disabled because boot-lifetime RTOS/driver allocations in
+host fixtures intentionally survive until process exit. Address and UB checks
+remain enabled.
 
-- `unit/` - Unit test files
-  - `test_*.c` - Individual test files
-  - `hardware_mocks.c` - Hardware abstraction mocks
-  - `mock_headers/` - Mock Pico SDK headers
-- `CMakeLists.txt` - Main test build configuration
+Tests use CMocka and the FreeRTOS POSIX port. Hardware APIs are mocked; the
+mixed-output test executes real TM1637/TM1639 drivers, and descriptor tests
+compile the firmware USB descriptor against vendored TinyUSB headers. The
+ADC test executes bounded scans of the actual task with a stationary input.
+Snapshot/session, malformed COBS, overflow recovery, concurrent counters,
+watchdog health and fail-closed analysis scripts have regression coverage.
 
-## Coverage
+Measure source coverage with:
 
-Current test coverage focuses on:
-- **COBS module** (100% - encode/decode functions)
-- **Error Management** (85% - statistics functions)
-- **Input validation** (configuration validation)
-- **Constants validation** (outputs, tm1639)
+```sh
+gcovr --root . --object-directory build-tests --filter src/ --txt-summary
+```
 
-Tests achieve ~70% coverage of testable code while respecting the original source files.
+The host denominator excludes uncompiled boot, task orchestration and IRQ
+paths. POSIX tests do not validate RP2040 SMP timing, USB enumeration on a
+physical host, real ACKs, watchdog reset latency or electrical behavior.
