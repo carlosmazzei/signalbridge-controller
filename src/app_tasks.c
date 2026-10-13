@@ -35,7 +35,6 @@ static void process_outbound_task(void *pvParameters);
 static void cdc_write_task(void *pvParameters);
 static void led_status_task(void *pvParameters);
 static void cleanup_comm_subsystem(void);
-static TaskHandle_t supervisor_handle; /**< Handle of the watchdog supervisor task. */
 
 /**
  * @brief Check TinyUSB endpoint readiness and host line-state readiness.
@@ -80,15 +79,23 @@ void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr)
  * descriptor callbacks do not publish progress. The status LED task reports
  * progress after each error-pattern pulse.
  *
- * @param[in] params Unused task argument.
+ * @param[in,out] params Pointer to the supervisor's task properties.
  *
  * @note Runs as a FreeRTOS task on core 0; it is not an ISR or TinyUSB callback.
  */
 static void watchdog_task(void *params)
 {
-	(void)params;
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
+	task_props_t *task_prop = (task_props_t *)params;
+	uint32_t loop_count = 0U;
 	for (;;)
 	{
+		if (0U == (loop_count & 15U))
+		{
+			task_prop->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
+
 		bool healthy = !error_management_has_fatal_error() && task_health_check(time_us_32());
 		for (uint32_t i = 0U; i < (uint32_t)NUM_TASKS; i++)
 		{
@@ -263,11 +270,13 @@ bool app_tasks_create_application(void)
 	if (success)
 	{
 		task_health_reset(time_us_32());
-		success = (xTaskCreate(watchdog_task, "watchdog", configMINIMAL_STACK_SIZE * 2U,
-		                       NULL, mainCDC_TASK_PRIORITY + 1U, &supervisor_handle) == pdPASS);
+		task_props_t *const supervisor_props = app_context_supervisor_props();
+		success = (xTaskCreate(watchdog_task, "watchdog", WATCHDOG_TASK_STACK_SIZE,
+		                       supervisor_props, mainCDC_TASK_PRIORITY + 1U,
+		                       &supervisor_props->task_handle) == pdPASS);
 		if (success)
 		{
-			vTaskCoreAffinitySet(supervisor_handle, CORE_0_AFFINITY);
+			vTaskCoreAffinitySet(supervisor_props->task_handle, WATCHDOG_TASK_CORE_AFFINITY);
 		}
 	}
 	return success;
@@ -372,11 +381,13 @@ void app_tasks_cleanup_application(void)
 	// Boot-only lifecycle: running tasks may hold the queue handles.
 	if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)
 	{
-		if (supervisor_handle != NULL)
+		task_props_t *const supervisor_props = app_context_supervisor_props();
+		if (supervisor_props->task_handle != NULL)
 		{
-			vTaskDelete(supervisor_handle);
-			supervisor_handle = NULL;
+			vTaskDelete(supervisor_props->task_handle);
 		}
+		supervisor_props->task_handle = NULL;
+		supervisor_props->high_watermark = 0U;
 		QueueHandle_t queue = app_context_get_data_event_queue();
 		if (queue != NULL)
 		{

@@ -120,16 +120,20 @@ static inline void send_status(uint8_t index)
 }
 
 /**
- * @brief Sends the heap usage (high watermark) of each task to the host.
+ * @brief Send task runtime and stack or heap status to the host.
  *
- * @param[in] index Index of the task whose information is requested.
+ * Indices 0–7 report application tasks, @ref NUM_TASKS reports idle runtime
+ * and minimum free heap, and @ref WATCHDOG_TASK_STATUS_INDEX reports the
+ * watchdog supervisor. Larger indices produce @ref INVALID_TASK_INDEX.
+ *
+ * @param[in] index Task-status index requested by the host.
  */
 static void send_heap_status(uint8_t index)
 {
 	uint8_t data[13] = {0};
 	bool done = false;
 
-	if (index > (uint8_t)NUM_TASKS)
+	if (index > WATCHDOG_TASK_STATUS_INDEX)
 	{
 		data[0] = INVALID_TASK_INDEX;
 		(void)app_comm_send_packet(BOARD_ID, PC_TASK_STATUS_CMD, data, 1U);
@@ -167,7 +171,10 @@ static void send_heap_status(uint8_t index)
 		{
 			data[0] = index;
 
-			const task_props_t *const props = app_context_task_props((task_enum_t)index);
+			const task_props_t *const props =
+				(index == WATCHDOG_TASK_STATUS_INDEX)
+				? app_context_supervisor_props()
+				: app_context_task_props((task_enum_t)index);
 
 			value = ulTaskGetRunTimeCounter(props->task_handle);
 			data[1] = (uint8_t)((value >> 24U) & 0xFFU);

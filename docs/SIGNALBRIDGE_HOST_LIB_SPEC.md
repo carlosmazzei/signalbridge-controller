@@ -451,9 +451,11 @@ Requests runtime metrics for a specific FreeRTOS task.
 
 | Byte | Description | Range |
 |---:|---|---|
-| 0 | Task index | `0`–`8` |
+| 0 | Task index | `0`–`9` |
 
-If the task index exceeds the number of tasks, the response is a single byte `0xFF`.
+Indices 0–7 report application tasks, index 8 reports idle runtime and minimum
+free heap, and index 9 reports the watchdog supervisor. An index above 9
+returns a single-byte `0xFF` response.
 
 **Response payload** (13 bytes):
 
@@ -462,9 +464,9 @@ If the task index exceeds the number of tasks, the response is a single byte `0x
 | 0 | Task index (echoed) |
 | 1–4 | Runtime counter (big-endian, 32-bit) |
 | 5–8 | Runtime percentage (big-endian, 32-bit) |
-| 9–12 | Stack high watermark in bytes (big-endian, 32-bit) |
+| 9–12 | Stack high watermark in FreeRTOS stack units (4-byte words on RP2040, big-endian, 32-bit) |
 
-When `index == 8` (equal to `NUM_TASKS`), the response returns idle task statistics with bytes 9–12 containing the minimum free heap size instead of a stack watermark.
+When `index == 8` (equal to `NUM_TASKS`), the response returns idle task statistics with bytes 9–12 containing the minimum free heap size instead of a stack watermark. Index 9 reports the watchdog supervisor's stack watermark.
 
 **Task indices:**
 
@@ -477,8 +479,9 @@ When `index == 8` (equal to `NUM_TASKS`), the response returns idle task statist
 | 4 | Process outbound task | 1 |
 | 5 | ADC read task | 1 |
 | 6 | Keypad task | 1 |
-| 7 | LED status task | 0 |
+| 7 | LED status task | 1 |
 | 8 | System (idle task + heap info) | — |
+| 9 | Watchdog supervisor | 0 |
 
 ---
 
@@ -674,7 +677,7 @@ board.set_digits(controller_id: 1–7, digits: uint8[8], dot_position: 0–7 or 
 board.set_display_brightness(controller_id: 1–7, brightness: 0–8 (values above 8 clamp to 8))
 board.send_echo(payload: bytes)
 board.query_error_counter(counter_index: 0–22)
-board.query_task_status(task_index: 0–8)
+board.query_task_status(task_index: 0–9)
 ```
 
 ### 7.4 Diagnostics
@@ -687,7 +690,7 @@ board.ping() → Future<round_trip_ms>       // convenience wrapper around echo
 
 `query_all_error_counters()` sends 23 individual error status queries (indices 0–22) and collects the responses. The library should handle response correlation by matching the counter index in the response payload to the original request.
 
-`query_all_task_stats()` sends 9 individual task status queries (indices 0–8) and collects the responses.
+`query_all_task_stats()` sends 10 individual task status queries (indices 0–9) and collects the responses.
 
 ### 7.5 Multi-Board Management
 

@@ -34,6 +34,11 @@ task_props_t *app_context_task_props(task_enum_t task_id)
 	return props;
 }
 
+task_props_t *app_context_supervisor_props(void)
+{
+	return &app_context_get()->supervisor_props;
+}
+
 QueueHandle_t app_context_get_encoded_queue(void)
 {
 	return app_context_get()->encoded_reception_queue;
@@ -76,6 +81,8 @@ void app_context_reset_task_props(void)
 		s_app_context.task_props[i].high_watermark = 0U;
 		s_app_context.task_props[i].task_handle = NULL;
 	}
+	s_app_context.supervisor_props.high_watermark = 0U;
+	s_app_context.supervisor_props.task_handle = NULL;
 }
 
 void app_context_reset_queues(void)

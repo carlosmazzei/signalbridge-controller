@@ -172,6 +172,8 @@
 #define ADC_READ_STACK_SIZE         (4U * configMINIMAL_STACK_SIZE)
 /** Stack depth of the keypad and rotary-encoder task. */
 #define KEYPAD_STACK_SIZE           (5U * configMINIMAL_STACK_SIZE)
+/** Stack depth of the watchdog supervisor task. */
+#define WATCHDOG_TASK_STACK_SIZE    (2U * configMINIMAL_STACK_SIZE)
 
 /**
  * @brief Task core affinity masks.
@@ -189,6 +191,7 @@
 #define PROCESS_OUTBOUND_TASK_CORE_AFFINITY CORE_1_AFFINITY /**< Core assigned to the outbound event task. */
 #define ADC_READ_TASK_CORE_AFFINITY         CORE_1_AFFINITY /**< Core assigned to the ADC sampling task. */
 #define KEYPAD_TASK_CORE_AFFINITY           CORE_1_AFFINITY /**< Core assigned to the keypad task. */
+#define WATCHDOG_TASK_CORE_AFFINITY         CORE_0_AFFINITY /**< Core assigned to the watchdog supervisor task. */
 
 /**
  * @brief Enumerates the tasks created in the system.
@@ -205,5 +208,11 @@ typedef enum task_enum_t {
 	LED_STATUS_TASK,       /**< System status LED task */
 	NUM_TASKS              /**< Number of tasks in the system */
 } task_enum_t;
+
+/**
+ * @brief Task-status index for the watchdog supervisor (9); index @ref NUM_TASKS
+ *        (8) remains reserved for idle-task and heap statistics.
+ */
+#define WATCHDOG_TASK_STATUS_INDEX ((uint8_t)NUM_TASKS + 1U)
 
 #endif // APP_CONFIG_H

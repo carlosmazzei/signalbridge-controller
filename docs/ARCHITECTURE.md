@@ -10,7 +10,7 @@ The system follows a producer–consumer pipeline that spreads work across the t
 - Data flow diagram: `../assets/data_flow_diagram_en.png`
 
 ## Task Architecture
-Eight application tasks and a separate watchdog supervisor divide responsibilities with explicit core affinity. Diagnostic task indices remain 0–7, with index 8 reserved for idle/heap statistics:
+Eight application tasks and a separate watchdog supervisor divide responsibilities with explicit core affinity. Task-status indices 0–7 report application tasks, index 8 reports idle/heap statistics, and index 9 reports the watchdog supervisor; the supervisor remains outside `task_enum_t` and is not checked by its own task-health loop:
 
 | Task | Core | Purpose |
 | :--- | :---: | :--- |
@@ -22,7 +22,7 @@ Eight application tasks and a separate watchdog supervisor divide responsibiliti
 | Process outbound task | 1 | Formats outbound events and places them in the transmit queue. |
 | ADC read task | 1 | Samples ADC channels with µs-resolution settling, oversamples and applies a moving-average filter plus hysteresis deadband, and generates events only on significant change. Tunable via `adc_settling_us`, `adc_oversample`, `adc_hysteresis`, `adc_scan_interval_ms` and `adc_channels` (lower the channel count to scan only active throttle/sidestick axes for higher refresh rate). |
 | Keypad task | 1 | Scans the keypad matrix and emits key events. |
-| Watchdog supervisor | 0 | Checks progress of all eight tasks and feeds the hardware watchdog only while healthy. |
+| Watchdog supervisor (task-status index 9) | 0 | Checks progress of all eight application tasks and feeds the hardware watchdog only while healthy. |
 
 Encoder polling runs inside the keypad task, between column scans.
 
