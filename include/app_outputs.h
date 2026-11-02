@@ -28,8 +28,14 @@
  * @name SPI fabric configuration
  * @{
  */
-/** Nominal SPI bus frequency used for TM1639 devices (500 kHz). */
-#define SPI_FREQUENCY (500U * 1000U)
+/**
+ * Nominal SPI bus frequency used for TM1639 devices (1 MHz).
+ *
+ * 1 MHz is the TM1639 datasheet maximum (min CLK pulse width 400 ns; the
+ * RP2040 SPI produces 500 ns half-periods at this rate). Revert to
+ * (500U * 1000U) if signal integrity through the multiplexer degrades.
+ */
+#define SPI_FREQUENCY (1000U * 1000U)
 /** Total number of logical SPI interfaces exposed through the multiplexer. */
 #define MAX_SPI_INTERFACES 8U
 /** Number of GPIOs exposed by the RP2040 package. */
@@ -98,7 +104,7 @@
 #define DISPLAY_CMD_MASK 0x1FU
 /** Command value for updating BCD digits. */
 #define DISPLAY_CMD_SET_DIGITS 0x00U
-/** Command value for updating brightness (0 = off, 1-7 = on). */
+/** Command value for updating brightness (0 = off, 1-8 = on). */
 #define DISPLAY_CMD_SET_BRIGHTNESS 0x01U
 /** @} */
 
@@ -109,6 +115,7 @@
  * host (minus one) and selects the driver implementation that should handle a
  * given payload.
  */
+#ifndef DEVICE_CONFIG
 #define DEVICE_CONFIG { \
 		DEVICE_TM1639_DIGIT, /* Device 0 */ \
 		DEVICE_NONE, /* Device 1 */ \
@@ -119,6 +126,8 @@
 		DEVICE_NONE, /* Device 6 */ \
 		DEVICE_NONE  /* Device 7 */ \
 }
+
+#endif // DEVICE_CONFIG
 
 /**
  * @brief Result codes returned by output helpers.
@@ -145,14 +154,14 @@ struct output_driver_t {
 	output_result_t (*select_interface)(uint8_t chip_id, bool select); /**< Mux control callback. */
 	output_result_t (*set_digits)(output_driver_t *config, const uint8_t *digits, size_t length, uint8_t dot_position); /**< Digit update callback. */
 	output_result_t (*set_leds)(output_driver_t *config, uint8_t leds, uint8_t ledstate); /**< LED update callback. */
-	output_result_t (*set_brightness)(output_driver_t *config, uint8_t brightness); /**< Brightness update callback (0-7). */
+	output_result_t (*set_brightness)(output_driver_t *config, uint8_t brightness); /**< Brightness callback: 0 off, 1-8 increasing; larger values clamp to 8. */
 	spi_inst_t *spi; /**< SPI instance used by the device (if applicable). */
 	uint8_t dio_pin; /**< GPIO pin used as DIO for TM1637 bit-banging. */
 	uint8_t clk_pin; /**< GPIO pin used as CLK for TM1637 bit-banging. */
 	uint8_t active_buffer[16]; /**< Snapshot of the last committed frame. */
 	uint8_t prep_buffer[16];   /**< Staging buffer used before flushing to hardware. */
 	bool buffer_modified;      /**< Indicates that @ref prep_buffer needs flushing. */
-	uint8_t brightness;        /**< Driver brightness level (0-7). */
+	uint8_t brightness;        /**< Driver brightness level (0-8). */
 	bool display_on;           /**< Current display state. */
 };
 
@@ -189,7 +198,7 @@ output_result_t output_init(void);
  * Byte 5: Decimal point position (0-7 for position, 0xFF for no decimal point)
  *
  * When DISPLAY_CMD_SET_BRIGHTNESS is used, Byte 1 holds the brightness level
- * (0 = off, 1-7 = on).
+ * (0 = off, 1-8 = on).
  *
  * @param[in] payload Encoded display payload received from the host.
  * @param[in] length  Number of bytes available in @p payload.

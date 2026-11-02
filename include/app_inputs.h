@@ -93,8 +93,18 @@
 #define ADC_NUM_TAPS 4U
 /** log2(@ref ADC_NUM_TAPS); used for mask/shift optimisations in the filter. */
 #define ADC_NUM_TAPS_SHIFT 2U
-/** Default µs settling delay between channel selections (74HC4067 + ~10 kΩ pot). */
-#define ADC_DEFAULT_SETTLING_US 500U
+/**
+ * Default µs settling delay between channel selections (74HC4067 + ~10 kΩ pot).
+ *
+ * This delay is a busy_wait_us_32() spin on core 1, paid once per enabled
+ * channel per scan, so it dominates the ADC task's CPU cost (16 channels x
+ * this value per scan). The 74HC4067 switches in < 1 µs and the realistic
+ * source RC constant is well under 10 µs, so 100 µs keeps > 10x margin while
+ * cutting the per-scan spin from ~8 ms to ~1.6 ms. Runtime-tunable through
+ * input_config.adc_settling_us; raise back toward 500U if a high-impedance
+ * source shows crosstalk between adjacent channels.
+ */
+#define ADC_DEFAULT_SETTLING_US 100U
 /** Default number of raw samples averaged per channel per scan. */
 #define ADC_DEFAULT_OVERSAMPLE 4U
 /** Default hysteresis (in raw 12-bit LSBs) applied before emitting a new event. */
@@ -200,6 +210,9 @@ input_result_t input_init(void);
 /**
  * @brief FreeRTOS task that scans the keypad matrix and generates key events.
  *
+ * Absolute key states are retained for retry until accepted by the USB writer;
+ * relative encoder steps remain best-effort queue events.
+ *
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void keypad_task(void *pvParameters);
@@ -207,10 +220,16 @@ void keypad_task(void *pvParameters);
 /**
  * @brief FreeRTOS task that samples the ADC multiplexer and reports changes.
  *
+ * It reports the first filtered sample for each channel and later values only
+ * when their absolute delta meets the configured hysteresis threshold.
+ * Suppressed samples increment the diagnostic
+ * @ref INPUT_HYSTERESIS_SUPPRESSED counter.
+ *
  * @param[in,out] pvParameters Pointer to the owning @ref task_props_t instance.
  */
 void adc_read_task(void *pvParameters);
 
+#ifdef SIGNALBRIDGE_UNIT_TEST
 /**
  * @brief Query whether a keypad matrix position is mapped to an encoder.
  *
@@ -220,8 +239,11 @@ void adc_read_task(void *pvParameters);
  * @retval true  The position is part of an encoder pair and is excluded
  *               from keypad scanning.
  * @retval false The position is a regular key.
+ *
+ * Test-only accessor, compiled into host unit-test builds only.
  */
 bool input_is_encoder_position(uint8_t row, uint8_t col);
+#endif // SIGNALBRIDGE_UNIT_TEST
 
 /**
  * @brief Decide whether a new ADC reading is significant enough to emit.

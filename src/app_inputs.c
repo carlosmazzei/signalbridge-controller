@@ -21,6 +21,8 @@
 #include <hardware/watchdog.h>
 #include "task_props.h"
 #include "app_context.h"
+#include "input_delivery.h"
+#include "task_health.h"
 
 /**
  * @brief Input configuration instance (module scope).
@@ -40,9 +42,13 @@ static input_config_t input_config = {
 		{ .row = 7U, .col = 2U, .enabled = true },
 		{ .row = 7U, .col = 4U, .enabled = true },
 		{ .row = 7U, .col = 6U, .enabled = true },
+		{ .row = 0U, .col = 0U, .enabled = false },
+		{ .row = 0U, .col = 0U, .enabled = false },
+		{ .row = 0U, .col = 0U, .enabled = false },
+		{ .row = 0U, .col = 0U, .enabled = false },
 	},
-	.col_mux_settling_us      = 1U,  /* 74HC138: tPD ~12 ns; 1 µs provides 83x margin */
-	.row_mux_settling_us      = 1U,  /* 74HC4051: tEN ~100 ns; 1 µs provides 10x margin */
+	.col_mux_settling_us      = 1U,  // 74HC138: tPD ~12 ns; 1 µs provides 83x margin
+	.row_mux_settling_us      = 1U,  // 74HC4051: tEN ~100 ns; 1 µs provides 10x margin
 	.adc_channel_mask         = ADC_DEFAULT_CHANNEL_MASK
 };
 
@@ -109,14 +115,14 @@ static bool check_config_params(const input_config_t *config)
 	{
 		if (config->encoder_map[i].enabled)
 		{
-			/* Channel B is at col + 1, so col + 1 must be < columns */
+			// Channel B is at col + 1, so col + 1 must be < columns
 			if ((config->encoder_map[i].row >= config->rows) ||
 			    ((config->encoder_map[i].col + 1U) >= config->columns))
 			{
 				result = false;
 			}
 
-			/* Reject overlapping positions on the same row */
+			// Reject overlapping positions on the same row
 			for (uint8_t j = 0U; (j < i) && result; j++)
 			{
 				if (config->encoder_map[j].enabled &&
@@ -137,9 +143,35 @@ static bool check_config_params(const input_config_t *config)
 	return result;
 }
 
+static input_result_t input_init_resources(void);
+
 input_result_t input_init(void)
 {
 	input_result_t result = INPUT_OK;
+
+	// Inputs may only be (re)initialised before the scheduler starts.
+	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
+	{
+		result = INPUT_ERROR;
+	}
+	else
+	{
+		result = input_init_resources();
+	}
+
+	return result;
+}
+
+/**
+ * @brief Allocate the event queue and configure the input GPIOs and ADC.
+ *
+ * @return INPUT_OK on success or an input error code otherwise.
+ */
+static input_result_t input_init_resources(void)
+{
+	input_result_t result = INPUT_OK;
+
+	input_delivery_reset();
 
 	QueueHandle_t existing_queue = app_context_get_data_event_queue();
 	if (existing_queue != NULL)
@@ -193,10 +225,12 @@ input_result_t input_init(void)
 	return result;
 }
 
+#ifdef SIGNALBRIDGE_UNIT_TEST
 bool input_is_encoder_position(uint8_t row, uint8_t col)
 {
 	return encoder_skip[row][col];
 }
+#endif
 
 /**
  * @brief Control the chip select (CS) for the keypad row multiplexer.
@@ -266,18 +300,7 @@ static void keypad_set_rows(uint8_t rows)
  */
 static void keypad_generate_event(uint8_t row, uint8_t column, uint8_t state)
 {
-	if (NULL != app_context_get_data_event_queue())
-	{
-		data_events_t key_event;
-		key_event.command = PC_KEY_CMD;
-		key_event.data[0] = ((column << 4U) | (row << 1U)) & 0xFEU;
-		key_event.data[0] |= state;
-		key_event.data_length = 1;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &key_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
-		{
-			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
-		}
-	}
+	input_delivery_key(row, column, state == KEY_PRESSED);
 }
 
 /**
@@ -290,27 +313,24 @@ static void encoder_generate_event(uint8_t rotary, uint16_t direction)
 {
 	if (NULL != app_context_get_data_event_queue())
 	{
-		data_events_t encoder_event;
-		encoder_event.data[0] = 0;
-		encoder_event.data[1] = 0;
-		encoder_event.command = PC_ROTARY_CMD;
-		encoder_event.data[0] |= rotary << 4;
-		encoder_event.data[1] |= direction;
-		encoder_event.data_length = 2;
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, pdMS_TO_TICKS(INPUT_QUEUE_SEND_TIMEOUT_MS)))
+		data_events_t encoder_event = {0};
+		// Relative encoder steps are dropped while the host is disconnected.
+		if (app_context_is_cdc_ready())
 		{
-			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+			encoder_event.session = app_context_cdc_session();
+			encoder_event.data[0] = 0;
+			encoder_event.data[1] = 0;
+			encoder_event.command = PC_ROTARY_CMD;
+			encoder_event.data[0] |= rotary << 4;
+			encoder_event.data[1] |= direction;
+			encoder_event.data_length = 2;
+			if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &encoder_event, 0U))
+			{
+				statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
+			}
 		}
 	}
 }
-
-/**
- * @brief Quadrature lookup table used by the encoder state machine.
- *
- * The four LSBs encode the previous and current A/B samples. Each entry
- * provides the detent delta (-1, 0, or +1) for that transition.
- */
-static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 
 /**
  * @brief Sample all enabled rotary encoders and emit rotation events.
@@ -322,6 +342,10 @@ static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0,
  */
 static void scan_encoders(encoder_states_t encoder_state[MAX_NUM_ENCODERS])
 {
+	/* Quadrature lookup table: the four LSBs encode the previous and current
+	 * A/B samples; each entry is the detent delta (-1, 0 or +1). */
+	static const int8_t encoder_lut[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+
 	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
 	{
 		if (!input_config.encoder_map[i].enabled)
@@ -332,26 +356,26 @@ static void scan_encoders(encoder_states_t encoder_state[MAX_NUM_ENCODERS])
 		uint8_t r = input_config.encoder_map[i].row;
 		uint8_t c = input_config.encoder_map[i].col;
 
-		/* Select row */
+		// Select row
 		keypad_cs_rows(true);
 		keypad_set_rows(r);
 		busy_wait_us_32(input_config.row_mux_settling_us);
 
-		/* Read channel A */
+		// Read channel A
 		keypad_cs_columns(true);
 		keypad_set_columns(c);
 		busy_wait_us_32(input_config.col_mux_settling_us);
-		bool ch_a = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
+		bool ch_a = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
 
-		/* Read channel B */
+		// Read channel B
 		keypad_set_columns(c + 1U);
 		busy_wait_us_32(input_config.col_mux_settling_us);
-		bool ch_b = !gpio_get(KEYPAD_ROW_INPUT); /* Active low pin */
+		bool ch_b = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
 
 		keypad_cs_columns(false);
 		keypad_cs_rows(false);
 
-		/* Quadrature state machine: shift previous state, OR in new sample */
+		// Quadrature state machine: shift previous state, OR in new sample
 		encoder_state[i].old_encoder <<= 2U;
 		encoder_state[i].old_encoder |= (uint8_t)(ch_a ? 1U : 0U);
 		encoder_state[i].old_encoder |= (uint8_t)((uint8_t)(ch_b ? 1U : 0U) << 1U) & 0x03U;
@@ -372,8 +396,10 @@ static void scan_encoders(encoder_states_t encoder_state[MAX_NUM_ENCODERS])
 
 void keypad_task(void *pvParameters)
 {
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t * task_props = (task_props_t*) pvParameters;
 	encoder_states_t encoder_state[MAX_NUM_ENCODERS];
+	uint32_t loop_count = 0U;
 
 	for (uint8_t i = 0U; i < MAX_NUM_ENCODERS; i++)
 	{
@@ -396,7 +422,7 @@ void keypad_task(void *pvParameters)
 			{
 				if (encoder_skip[r][c])
 				{
-					continue; /* Skip position mapped to an encoder */
+					continue; // Skip position mapped to an encoder
 				}
 
 				keypad_set_rows(r); // Also set the ADC channels
@@ -409,11 +435,13 @@ void keypad_task(void *pvParameters)
 				bool pressed = !gpio_get(KEYPAD_ROW_INPUT); // Active low pin
 				keypad_state[keycode] = ((keypad_state[keycode] << 1U) & 0xFEU) | (pressed ? 1U : 0U);
 
-				if (KEY_PRESSED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
+				if ((KEY_PRESSED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK)) ||
+				    (KEYPAD_STABILITY_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK)))
 				{
 					keypad_generate_event(r, c, KEY_PRESSED);
 				}
-				if (KEY_RELEASED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))
+				if ((KEY_RELEASED_MASK == (keypad_state[keycode] & KEYPAD_STABILITY_MASK)) ||
+				    ((loop_count >= 2U) && (0U == (keypad_state[keycode] & KEYPAD_STABILITY_MASK))))
 				{
 					keypad_generate_event(r, c, KEY_RELEASED);
 				}
@@ -428,8 +456,15 @@ void keypad_task(void *pvParameters)
 			scan_encoders(encoder_state);
 		}
 
-		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		/* The watermark scan walks the whole task stack; at a ~2 ms scan
+		 * cadence that is ~2.5 MB/s of reads, so refresh it only every
+		 * 64th pass (diagnostic-only data). */
+		if (0U == (loop_count & 63U))
+		{
+			task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
+		task_health_progress(KEYPAD_TASK, time_us_32());
 
 		// Scan-cycle interval: controls debounce window (window = key_settling_time_ms * required samples)
 		vTaskDelay(pdMS_TO_TICKS(input_config.key_settling_time_ms));
@@ -447,21 +482,7 @@ void keypad_task(void *pvParameters)
  */
 static void adc_generate_event(uint8_t channel, uint16_t value)
 {
-	if (NULL != app_context_get_data_event_queue())
-	{
-		data_events_t adc_event;
-		adc_event.command = PC_AD_CMD;
-		adc_event.data[0] = channel;
-		adc_event.data[1] = (value & 0xFF00U) >> 8;
-		adc_event.data[2] = value & 0x00FFU;
-		adc_event.data_length = 3;
-		// Non-blocking: the ADC task runs at ~122 Hz; a blocking send on a full
-		// queue would stall the whole scan. Drop the event and account for it.
-		if (pdPASS != xQueueSend(app_context_get_data_event_queue(), &adc_event, 0U))
-		{
-			statistics_increment_counter(INPUT_QUEUE_FULL_ERROR);
-		}
-	}
+	input_delivery_adc(channel, value);
 }
 
 /**
@@ -530,14 +551,19 @@ static uint16_t adc_read_oversampled(uint8_t samples)
 
 bool adc_should_emit(uint16_t previous, uint16_t current, uint16_t hysteresis)
 {
+	bool emit = false;
+
 	if (0U == hysteresis)
 	{
-		return previous != current;
+		emit = (previous != current);
 	}
-
-	uint16_t delta = (current >= previous) ? (uint16_t)(current - previous)
-	                                       : (uint16_t)(previous - current);
-	return delta >= hysteresis;
+	else
+	{
+		const uint16_t delta = (current >= previous) ? (uint16_t)(current - previous)
+		                                             : (uint16_t)(previous - current);
+		emit = (delta >= hysteresis);
+	}
+	return emit;
 }
 
 void adc_read_task(void *pvParameters)
@@ -548,7 +574,9 @@ void adc_read_task(void *pvParameters)
 	static adc_states_t adc_states;
 	static bool adc_channel_primed[ADC_CHANNELS];
 
+	// cppcheck-suppress misra-c2012-11.5 ; Deviation D6: FreeRTOS passes task parameters and heap blocks as void *
 	task_props_t * task_props = (task_props_t*) pvParameters;
+	uint32_t loop_count = 0U;
 
 	// Initialize the ADC states
 	for (uint8_t i = 0; i < ADC_CHANNELS; i++)
@@ -587,7 +615,8 @@ void adc_read_task(void *pvParameters)
 
 			// Prime the moving-average buffer on the first scan so the initial
 			// emitted value reflects reality instead of ramping from zero.
-			if (!adc_channel_primed[chan])
+			bool first_sample = !adc_channel_primed[chan];
+			if (first_sample)
 			{
 				for (uint8_t j = 0; j < ADC_NUM_TAPS; j++)
 				{
@@ -602,7 +631,7 @@ void adc_read_task(void *pvParameters)
 			uint16_t filtered_value =
 				adc_moving_average(chan, adc_raw, adc_states.adc_sample_value[chan], &adc_states);
 
-			if (adc_should_emit(adc_states.adc_previous_value[chan], filtered_value, input_config.adc_hysteresis))
+			if (first_sample || adc_should_emit(adc_states.adc_previous_value[chan], filtered_value, input_config.adc_hysteresis))
 			{
 				adc_generate_event(chan, filtered_value);
 				adc_states.adc_previous_value[chan] = filtered_value;
@@ -617,32 +646,16 @@ void adc_read_task(void *pvParameters)
 		// idle ADC line while same-priority tasks run.
 		adc_mux_select(0);
 
-		task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
-		watchdog_update();
+		/* Diagnostic-only full-stack scan: refresh every 64th pass to keep
+		 * it off the scan hot path. */
+		if (0U == (loop_count & 63U))
+		{
+			task_props->high_watermark = uxTaskGetStackHighWaterMark(NULL);
+		}
+		loop_count++;
+		task_health_progress(ADC_READ_TASK, time_us_32());
 
 		// Cooperative yield: lets same-priority tasks (keypad) run between scans
 		vTaskDelay(pdMS_TO_TICKS(input_config.adc_scan_interval_ms));
 	}
-}
-
-/**
- * @brief Set encoder enable mask (reserved for future use)
- *
- * This function is currently unused but reserved for dynamic encoder
- * enable/disable functionality. Potential use cases:
- * - Runtime configuration of active encoders
- * - Power-saving mode (disable unused encoders)
- * - Diagnostic mode (test individual encoders)
- *
- * @param[in] mask Bitmask indicating which encoders to enable (bit N = encoder N)
- *
- * @note Currently static. Can be exposed via app_inputs.h if needed.
- */
-static void encoder_set_mask(uint8_t mask)
-{
-	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
-	{
-		input_config.encoder_map[i].enabled = ((mask & (1U << i)) != 0U);
-	}
-	build_encoder_skip();
 }

@@ -169,6 +169,40 @@ static void test_set_leds_clears_previously_lit_leds(void **state)
     assert_int_equal(0x05, driver.active_buffer[5]);
 }
 
+static void test_flush_batches_address_and_data_in_one_spi_write(void **state)
+{
+    (void) state;
+    output_driver_t driver;
+    init_stub_driver(&driver);
+
+    mock_spi_reset();
+
+    // set_leds marks the buffer modified and triggers a full flush.
+    assert_int_equal(OUTPUT_OK, tm1639_set_leds(&driver, 0U, 0xFFU));
+
+    // The flush must be exactly two SPI transactions: the data command,
+    // then the address command batched with all 16 buffer bytes.
+    assert_int_equal(2, mock_spi_call_count());
+
+    const mock_spi_call_t *cmd = mock_spi_call(0U);
+    assert_non_null(cmd);
+    assert_int_equal(1, cmd->len);
+    assert_int_equal(TM1639_CMD_DATA_WRITE, cmd->data[0]);
+
+    const mock_spi_call_t *burst = mock_spi_call(1U);
+    assert_non_null(burst);
+    assert_int_equal(1U + TM1639_DISPLAY_BUFFER_SIZE, burst->len);
+    assert_int_equal(TM1639_CMD_ADDR_BASE, burst->data[0]);
+
+    // Column 0 payload lands at addresses 0 and 1 (low/high nibble split);
+    // the rest of the buffer stays dark.
+    assert_int_equal(0x0F, burst->data[1]);
+    assert_int_equal(0x0F, burst->data[2]);
+    for (size_t i = 3U; i <= TM1639_DISPLAY_BUFFER_SIZE; i++) {
+        assert_int_equal(0x00, burst->data[i]);
+    }
+}
+
 static void test_set_leds_example_from_protocol_doc(void **state)
 {
     (void) state;
@@ -201,6 +235,7 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_set_leds_preserves_adjacent_columns, setup, teardown),
         cmocka_unit_test_setup_teardown(test_set_leds_clears_previously_lit_leds, setup, teardown),
         cmocka_unit_test_setup_teardown(test_set_leds_example_from_protocol_doc, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_flush_batches_address_and_data_in_one_spi_write, setup, teardown),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

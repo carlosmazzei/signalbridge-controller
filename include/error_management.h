@@ -15,82 +15,70 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Watchdog timer delay
+/** Hardware watchdog timeout before reset, in milliseconds. */
 #define WATCHDOG_GRACE_PERIOD_MS 5000U
 
-// Error LED configuration
+/** GPIO pin used to display fatal and recoverable error patterns. */
 #define ERROR_LED_PIN PICO_DEFAULT_LED_PIN
 
-// Timing constants (milliseconds)
-#define BLINK_ON_MS      150     // LED on time
-#define BLINK_OFF_MS     150     // Time between blinks in pattern
-#define PATTERN_PAUSE_MS 2000    // Pause between pattern repeats
-#define LED_POLL_INTERVAL_MS 100 // LED status check interval for connected state
+/** Error LED on-time for each pulse in a pattern, in milliseconds. */
+#define BLINK_ON_MS 150
+/** Gap between pulses in an error pattern, in milliseconds. */
+#define BLINK_OFF_MS 150
+/** Pause between repeated error patterns, in milliseconds. */
+#define PATTERN_PAUSE_MS 2000
+/** Interval between status LED checks, in milliseconds. */
+#define LED_POLL_INTERVAL_MS 100
 
-// Watchdog scratch register usage
+/** Watchdog scratch register retaining the count of watchdog resets. */
 #define WATCHDOG_ERROR_COUNT_REG       0
+/** Watchdog scratch register retaining the most recent fatal error type. */
 #define WATCHDOG_ERROR_LAST_TYPE_REG   1
 
 /**
- * @enum error_type_t
- * @brief Enumerates different error types in the system.
+ * @typedef error_type_t
+ * @brief Error codes used by error reporting and fatal halt handling.
  */
 typedef enum {
-	ERROR_NONE = 0,
-	ERROR_WATCHDOG_TIMEOUT = 1,
-	ERROR_FREERTOS_STACK = 2,
-	ERROR_PICO_SDK_PANIC = 3,
-	ERROR_SCHEDULER_FAILED = 4,
-	ERROR_RESOURCE_ALLOCATION = 5,
-	ERROR_USB_INIT = 6,
+	ERROR_NONE = 0,                  /**< No recoverable error is currently recorded. */
+	ERROR_WATCHDOG_TIMEOUT = 1,      /**< A task health timeout was detected. */
+	ERROR_FREERTOS_STACK = 2,        /**< FreeRTOS heap or stack failure occurred. */
+	ERROR_PICO_SDK_PANIC = 3,        /**< The Pico SDK invoked the panic handler. */
+	ERROR_SCHEDULER_FAILED = 4,      /**< The FreeRTOS scheduler returned unexpectedly. */
+	ERROR_RESOURCE_ALLOCATION = 5,   /**< Application resource allocation failed. */
+	ERROR_USB_INIT = 6,              /**< USB communication subsystem initialisation failed. */
 } error_type_t;
 
 /**
- * @enum statistics_counter_enum_t
- * @brief Enumerates different error types in the system.
+ * @typedef statistics_counter_enum_t
+ * @brief Indexes diagnostic and error counters reported to the host.
  */
 typedef enum statistics_counter_enum_t {
-	// Main error enums
-	QUEUE_SEND_ERROR,
-	QUEUE_RECEIVE_ERROR,
-	CDC_QUEUE_SEND_ERROR,
-	DISPLAY_OUT_ERROR,
-	LED_OUT_ERROR,
-	WATCHDOG_ERROR,
-	MSG_MALFORMED_ERROR,
-	COBS_DECODE_ERROR,
-	RECEIVE_BUFFER_OVERFLOW_ERROR,
-	CHECKSUM_ERROR,
-	BUFFER_OVERFLOW_ERROR,
-	UNKNOWN_CMD_ERROR,
-	BYTES_SENT,
-	BYTES_RECEIVED,
-	RESOURCE_ALLOCATION_ERROR,
-
-	// Output error enums
-	OUTPUT_CONTROLLER_ID_ERROR,
-	OUTPUT_INIT_ERROR,
-	OUTPUT_DRIVER_INIT_ERROR,
-	OUTPUT_INVALID_PARAM_ERROR,
-
-	// Input error enums
-	INPUT_QUEUE_INIT_ERROR,
-	INPUT_QUEUE_FULL_ERROR,
-	INPUT_INIT_ERROR,
-	INPUT_HYSTERESIS_SUPPRESSED,
-
-	NUM_STATISTICS_COUNTERS /**< Number of statistics counters */
+	QUEUE_SEND_ERROR,                 /**< Input event queue send failures. */
+	QUEUE_RECEIVE_ERROR,              /**< Input event queue receive failures. */
+	CDC_QUEUE_SEND_ERROR,             /**< CDC transmit queue send failures. */
+	DISPLAY_OUT_ERROR,                /**< Display output operation failures. */
+	LED_OUT_ERROR,                    /**< LED output operation failures. */
+	WATCHDOG_ERROR,                   /**< Watchdog resets recorded across boots. */
+	MSG_MALFORMED_ERROR,              /**< Inbound frames with invalid message structure. */
+	COBS_DECODE_ERROR,                /**< Empty or invalid COBS frames. */
+	RECEIVE_BUFFER_OVERFLOW_ERROR,    /**< Encoded input exceeded the framer capacity. */
+	CHECKSUM_ERROR,                   /**< Inbound frame checksum mismatches. */
+	BUFFER_OVERFLOW_ERROR,            /**< Packet or output buffer capacity violations. */
+	UNKNOWN_CMD_ERROR,                /**< Unsupported board or command identifiers. */
+	BYTES_SENT,                       /**< Total encoded bytes accepted for USB transmission. */
+	BYTES_RECEIVED,                   /**< Total bytes read from the USB CDC FIFO. */
+	RESOURCE_ALLOCATION_ERROR,        /**< Application resource allocation failures. */
+	OUTPUT_CONTROLLER_ID_ERROR,       /**< Output payload contains an invalid controller ID. */
+	OUTPUT_INIT_ERROR,                /**< Output subsystem initialisation failures. */
+	OUTPUT_DRIVER_INIT_ERROR,         /**< Individual output driver initialisation failures. */
+	OUTPUT_INVALID_PARAM_ERROR,       /**< Output payload parameter validation failures. */
+	INPUT_QUEUE_INIT_ERROR,           /**< Input event queue initialisation failures. */
+	INPUT_QUEUE_FULL_ERROR,           /**< Input event queue send timeouts or capacity drops. */
+	INPUT_INIT_ERROR,                 /**< Input subsystem initialisation failures. */
+	INPUT_HYSTERESIS_SUPPRESSED,      /**< ADC samples suppressed by the hysteresis deadband; diagnostic only. */
+	NUM_STATISTICS_COUNTERS           /**< Number of statistics counters. */
 } statistics_counter_enum_t;
-
-/**
- * @struct statistics_counters_t
- * @brief Holds counters for different error types.
- */
-typedef struct statistics_counters_t {
-	uint32_t counters[NUM_STATISTICS_COUNTERS]; /**< Array of statistics counters */
-	bool error_state;                  /**< Flag indicating critical error state */
-	error_type_t current_error_type;
-} statistics_counters_t;
 
 /**
  * @brief Increment a statistics counter.
@@ -150,16 +138,34 @@ error_type_t statistics_get_error_type(void);
 void error_management_set_error_state(error_type_t type);
 
 /**
+ * @fn void fatal_halt(error_type_t type)
  * @brief Immediately halt execution and display a fatal error pattern.
  *
- * This function does not return. It disables interrupts and enters
- * an infinite loop displaying the error pattern for the specified error type.
+ * Records the fatal state and error code, then repeatedly displays its LED
+ * pattern until the hardware watchdog resets the device.
  *
+ * @param[in] type Fatal error code to record and display.
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type);
 
 /**
- * @brief Check if an error type supports automatic recovery.
+ * @fn void panic_handler(const char *fmt, ...)
+ * @brief Handle a Pico SDK panic by recording a fatal error and halting.
+ *
+ * @param[in] fmt Format string supplied by the Pico SDK; this handler does not
+ *                format or print it.
+ * @param[in] ... Variadic values corresponding to @p fmt.
+ */
+void __attribute__((noreturn)) panic_handler(const char *fmt, ...);
+
+/**
+ * @brief Check whether an error type is fatal.
+ *
+ * @param[in] type Error code to classify.
+ *
+ * @retval true The type is not classified as a recoverable watchdog or
+ *              resource-allocation error.
+ * @retval false The type is classified as recoverable.
  */
 bool error_management_is_fatal(error_type_t type);
 
@@ -171,10 +177,18 @@ bool error_management_is_fatal(error_type_t type);
 void show_error_pattern_blocking(error_type_t error_type);
 
 /**
- * @brief Set the up watchdog with error detection object
+ * @brief Configure the watchdog, error LED, and persistent reset counter.
  *
- * @param[in] timeout_ms Timeout value in milliseconds
+ * @param[in] timeout_ms Hardware watchdog timeout in milliseconds.
  */
 void setup_watchdog_with_error_detection(uint32_t timeout_ms);
+
+/**
+ * @brief Check whether a fatal error has been recorded.
+ *
+ * @return `true` after the fatal halt routine records an error; otherwise
+ *         `false`.
+ */
+bool error_management_has_fatal_error(void);
 
 #endif // ERROR_MANAGEMENT_H

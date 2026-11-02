@@ -23,3 +23,11 @@
 
 # Note: All project-specific defines (FreeRTOS, Pico SDK, TinyUSB) are already in compile_commands.json
 # Note: All include paths are already in compile_commands.json
+
+# GCC atomic memory-order constants (compiler built-ins used by stdatomic.h).
+-D__ATOMIC_RELAXED=0
+-D__ATOMIC_CONSUME=1
+-D__ATOMIC_ACQUIRE=2
+-D__ATOMIC_RELEASE=3
+-D__ATOMIC_ACQ_REL=4
+-D__ATOMIC_SEQ_CST=5

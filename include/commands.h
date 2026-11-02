@@ -7,14 +7,13 @@
 #define COMMAND_LIB_DEFINES
 
 /**
- * @enum pc_commands_t
  * @brief Identifiers for commands handled by the breakout board firmware.
  *
  * The command space is limited to 5-bit values (0x01-0x1F). Values below 16
  * correspond to regular I/O operations while values starting at 16 are
  * reserved for diagnostics and housekeeping tasks.
  */
-typedef enum pc_commands_t {
+enum {
 	PC_PWM_CMD = 1,           /**< PWM output update */
 	PC_LEDOUT_CMD,            /**< LED matrix control */
 	PC_AD_CMD,                /**< Analog-to-digital conversion report */
@@ -45,6 +44,6 @@ typedef enum pc_commands_t {
 	PC_ID_REQUEST,            /**< Identification request */
 	PC_CONFIG_CMD,            /**< Configuration update */
 	PC_ENUMERATE_CMD          /**< Enumeration trigger */
-} pc_commands_t;
+};
 
 #endif // COMMAND_LIB_DEFINES

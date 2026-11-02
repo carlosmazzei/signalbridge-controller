@@ -23,11 +23,17 @@
 
 /**
  * @brief Application entry point initialising hardware and starting FreeRTOS.
+ *
+ * Startup initialises USB communication and I/O resources before creating the
+ * application and watchdog-supervisor tasks. If the scheduler returns, the
+ * firmware records a fatal scheduler error.
+ *
+ * @return Zero if the scheduler unexpectedly returns through the startup path.
  */
 int main(void)
 {
 	board_init();
-	stdio_init_all();
+	(void)stdio_init_all();
 
 	app_tasks_cleanup_application();
 	app_context_reset_queues();
@@ -64,7 +70,10 @@ int main(void)
 	}
 
 	// Initialize application tasks
-	(void)app_tasks_create_application();
+	if (!app_tasks_create_application())
+	{
+		fatal_halt(ERROR_RESOURCE_ALLOCATION);
+	}
 
 	// Initialize task scheduler
 	vTaskStartScheduler();

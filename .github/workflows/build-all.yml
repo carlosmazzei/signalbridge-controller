@@ -15,6 +15,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      rebuild_devcontainer:
+        description: 'Rebuild the DevContainer image even if its dependencies did not change'
+        type: boolean
+        default: false
 
 env:
   PICO_PLATFORM: rp2040
@@ -41,9 +46,15 @@ jobs:
         uses: dorny/paths-filter@v4
         with:
           filters: |
+            # Only the files baked into the image. Other .devcontainer files
+            # run from the checkout and reuse the cached image.
             devcontainer:
-              - '.devcontainer/**'
+              - '.devcontainer/Dockerfile'
+              - '.devcontainer/dependencies.json'
+              - '.devcontainer/resolve-dependencies.jq'
             firmware:
+              - '.devcontainer/post-create.sh'
+              - '.devcontainer/install_misra_addon.sh'
               - 'src/**'
               - 'include/**'
               - 'test/**'
@@ -56,7 +67,7 @@ jobs:
     name: Build DevContainer
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.devcontainer-changed == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-changes.outputs.devcontainer-changed == 'true' || inputs.rebuild_devcontainer
     permissions:
       contents: read
       packages: write
@@ -276,19 +287,24 @@ jobs:
   unit-tests:
     name: Quality Checks
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-firmware]
+    needs: [detect-changes, build-devcontainer, build-firmware]
     if: |
       always() &&
       (needs.detect-changes.outputs.firmware-changed == 'true' ||
        needs.detect-changes.outputs.devcontainer-changed == 'true' ||
+       github.event_name == 'release' ||
        github.event_name == 'workflow_dispatch') &&
-      (needs.build-devcontainer.result == 'success' || needs.build-devcontainer.result == 'skipped')
+      (needs.build-devcontainer.result == 'success' || needs.build-devcontainer.result == 'skipped') &&
+      needs.build-firmware.result == 'success'
     container:
       image: ${{ needs.build-devcontainer.outputs.image-tag || format('ghcr.io/{0}/devcontainer-embedded-debian:latest', github.repository) }}
       options: --user=root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    # Quality checks (uncrustify, cppcheck, host tests) report failures but do not fail
+    # this job yet. Set the repository variable ENFORCE_QUALITY_GATES=true to
+    # turn them into blocking gates for the workflow and the release.
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -328,19 +344,63 @@ jobs:
           echo "compile_commands.json present:"
           ls -l ./compile_commands.json
 
+      - name: Check formatting (uncrustify)
+        id: check_format
+        continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
+        shell: bash
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            uncrustify -q -c uncrustify.cfg --check "$file" > /dev/null || { echo "::error file=$file::Not formatted with uncrustify"; status=1; }
+          done < <(find src include \( -name '*.c' -o -name '*.h' \) -print0)
+          exit $status
+
       - name: Run Cppcheck (MISRA)
+        id: run_cppcheck
+        continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
         run: ./scripts/run_cppcheck.sh
 
       - name: Configure tests
+        id: configure_tests
+        continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
         run: cmake --preset host-tests
 
       - name: Build tests
+        id: build_tests
+        continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
         run: cmake --build --preset host-tests
 
       - name: Run tests
+        id: run_tests
+        continue-on-error: ${{ vars.ENFORCE_QUALITY_GATES != 'true' }}
         run: ctest --preset host-tests
 
+      - name: Report quality check results
+        if: always()
+        run: |
+          failed=""
+          for check in "format=${{ steps.check_format.outcome }}" \
+                       "cppcheck=${{ steps.run_cppcheck.outcome }}" \
+                       "configure_tests=${{ steps.configure_tests.outcome }}" \
+                       "build_tests=${{ steps.build_tests.outcome }}" \
+                       "run_tests=${{ steps.run_tests.outcome }}"; do
+            if [ "${check#*=}" = "failure" ]; then
+              failed="$failed ${check%%=*}"
+            fi
+          done
+          if [ -n "$failed" ] && [ "${{ vars.ENFORCE_QUALITY_GATES }}" = "true" ]; then
+            echo "::error title=Quality checks failed::Failed:$failed (blocking: ENFORCE_QUALITY_GATES is true)"
+            echo "❌ Quality checks failed (blocking):$failed" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$failed" ]; then
+            echo "::warning title=Quality checks failed::Failed:$failed (not blocking: ENFORCE_QUALITY_GATES is not true)"
+            echo "⚠️ Quality checks failed (not blocking):$failed" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "✅ All quality checks passed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Coverage is reporting only; test failures are gated by "Run tests".
       - name: Generate coverage
+        continue-on-error: true
         run: cmake --build --preset host-tests-coverage
 
       - name: Upload coverage report
@@ -353,7 +413,7 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: build-tests/coverage.info
+          files: build-tests/test/coverage.info
           flags: unittests
 
       - name: SonarQube analysis
@@ -370,7 +430,13 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: [detect-changes, unit-tests, build-firmware]
-    if: always() && github.event_name == 'release' && github.event.action == 'published'
+    # Publish only artifacts from a successful build that also passed the
+    # quality job (which only fails when ENFORCE_QUALITY_GATES is true).
+    if: |
+      always() &&
+      github.event_name == 'release' && github.event.action == 'published' &&
+      needs.build-firmware.result == 'success' &&
+      needs.unit-tests.result == 'success'
     
     steps:
       # Download artifacts from build job

@@ -13,6 +13,7 @@
 #include "error_management.h"
 
 //-----------------------------------------------------------
+// MISRA Deviation D2 (Rule 8.7): FreeRTOS hook referenced by lib/ code
 void vApplicationMallocFailedHook(void)
 {
 	/* Called if a call to pvPortMalloc() fails because there is insufficient
@@ -28,6 +29,7 @@ void vApplicationMallocFailedHook(void)
 //-----------------------------------------------------------
 
 // FreeRTOS stack overflow - uses busy wait (scheduler may be corrupted)
+// MISRA Deviation D2 (Rule 8.7): FreeRTOS hook referenced by lib/ code
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) // NOSONAR; FreeRTOS prototype
 {
 	(void)pcTaskName;
@@ -39,14 +41,10 @@ void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) // NOS
 }
 //-----------------------------------------------------------
 
+// MISRA Deviation D2 (Rule 8.7): FreeRTOS hook referenced by lib/ code
 void vApplicationIdleHook(void)
 {
 	static volatile size_t free_heap_size = 0;
 	free_heap_size = xPortGetFreeHeapSize();
 }
 //-----------------------------------------------------------
-
-void vApplicationTickHook(void)
-{
-	// Tick hook
-}

@@ -42,6 +42,87 @@ echo "   Flash: ${FLASH_SIZE_KB}KB (${FLASH_SIZE_BYTES} bytes)"
 echo "   RAM:   ${RAM_SIZE_KB}KB (${RAM_SIZE_BYTES} bytes)"
 echo ""
 
+# Pick the objdump matching the ELF, falling back to the host one.
+if command -v arm-none-eabi-objdump >/dev/null 2>&1; then
+    OBJDUMP=arm-none-eabi-objdump
+elif command -v objdump >/dev/null 2>&1; then
+    OBJDUMP=objdump
+else
+    OBJDUMP=""
+fi
+
+## \brief Classify section sizes into Flash and RAM totals.
+## \details `size` in its default (Berkeley) format classifies by section flags,
+##  which mis-attributes this target: the RP2040 link marks .data as
+##  READONLY,CODE and the NOLOAD .heap/.stack_dummy reservations as
+##  ALLOC,READONLY, so all three land in the "text" column and inflate the
+##  reported Flash figure by PICO_HEAP_SIZE. Classify by LMA/VMA instead:
+##  anything LOADed from the flash window occupies Flash, anything ALLOCated in
+##  the RAM window occupies RAM, and the .heap floor plus the per-core stack
+##  reservations are reported on their own rather than folded into either.
+## \return Sets FLASH_USED, RAM_USED, CODE_SIZE, DATA_SIZE, BSS_SIZE,
+##  HEAP_RESERVED and STACK_RESERVED (all in bytes).
+compute_memory_usage() {
+    local elf="$1"
+
+    FLASH_USED=0
+    RAM_USED=0
+    CODE_SIZE=0
+    DATA_SIZE=0
+    BSS_SIZE=0
+    HEAP_RESERVED=0
+    STACK_RESERVED=0
+
+    [ -n "$OBJDUMP" ] || return 1
+
+    local name size_hex vma_hex lma_hex flags size vma lma
+    while read -r name size_hex vma_hex lma_hex flags; do
+        size=$((16#$size_hex))
+        vma=$((16#$vma_hex))
+        lma=$((16#$lma_hex))
+        [ "$size" -gt 0 ] || continue
+
+        # Flash: loadable contents whose load address is in the XIP window.
+        case "$flags" in
+            *LOAD*)
+                if [ "$lma" -ge $((0x10000000)) ] && [ "$lma" -lt $((0x20000000)) ]; then
+                    FLASH_USED=$((FLASH_USED + size))
+                    if [ "$name" = ".data" ]; then
+                        DATA_SIZE=$((DATA_SIZE + size))
+                    else
+                        CODE_SIZE=$((CODE_SIZE + size))
+                    fi
+                fi
+                ;;
+        esac
+
+        # RAM: allocated sections living in the SRAM window.
+        case "$flags" in
+            *ALLOC*)
+                if [ "$vma" -ge $((0x20000000)) ]; then
+                    case "$name" in
+                        .heap)
+                            HEAP_RESERVED=$((HEAP_RESERVED + size))
+                            ;;
+                        .stack_dummy | .stack1_dummy | .scratch_x | .scratch_y)
+                            STACK_RESERVED=$((STACK_RESERVED + size))
+                            ;;
+                        *)
+                            RAM_USED=$((RAM_USED + size))
+                            if [ "$name" != ".data" ]; then
+                                BSS_SIZE=$((BSS_SIZE + size))
+                            fi
+                            ;;
+                    esac
+                fi
+                ;;
+        esac
+    done < <("$OBJDUMP" -h "$elf" 2>/dev/null |
+        awk '/^ *[0-9]+ \./ { name=$2; sz=$3; vma=$4; lma=$5; getline; gsub(/[ \t]/, "", $0); print name, sz, vma, lma, $0 }')
+
+    return 0
+}
+
 # Start report
 cat > "$REPORT_FILE" << EOF
 === MEMORY ANALYSIS REPORT ===
@@ -66,17 +147,10 @@ if command -v arm-none-eabi-size >/dev/null 2>&1; then
         echo "$SIZE_OUTPUT" >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
         
-        # Parse the size output to extract text, data, bss values
-        # Skip header line and get the data line
-        SIZE_LINE=$(echo "$SIZE_OUTPUT" | tail -n 1)
-        TEXT_SIZE=$(echo "$SIZE_LINE" | awk '{print $1}')
-        DATA_SIZE=$(echo "$SIZE_LINE" | awk '{print $2}')
-        BSS_SIZE=$(echo "$SIZE_LINE" | awk '{print $3}')
-        
-        # Calculate totals
-        FLASH_USED=$TEXT_SIZE  # Flash = text section
-        RAM_USED=$((DATA_SIZE + BSS_SIZE))  # RAM = data + bss
-        
+        # Classify sections by LMA/VMA; see compute_memory_usage for why the
+        # Berkeley columns above cannot be used directly on this target.
+        compute_memory_usage "$ELF_FILE" || true
+
         # Calculate percentages
         if [ "$FLASH_USED" -gt 0 ] && [ "$FLASH_SIZE_BYTES" -gt 0 ]; then
             FLASH_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($FLASH_USED/$FLASH_SIZE_BYTES)*100}")
@@ -99,8 +173,20 @@ if command -v arm-none-eabi-size >/dev/null 2>&1; then
         echo "" >> "$REPORT_FILE"
         printf "%-15s %10s %10s %8s %10s\n" "MEMORY TYPE" "USED" "TOTAL" "PERCENT" "FREE" >> "$REPORT_FILE"
         printf "%-15s %10s %10s %8s %10s\n" "---------------" "----------" "----------" "--------" "----------" >> "$REPORT_FILE"
-        printf "%-15s %10d %10d %7s%% %10d\n" "Flash (text)" "$FLASH_USED" "$FLASH_SIZE_BYTES" "$FLASH_PERCENT" "$FLASH_FREE" >> "$REPORT_FILE"
-        printf "%-15s %10d %10d %7s%% %10d\n" "RAM (data+bss)" "$RAM_USED" "$RAM_SIZE_BYTES" "$RAM_PERCENT" "$RAM_FREE" >> "$REPORT_FILE"
+        printf "%-15s %10d %10d %7s%% %10d\n" "Flash (load)" "$FLASH_USED" "$FLASH_SIZE_BYTES" "$FLASH_PERCENT" "$FLASH_FREE" >> "$REPORT_FILE"
+        printf "%-15s %10d %10d %7s%% %10d\n" "RAM (static)" "$RAM_USED" "$RAM_SIZE_BYTES" "$RAM_PERCENT" "$RAM_FREE" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+
+        # Reservations are not runtime cost: .heap is a NOLOAD link-time floor
+        # (sbrk still grows to __HeapLimit) and the core stacks sit in the
+        # SCRATCH_X/Y banks. They cap how far static data may grow, so report
+        # them separately instead of folding them into Flash or RAM.
+        echo "=== LINKER RESERVATIONS (not counted above) ===" >> "$REPORT_FILE"
+        printf "%-24s %10d bytes\n" "C heap floor (.heap)" "$HEAP_RESERVED" >> "$REPORT_FILE"
+        printf "%-24s %10d bytes\n" "Core stacks (scratch)" "$STACK_RESERVED" >> "$REPORT_FILE"
+        STATIC_GROWTH_HEADROOM=$((RAM_FREE - HEAP_RESERVED - STACK_RESERVED))
+        printf "%-24s %10d bytes\n" "Static-growth headroom" "$STATIC_GROWTH_HEADROOM" >> "$REPORT_FILE"
+        echo "(the link fails once static/.bss growth exceeds the headroom above)" >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
         
         # Add visual indicators
@@ -139,13 +225,13 @@ if command -v arm-none-eabi-size >/dev/null 2>&1; then
         
         # Section breakdown
         echo "=== SECTION BREAKDOWN ===" >> "$REPORT_FILE"
-        if [ "$TEXT_SIZE" -gt 0 ]; then
-            TEXT_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($TEXT_SIZE/$FLASH_SIZE_BYTES)*100}")
-            echo "text (code):           $TEXT_SIZE bytes (${TEXT_PERCENT}% of Flash)" >> "$REPORT_FILE"
+        if [ "$CODE_SIZE" -gt 0 ]; then
+            CODE_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($CODE_SIZE/$FLASH_SIZE_BYTES)*100}")
+            echo "code+rodata (Flash):   $CODE_SIZE bytes (${CODE_PERCENT}% of Flash)" >> "$REPORT_FILE"
         fi
         if [ "$DATA_SIZE" -gt 0 ]; then
             DATA_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($DATA_SIZE/$RAM_SIZE_BYTES)*100}")
-            echo "data (init vars):      $DATA_SIZE bytes (${DATA_PERCENT}% of RAM)" >> "$REPORT_FILE"
+            echo "data (init vars):      $DATA_SIZE bytes (${DATA_PERCENT}% of RAM, plus a Flash load image)" >> "$REPORT_FILE"
         fi
         if [ "$BSS_SIZE" -gt 0 ]; then
             BSS_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($BSS_SIZE/$RAM_SIZE_BYTES)*100}")
@@ -433,11 +519,17 @@ cat >> "$REPORT_FILE" << EOF
 === ANALYSIS SUMMARY ===
 
 MEMORY USAGE INTERPRETATION:
-- text: Program code (Flash memory)
-- data: Initialized variables (RAM)
-- bss:  Uninitialized variables (RAM)
-- Total Flash = text section
-- Total RAM = data + bss sections
+- code+rodata: Program code and constants (Flash only)
+- data:        Initialized variables (RAM, with a load image in Flash)
+- bss:         Uninitialized variables (RAM)
+- Total Flash = every LOADed section, by load address in the XIP window
+- Total RAM   = every ALLOCated section in the SRAM window, minus reservations
+
+Figures here are derived from 'objdump -h', not from the default (Berkeley)
+'size' columns. On this target the link marks .data as READONLY,CODE and the
+NOLOAD .heap / .stack_dummy reservations as ALLOC,READONLY, so 'size' folds all
+three into its "text" column -- which made the reported Flash usage grow and
+shrink with PICO_HEAP_SIZE even though .heap never occupies Flash at all.
 
 MEMORY PERCENTAGE THRESHOLDS:
 ✅ GOOD:     0-50% usage
@@ -475,23 +567,23 @@ if command -v arm-none-eabi-size >/dev/null 2>&1; then
     if [ $? -eq 0 ]; then
         echo "$SIZE_OUTPUT"
         
-        # Parse and show percentages in terminal
-        SIZE_LINE=$(echo "$SIZE_OUTPUT" | tail -n 1)
-        TEXT_SIZE=$(echo "$SIZE_LINE" | awk '{print $1}')
-        DATA_SIZE=$(echo "$SIZE_LINE" | awk '{print $2}')
-        BSS_SIZE=$(echo "$SIZE_LINE" | awk '{print $3}')
-        
-        FLASH_USED=$TEXT_SIZE
-        RAM_USED=$((DATA_SIZE + BSS_SIZE))
-        
+        # Same section-based classification as the report; the Berkeley columns
+        # printed above are kept for reference only.
+        compute_memory_usage "$ELF_FILE" || true
+
         if [ "$FLASH_USED" -gt 0 ] && [ "$FLASH_SIZE_BYTES" -gt 0 ]; then
             FLASH_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($FLASH_USED/$FLASH_SIZE_BYTES)*100}")
             echo "💾 Flash: $FLASH_USED bytes (${FLASH_PERCENT}% of ${FLASH_SIZE_KB}KB)"
         fi
-        
+
         if [ "$RAM_USED" -gt 0 ] && [ "$RAM_SIZE_BYTES" -gt 0 ]; then
             RAM_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($RAM_USED/$RAM_SIZE_BYTES)*100}")
-            echo "🧠 RAM:   $RAM_USED bytes (${RAM_PERCENT}% of ${RAM_SIZE_KB}KB)"
+            echo "🧠 RAM:   $RAM_USED bytes (${RAM_PERCENT}% of ${RAM_SIZE_KB}KB static)"
+        fi
+
+        if [ "$HEAP_RESERVED" -gt 0 ] || [ "$STACK_RESERVED" -gt 0 ]; then
+            echo "📐 Reserved: heap floor $HEAP_RESERVED B, core stacks $STACK_RESERVED B"
+            echo "📈 Static-growth headroom: $((RAM_SIZE_BYTES - RAM_USED - HEAP_RESERVED - STACK_RESERVED)) bytes"
         fi
     else
         echo "Could not get size info"

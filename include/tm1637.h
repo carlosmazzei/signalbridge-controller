@@ -42,7 +42,7 @@
 #define TM1637_BCD_MAX_VALUE 9U
 
 /**
- * @enum tm1637_result_t
+ * @typedef tm1637_result_t
  * @brief Result codes for TM1637 driver functions.
  */
 typedef enum tm1637_result_t {
@@ -56,19 +56,12 @@ typedef enum tm1637_result_t {
 } tm1637_result_t;
 
 /**
- * @brief Key scan descriptor used by the TM1637 keypad interface.
- */
-typedef struct tm1637_key_t {
-	uint8_t ks; /**< Key scan line (1-4). */
-	uint8_t k;  /**< Key input line (0-1). */
-} tm1637_key_t;
-
-/**
  * @brief Allocate and configure a TM1637 driver instance.
  *
  * The helper initialises the driver bookkeeping structure, clears the attached
  * display, programs the default brightness level and enables the panel. The
- * returned handle is owned by the caller and must later be released with
+ * returned handle contains the callbacks and state used by the outputs
+ * subsystem.
  *
  * @param[in] chip_id          Logical multiplexer slot that selects the device.
  * @param[in] select_interface Callback used to acquire and release the shared
@@ -143,16 +136,5 @@ tm1637_result_t tm1637_clear(output_driver_t *config);
  * @retval TM1637_ERR_WRITE      Hardware communication failed.
  */
 tm1637_result_t tm1637_display_on(output_driver_t *config);
-
-/**
- * @brief Disable the TM1637 display without altering cached data.
- *
- * @param[in,out] config Driver handle obtained from @ref tm1637_init().
- *
- * @retval TM1637_OK             The controller acknowledged the command.
- * @retval TM1637_ERR_INVALID_PARAM @p config is NULL.
- * @retval TM1637_ERR_WRITE      Hardware communication failed.
- */
-tm1637_result_t tm1637_display_off(output_driver_t *config);
 
 #endif // TM1637_H

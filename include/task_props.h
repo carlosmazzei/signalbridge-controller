@@ -7,6 +7,7 @@
 #define TASK_PROPS_H
 
 #include <stdint.h>
+#include <stdatomic.h>
 #include "task.h"
 
 /**
@@ -16,7 +17,7 @@
 typedef struct task_props_t
 {
 	TaskHandle_t task_handle; /**< Task handle assigned by the scheduler. */
-	uint32_t high_watermark;  /**< Minimum remaining stack depth recorded. */
+	_Atomic uint32_t high_watermark;  /**< Minimum remaining stack depth recorded. */
 } task_props_t;
 
 #endif // TASK_PROPS_H

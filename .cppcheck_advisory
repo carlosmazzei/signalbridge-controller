@@ -1,0 +1,12 @@
+# Non-MISRA style checks that stay visible without failing the run.
+# MISRA C:2012 diagnostics MUST NOT be listed here: they always return nonzero
+# (see docs/MISRA_DEVIATIONS.md). Analyzer failures also return nonzero.
+unusedFunction:*
+constParameterPointer:*
+constVariablePointer:*
+constVariable:*
+variableScope:*
+unusedStructMember:*
+missingIncludeSystem:*
+unmatchedSuppression:*
+checkersReport:*

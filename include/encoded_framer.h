@@ -15,6 +15,7 @@
 #define ENCODED_FRAMER_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "app_config.h"
@@ -24,6 +25,7 @@
  * @brief Represents a complete COBS-encoded frame (without trailing marker).
  */
 typedef struct encoded_frame_t {
+	uint32_t session; /**< USB session that produced this frame. */
 	uint8_t length;                        /**< Number of valid bytes in @ref data */
 	uint8_t data[MAX_ENCODED_BUFFER_SIZE]; /**< Encoded bytes preceding the marker */
 } encoded_frame_t;
@@ -34,18 +36,19 @@ typedef struct encoded_frame_t {
  */
 typedef struct encoded_framer_t {
 	uint8_t buffer[MAX_ENCODED_BUFFER_SIZE]; /**< Bytes received so far */
+	bool discarding;                        /**< Ignore overflow tail until delimiter. */
 	size_t length;                           /**< Number of valid bytes in @ref buffer */
 } encoded_framer_t;
 
 /**
- * @enum framer_result_t
+ * @typedef framer_result_t
  * @brief Outcome of pushing a single byte into the framer.
  */
 typedef enum framer_result_t {
 	FRAMER_NEED_MORE_DATA = 0, /**< Byte consumed, no frame ready yet */
 	FRAMER_FRAME_READY,        /**< Marker reached, @p out_frame populated */
 	FRAMER_EMPTY_FRAME,        /**< Marker reached with empty buffer */
-	FRAMER_OVERFLOW            /**< Buffer filled without marker, framer reset */
+	FRAMER_OVERFLOW            /**< Buffer filled; discard until the next marker */
 } framer_result_t;
 
 /**
@@ -58,11 +61,12 @@ void encoded_framer_reset(encoded_framer_t *framer);
 /**
  * @brief Feed a single byte into the framer.
  *
- * When the byte is the packet marker (0x00) and the accumulator is non-empty
- * the accumulated bytes are copied into @p out_frame and the framer is
- * reset.  A marker received with an empty accumulator signals
- * @ref FRAMER_EMPTY_FRAME.  When the accumulator is full and a non-marker
- * byte arrives the framer is reset and @ref FRAMER_OVERFLOW is returned.
+ * When the byte is the packet marker (0x00) and the accumulator is non-empty,
+ * the accumulated bytes are copied into @p out_frame and the framer is reset.
+ * A marker received with an empty accumulator signals @ref FRAMER_EMPTY_FRAME.
+ * When the encoded buffer fills, @ref FRAMER_OVERFLOW is returned and all
+ * subsequent bytes are discarded through the next marker; that marker only
+ * re-arms the framer and does not produce a frame.
  *
  * @param[in,out] framer    Framer instance maintained across calls.
  * @param[in]     byte      Byte read from the USB CDC endpoint.

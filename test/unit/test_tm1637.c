@@ -11,16 +11,38 @@
 #include "app_outputs.h"
 #include "tm1637.h"
 
-// Provide a stubbed select_interface used by tm1637 during bit-banged transfers
-static output_result_t stub_select_interface(uint8_t chip_id, bool select)
-{
-	(void)chip_id;
-	(void)select;
-	return OUTPUT_OK;
-}
-
 // spi0 is provided by hardware_mocks.c, but declare here to satisfy the compiler
 extern spi_inst_t *spi0;
+extern void mock_gpio_set_input(bool value);
+static output_result_t select_chip(uint8_t chip, bool on)
+{
+	(void)chip; (void)on;
+	return OUTPUT_OK;
+}
+static void test_brightness_and_failed_flush(void **state)
+{
+	(void)state;
+	mock_gpio_set_input(false);
+	output_driver_t *driver = tm1637_init(0U, select_chip, spi0, 19U, 18U);
+	assert_non_null(driver);
+	assert_int_equal(driver->set_brightness(driver, 0U), OUTPUT_OK);
+	assert_false(driver->display_on);
+	assert_int_equal(driver->set_brightness(driver, 8U), OUTPUT_OK);
+	assert_true(driver->display_on);
+	uint8_t digits[] = {1U, 2U, 3U, 4U};
+	assert_int_equal(tm1637_set_digits(driver, digits, 4U, 0xFFU), OUTPUT_OK);
+	uint8_t previous = driver->active_buffer[0];
+	mock_gpio_set_input(true); // NACK
+	digits[0] = 5U;
+	assert_int_not_equal(tm1637_set_digits(driver, digits, 4U, 0xFFU), OUTPUT_OK);
+	assert_true(driver->buffer_modified);
+	assert_int_equal(driver->active_buffer[0], previous);
+	assert_int_not_equal(driver->set_brightness(driver, 0U), OUTPUT_OK);
+	assert_true(driver->display_on);
+	mock_gpio_set_input(false);
+	vPortFree(driver);
+}
+
 
 static void test_tm1637_command_constants(void **state)
 {
@@ -51,6 +73,7 @@ static void test_tm1637_param_validation(void **state)
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(test_brightness_and_failed_flush),
 		cmocka_unit_test(test_tm1637_command_constants),
 		cmocka_unit_test(test_tm1637_param_validation),
 	};

@@ -7,15 +7,12 @@
             "description": "Debug configuration for Raspberry Pi Pico",
             "binaryDir": "${sourceDir}/build-debug",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "PICO_BOARD": "pico",
                 "PICO_PLATFORM": "rp2040",
                 "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "HOST_BUILD": "OFF",
-                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
-                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+                "HOST_BUILD": "OFF"
             },
             "generator": "Unix Makefiles"
         },
@@ -25,15 +22,12 @@
             "description": "Release configuration for Raspberry Pi Pico",
             "binaryDir": "${sourceDir}/build-release",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
                 "CMAKE_BUILD_TYPE": "Release",
                 "PICO_BOARD": "pico",
                 "PICO_PLATFORM": "rp2040",
                 "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "HOST_BUILD": "OFF",
-                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
-                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+                "HOST_BUILD": "OFF"
             },
             "generator": "Unix Makefiles"
         },
@@ -43,15 +37,12 @@
             "description": "Minimum size optimization for Raspberry Pi Pico",
             "binaryDir": "${sourceDir}/build-size",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
                 "CMAKE_BUILD_TYPE": "MinSizeRel",
                 "PICO_BOARD": "pico",
                 "PICO_PLATFORM": "rp2040",
                 "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "HOST_BUILD": "OFF",
-                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
-                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+                "HOST_BUILD": "OFF"
             },
             "generator": "Unix Makefiles"
         },
@@ -61,15 +52,12 @@
             "description": "Release with debug info for Raspberry Pi Pico",
             "binaryDir": "${sourceDir}/build-relwithdebinfo",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "/usr/bin/arm-none-eabi-gcc",
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo",
                 "PICO_BOARD": "pico",
                 "PICO_PLATFORM": "rp2040",
                 "PICO_COMPILER": "pico_arm_cortex_m0plus_gcc",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "HOST_BUILD": "OFF",
-                "PICO_SDK_PATH": "$env{PICO_SDK_PATH}",
-                "PICO_TOOLCHAIN_PATH": "$env{PICO_TOOLCHAIN_PATH}"
+                "HOST_BUILD": "OFF"
             },
             "generator": "Unix Makefiles"
         },
@@ -79,7 +67,6 @@
             "description": "Host compilation for unit tests",
             "binaryDir": "${sourceDir}/build-tests",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "/usr/bin/gcc",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "HOST_BUILD": "ON",

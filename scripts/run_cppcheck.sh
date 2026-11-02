@@ -2,7 +2,7 @@
 # Script to run cppcheck with MISRA C:2012 addon
 # Optimized for CI and VS Code visibility
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -63,8 +63,15 @@ POSSIBLE_PATHS=(
     "/usr/share/cppcheck/addons/misra.py"
     "/usr/local/share/cppcheck/addons/misra.py"
     "/opt/homebrew/share/cppcheck/addons/misra.py"
-    "$(dirname $(which cppcheck))/../share/cppcheck/addons/misra.py"
+    "$(dirname "$(which cppcheck)")/../share/cppcheck/addons/misra.py"
 )
+
+# Debian/Ubuntu package the addons under the multiarch libdir rather than
+# /usr/share, so glob those in too before giving up.
+while IFS= read -r path; do
+    [ -n "$path" ] && POSSIBLE_PATHS+=("$path")
+done < <(ls -1 /usr/lib/*/cppcheck/addons/misra.py \
+                /usr/local/lib/*/cppcheck/addons/misra.py 2>/dev/null || true)
 
 for path in "${POSSIBLE_PATHS[@]}"; do
     if [ -f "$path" ]; then
@@ -96,9 +103,13 @@ echo "✅ Configuration loaded"
 # Build Base Command
 CPPCHECK_CMD=(
     cppcheck
+    --error-exitcode=2
+    --inline-suppr
+    --exitcode-suppressions="$PROJECT_ROOT/.cppcheck_advisory"
+    --include="$(arm-none-eabi-gcc -print-file-name=include)/stdatomic.h"
     --std=c11
     --enable=all
-    --force
+    --platform=unix32
     --check-level=exhaustive
     -j$(nproc)
     --template='{file}:{line}:{column}: {severity}: {message} [{id}]'
@@ -113,6 +124,12 @@ if [ "$ENABLE_MISRA" = true ] && [ -f "$MISRA_CONFIG" ] && [ -f "$MISRA_RULES" ]
     echo "ℹ️  MISRA enabled"
 fi
 
+# Rule 8.7 deviation D2: cross-translation-unit findings ignore inline
+# suppressions, so suppress the declaration that follows each marker comment.
+while IFS=: read -r marker_file marker_line _; do
+    CPPCHECK_CMD+=("--suppress=misra-c2012-8.7:*${marker_file}:$((marker_line + 1))")
+done < <(cd "$PROJECT_ROOT" && grep -rn "MISRA Deviation D2 (Rule 8.7)" src)
+
 # Load defines from config
 while IFS= read -r line; do
     if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
@@ -122,21 +139,23 @@ while IFS= read -r line; do
     fi
 done < "$CONFIG_FILE"
 
-COMPILE_COMMANDS="$PROJECT_ROOT/compile_commands.json"
+COMPILE_COMMANDS="${CPPCHECK_COMPILE_COMMANDS:-$PROJECT_ROOT/build-release/compile_commands.json}"
 
 if [ -f "$COMPILE_COMMANDS" ]; then
     echo "✅ Using compile_commands.json"
-    CPPCHECK_CMD+=(--project="$COMPILE_COMMANDS")
+    python3 "$SCRIPT_DIR/prepare_cppcheck.py" "$COMPILE_COMMANDS" "$OUTPUT_DIR/compile_commands.json"
+    CPPCHECK_CMD+=(--project="$OUTPUT_DIR/compile_commands.json")
     CPPCHECK_CMD+=(--file-filter="$PROJECT_ROOT/src/*")
-    CPPCHECK_CMD+=(-I"$PROJECT_ROOT/include/*") 
+    CPPCHECK_CMD+=(-I"$PROJECT_ROOT/include")
+    CPPCHECK_CMD+=('-Dbi_decl(x)=')
 
     echo "🚀 Executing Cppcheck..."
     echo "CMD: ${CPPCHECK_CMD[*]}"
     echo "---------------------------------------------------"
 
     # Execute DIRECTLY to stdout/stderr
-    "${CPPCHECK_CMD[@]}"
-    EXIT_CODE=$?
+    EXIT_CODE=0
+    "${CPPCHECK_CMD[@]}" || EXIT_CODE=$?
 
     collect_dumps
     if [ $EXIT_CODE -ne 0 ]; then

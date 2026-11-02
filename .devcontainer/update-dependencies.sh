@@ -150,6 +150,7 @@ log_debug "Input file: $DEPENDENCIES_FILE"
 log_debug "Output file: $OUTPUT_FILE"
 log_debug "Dry run: $DRY_RUN"
 
+ARCHITECTURE=$(dpkg --print-architecture)
 JSON=$(cat "$DEPENDENCIES_FILE")
 updated_count=0
 error_count=0
@@ -159,14 +160,14 @@ for PACKAGE in $(echo "$JSON" | jq -r 'keys | .[]'); do
     log_debug "Processing package: $PACKAGE"
     
     if VERSION=$(apt-cache policy "$PACKAGE" 2>/dev/null | grep -oP '(?<=Candidate:\s)(.+)'); then
-        CURRENT_VERSION=$(echo "$JSON" | jq -r --arg package "$PACKAGE" '.[$package] // ""')
+        CURRENT_VERSION=$(echo "$JSON" | jq -r --arg package "$PACKAGE" --arg architecture "$ARCHITECTURE" '.[$package] | if type == "object" then .[$architecture] // "" else . // "" end')
         
         if [[ -n "$CURRENT_VERSION" && "$CURRENT_VERSION" != "null" ]]; then
             # Compare versions using dpkg --compare-versions
             if dpkg --compare-versions "$VERSION" gt "$CURRENT_VERSION" 2>/dev/null; then
                 log_info "Updating $PACKAGE: $CURRENT_VERSION -> $VERSION"
                 # Always update JSON for consistency, regardless of dry run
-                NEW_JSON=$(echo "$JSON" | jq '.[$package] = $version' --arg package "$PACKAGE" --arg version "$VERSION" 2>&1)
+                NEW_JSON=$(echo "$JSON" | jq --arg architecture "$ARCHITECTURE" '.[$package] |= (if type == "object" then .[$architecture] = $version else $version end)' --arg package "$PACKAGE" --arg version "$VERSION" 2>&1)
                 if [[ $? -eq 0 ]]; then
                     JSON="$NEW_JSON"
                     log_debug "Successfully updated JSON for package: $PACKAGE"
@@ -189,7 +190,7 @@ for PACKAGE in $(echo "$JSON" | jq -r 'keys | .[]'); do
             # No current version, add the new one
             log_info "Adding $PACKAGE: $VERSION"
             # Always update JSON for consistency, regardless of dry run
-            NEW_JSON=$(echo "$JSON" | jq '.[$package] = $version' --arg package "$PACKAGE" --arg version "$VERSION" 2>&1)
+            NEW_JSON=$(echo "$JSON" | jq --arg architecture "$ARCHITECTURE" '.[$package] |= (if type == "object" then .[$architecture] = $version else $version end)' --arg package "$PACKAGE" --arg version "$VERSION" 2>&1)
             if [[ $? -eq 0 ]]; then
                 JSON="$NEW_JSON"
                 log_debug "Successfully updated JSON for package: $PACKAGE"
