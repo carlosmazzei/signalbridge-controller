@@ -163,18 +163,6 @@ void setup_watchdog_with_error_detection(uint32_t timeout_ms)
 }
 
 /**
- * @brief Panic handler for critical errors.
- */
-void __attribute__((noreturn)) panic_handler(const char *fmt, ...)
-{
-	(void)fmt;
-
-	// Disable all interrupts using Pico SDK
-	(void)save_and_disable_interrupts();
-	fatal_halt(ERROR_PICO_SDK_PANIC);
-}
-
-/**
  * @brief Fatal halt helper that records error and shows pattern forever.
  */
 void __attribute__((noreturn)) fatal_halt(error_type_t type)
