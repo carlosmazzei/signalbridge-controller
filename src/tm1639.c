@@ -29,12 +29,8 @@ static tm1639_result_t tm1639_send_command(const output_driver_t *config, uint8_
 static inline void tm1639_start(const output_driver_t *config);
 static inline void tm1639_stop(const output_driver_t *config);
 static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data);
-static void tm1639_set_read_mode(const output_driver_t *config);
-static inline void tm1639_set_write_mode(const output_driver_t *config);
-static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count);
 static tm1639_result_t tm1639_flush(output_driver_t *config);
 static tm1639_result_t tm1639_update_buffer(output_driver_t *config, uint8_t addr, uint8_t data);
-static tm1639_result_t tm1639_get_key_states(const output_driver_t *config, tm1639_key_t *keys);
 static tm1639_result_t tm1639_update(output_driver_t *config);
 static tm1639_result_t tm1639_validate_custom_array(const uint8_t *digits, const size_t length);
 static tm1639_result_t tm1639_validate_parameters(const output_driver_t *config,
@@ -115,107 +111,6 @@ static inline int tm1639_write_byte(const output_driver_t *config, uint8_t data)
 	// Use SPI hardware to write the byte
 	int bytes_written = spi_write_blocking(config->spi, &data, 1);
 	return bytes_written;
-}
-
-/**
- * @brief Configure GPIO for reading from the DIO pin.
- *
- * This function sets the DIO pin to input mode and disables its SPI function,
- * allowing bit-banged read operations from the TM1639. It also sets the clock pin
- * to output mode and enables pull-up resistors on both pins, as required by the TM1639 protocol.
- *
- * @param[in] config Pointer to the TM1639 output driver configuration structure.
- */
-static void tm1639_set_read_mode(const output_driver_t *config)
-{
-	// Disable SPI function for DIO pin
-	gpio_set_function(config->dio_pin, GPIO_FUNC_NULL);
-	gpio_set_dir(config->dio_pin, GPIO_IN);
-
-	// Toggle clock pin directly, as we're not in SPI mode now
-	gpio_set_function(config->clk_pin, GPIO_FUNC_NULL);
-	gpio_set_dir(config->clk_pin, GPIO_OUT);
-
-	// Enable pull-up on DIO pin (TM1639 uses open drain outputs)
-	gpio_pull_up(config->dio_pin);
-	gpio_pull_up(config->clk_pin);
-}
-
-/**
- * @brief Configure GPIO back to SPI mode for writing.
- *
- * This function restores the DIO and CLK pins to SPI mode,
- * allowing hardware SPI operations to the TM1639 device.
- *
- * @param[in] config Pointer to the TM1639 output driver configuration structure.
- */
-static inline void tm1639_set_write_mode(const output_driver_t *config)
-{
-	// Restore SPI function for DIO pin
-	gpio_set_function(config->dio_pin, GPIO_FUNC_SPI);
-	gpio_set_function(config->clk_pin, GPIO_FUNC_SPI);
-}
-
-/**
- * @brief Bit-bang read operation for TM1639.
- *
- * This function performs a bit-banged read operation to retrieve bytes from the TM1639 device.
- * It switches the DIO pin to input mode, reads the specified number of bytes, and then restores
- * the pins to SPI mode.
- *
- * @param[in]  config Pointer to the TM1639 output driver configuration structure.
- * @param[out] data   Pointer to the buffer where the read bytes will be stored.
- * @param[in]  count  Number of bytes to read from the TM1639.
- *
- * @return TM1639_OK on success, or TM1639_ERR_INVALID_PARAM if parameters are invalid.
- */
-static tm1639_result_t tm1639_read_bytes(const output_driver_t *config, uint8_t *data, uint8_t count)
-{
-	tm1639_result_t result = TM1639_OK;
-
-	// Parameter validation
-	if ((NULL == config) || (NULL == data))
-	{
-		result = TM1639_ERR_INVALID_PARAM;
-	}
-
-	if (TM1639_OK == result)
-	{
-		// Switch DIO to input mode
-		tm1639_set_read_mode(config);
-
-		// Waiting time (Twait) required by TM1639 protocol - at least 2µs
-		sleep_us(2);
-
-		// Manual bit-banging to read data
-		for (uint8_t i = 0U; i < count; i++)
-		{
-			data[i] = 0U;
-
-			// Manual bit-banging of clock to read 8 bits
-			for (uint8_t bit = 0U; bit < (uint8_t)8; bit++)
-			{
-				// Set clock high
-				gpio_put(config->clk_pin, 1);
-				sleep_us(1); // Brief delay
-
-				// Read data bit (LSB first)
-				if (0U != gpio_get(config->dio_pin))
-				{
-					data[i] |= ((uint8_t)1U << bit);
-				}
-
-				// Set clock low
-				gpio_put(config->clk_pin, 0);
-				sleep_us(1); // Brief delay
-			}
-		}
-
-		// Restore pins to SPI mode
-		tm1639_set_write_mode(config);
-	}
-
-	return result;
 }
 
 /**

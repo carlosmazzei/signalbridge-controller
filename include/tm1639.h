@@ -21,7 +21,6 @@
  * @{
  */
 #define TM1639_CMD_DATA_WRITE      0x02U /**< Auto-increment data write (bit-reversed for MSB-first SPI). */
-#define TM1639_CMD_DATA_READ_KEYS  0x42U /**< Key scanning data read (bit-reversed for MSB-first SPI). */
 #define TM1639_CMD_FIXED_ADDR      0x22U /**< Fixed address write (bit-reversed for MSB-first SPI). */
 #define TM1639_CMD_DISPLAY_OFF     0x01U /**< Display off command (bit-reversed for MSB-first SPI). */
 #define TM1639_CMD_DISPLAY_ON      0x11U /**< Display on command base (bit-reversed for MSB-first SPI). */
@@ -57,14 +56,6 @@ typedef enum tm1639_result_t {
 	TM1639_ERR_MUTEX_TIMEOUT = 6, /**< Timeout while acquiring mutex. */
 	TM1639_ERR_INVALID_CHAR = 7   /**< Invalid character provided. */
 } tm1639_result_t;
-
-/**
- * @brief Key scan descriptor returned by @ref tm1639_get_key_states().
- */
-typedef struct tm1639_key_t {
-	uint8_t ks; /**< Key scan line (1-4). */
-	uint8_t k;  /**< Key input line (0-1). */
-} tm1639_key_t;
 
 /**
  * @brief Allocate and configure a TM1639 driver instance.
