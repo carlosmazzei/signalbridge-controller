@@ -90,9 +90,7 @@ target_compile_definitions(pi_controller PRIVATE
     PICO_USE_FASTEST_SUPPORTED_CLOCK=1
     PICO_STACK_SIZE=0x1000 # 4KB main stack
     PICO_CORE1_STACK_SIZE=0x1000 # 4KB Core 1 stack
-    PICO_HEAP_SZIE=0x20000
     PICO_USE_STACK_GUARDS=1
-    PICO_STACK_GUARDS=1
 )
 
 # COMPILER DEBUG OPTIONS - Enable debugging features
