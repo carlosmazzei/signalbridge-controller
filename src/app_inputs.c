@@ -624,25 +624,3 @@ void adc_read_task(void *pvParameters)
 		vTaskDelay(pdMS_TO_TICKS(input_config.adc_scan_interval_ms));
 	}
 }
-
-/**
- * @brief Set encoder enable mask (reserved for future use)
- *
- * This function is currently unused but reserved for dynamic encoder
- * enable/disable functionality. Potential use cases:
- * - Runtime configuration of active encoders
- * - Power-saving mode (disable unused encoders)
- * - Diagnostic mode (test individual encoders)
- *
- * @param[in] mask Bitmask indicating which encoders to enable (bit N = encoder N)
- *
- * @note Currently static. Can be exposed via app_inputs.h if needed.
- */
-static void encoder_set_mask(uint8_t mask)
-{
-	for (uint8_t i = 0U; i < input_config.num_encoders; i++)
-	{
-		input_config.encoder_map[i].enabled = ((mask & (1U << i)) != 0U);
-	}
-	build_encoder_skip();
-}
