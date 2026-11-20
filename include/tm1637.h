@@ -26,8 +26,6 @@
 #define TM1637_CMD_ADDR_BASE       0xC0U /**< Base address command. */
 /** @} */
 
-/** Total number of bytes exposed by the TM1637 display memory. */
-#define TM1637_MAX_DISPLAY_REGISTERS 6U
 /** Number of digits supported by the TM1637 controller. */
 #define TM1637_DIGIT_COUNT 4U
 /** Size of the shadow buffers maintained by the driver. */
@@ -36,10 +34,6 @@
 #define TM1637_DECIMAL_POINT_MASK 0x80U
 /** Special constant indicating that no decimal point should be rendered. */
 #define TM1637_NO_DECIMAL_POINT 0xFFU
-/** Mask used to extract the BCD nibble from an encoded digit. */
-#define TM1637_BCD_MASK 0x0FU
-/** Highest valid BCD value accepted by the driver. */
-#define TM1637_BCD_MAX_VALUE 9U
 
 /**
  * @enum tm1637_result_t
