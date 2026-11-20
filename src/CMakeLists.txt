@@ -31,7 +31,6 @@ if(PICO_PLATFORM)
         hardware_spi
         hardware_pwm
         hardware_clocks
-        hardware_pio
         hardware_adc
         FreeRTOS-Kernel  # This uses RP2040 port automatically
     )
@@ -149,7 +148,6 @@ target_link_libraries(pi_controller PRIVATE
     hardware_adc
     hardware_spi
     hardware_pwm
-    hardware_pio
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
 )
