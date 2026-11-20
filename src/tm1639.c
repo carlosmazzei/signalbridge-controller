@@ -14,7 +14,6 @@
  #include <hardware/spi.h>
  #include <hardware/gpio.h>
  #include <hardware/clocks.h>
- #include <hardware/pio.h>
 
  #include "FreeRTOS.h"
  #include "semphr.h"
